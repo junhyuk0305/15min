@@ -227,7 +227,7 @@ export const copy = {
     idleContinue: '계속하기',
     // 학습 나가기 시트(UXP 3절). 학습 중이라 긁지 않는다. 회고 3분을 채운 뒤에는 leaveFilledBody
     leaveTitle: '학습에서 나가시겠습니까?',
-    leaveBody: (n: number) => `지금 나가면 남은 ${n}분 동안 다시 알림이 갑니다.`,
+    leaveBody: (n: number) => `지금 나가면 남은 ${n}분을 채울 때까지 다시 알림이 갑니다.`,
     leaveFilledBody: '완료하기를 눌러야 오늘 학습이 끝납니다.',
     stay: '계속하기',
     leave: '나가기',
@@ -416,7 +416,7 @@ export const copy = {
     deleteKeep: '포기 확정 횟수와 이용 정지 기간은 1년 동안 남습니다.',
     deleteGiveup: '포기 대기 중이라 삭제하면 이 포기를 확정으로 셉니다.',
     deleteConfirm: '삭제하기',
-    deleteCancel: '돌아가기',
+    deleteCancel: '닫기',
     terms: '이용약관',
     privacy: '개인정보처리방침',
     version: '앱 버전',
@@ -622,7 +622,7 @@ export const copy = {
     // 4번 첫 학습 규칙 모달. 건너뛰기 없음
     rulesTitle: '학습 규칙',
     rulesPlan: '오늘 학습 순서',
-    rules: ['화면을 켜 두고 답할 때만 시간이 줄어듭니다.', '2분 동안 입력이 없으면 멈춥니다.', '나가면 남은 시간만큼 다시 알림이 갑니다.'],
+    rules: ['화면을 켜 두고 학습하는 동안만 시간이 줄어듭니다.', '2분 동안 입력이 없으면 멈춥니다.', '나가면 남은 시간을 채울 때까지 다시 알림이 갑니다.'],
     // 6번, 9번 단계 전환 화면의 한 줄
     phaseB: '상대와 영어로 대화합니다. 막히면 코치가 표현을 알려 줍니다. 한국어로 써도 됩니다.',
     phaseC: '오늘 배운 표현을 다시 확인합니다.',
