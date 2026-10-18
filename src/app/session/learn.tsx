@@ -119,7 +119,7 @@ function LearnBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
     initial: rec.activeSeconds,
     total,
     limit: shown ? phaseEnd(shown, targetMinutes) : 0,
-    gates: { waiting: waiting > 0, revealing, offline, failed: failed || saveStuck, overlay: leaveOpen || menu.opened, tip: rulesOpen, blocked },
+    gates: { waiting: waiting > 0, revealing, offline, failed: failed || saveStuck, overlay: leaveOpen || menu.opened, tip: rulesOpen || menu.tip, blocked },
     save,
   });
   useSessionPresence(() => save(clock.current()));

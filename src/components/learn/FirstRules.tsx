@@ -13,7 +13,7 @@ const p = PALETTES.white;
 
 /**
  * 첫 학습 규칙 모달(갭분석 3.1-4, P0). 첫 학습에서 시계가 돌기 전에 한 번 뜬다.
- * 건너뛰기가 없다. "시작하기"로만 닫고 Android 뒤로도 닫지 않는다. 막대 그림은 그날 단계 시간(phasePlan)과 회고 3분이다.
+ * 건너뛰기가 없다. "확인하기"로만 닫고 Android 뒤로도 닫지 않는다. 막대 그림은 그날 단계 시간(phasePlan)과 회고 3분이다.
  */
 export function FirstRules({ visible, targetMinutes, levelCheck, onStart }: { visible: boolean; targetMinutes: number; levelCheck: boolean; onStart: () => void }) {
   const insets = useSafeAreaInsets();
@@ -42,7 +42,7 @@ export function FirstRules({ visible, targetMinutes, levelCheck, onStart }: { vi
               </View>
             </ScrollView>
             <View style={{ paddingHorizontal: S.lg, paddingTop: S.md }}>
-              <Button title={tp.start} onPress={onStart} />
+              <Button title={tp.rulesStart} onPress={onStart} />
             </View>
           </View>
         </View>

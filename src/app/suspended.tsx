@@ -64,6 +64,8 @@ export default function Suspended() {
   const menu = useLineMenu();
   const { open: openMenu, toReasons } = menu;
   const targetOf = useCallback((l: Line) => ({ id: l.id, text: l.text, send: (r: string) => useApp.getState().reportMessage(l.id, r) }), []);
+  // Transcript는 memo다. 넘기는 함수를 고정해 다시 그릴 때마다 목록을 다시 그리지 않게 한다(UXP 6.3)
+  const onLine = useCallback((l: Line) => openMenu(targetOf(l)), [openMenu, targetOf]);
   const latest = lines.findLast((l) => l.kind !== 'me');
 
   // 반성문 시간대는 서버 프로필 값(suspended_start_minutes, suspended_target_minutes)을 쓴다.
@@ -163,7 +165,7 @@ export default function Suspended() {
             waiting={busy}
             target={reveal.target}
             isNew={reveal.isNew}
-            onLine={(l) => openMenu(targetOf(l))}
+            onLine={onLine}
           />
         </>
       ) : asking ? (

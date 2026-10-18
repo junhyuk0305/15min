@@ -3,6 +3,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { reportError } from './report';
 
 type Tips = {
   seenTips: string[];
@@ -24,7 +25,12 @@ export const useTips = create<Tips>()(
     }),
     {
       name: 'graego-tips-v1',
-      storage: createJSONStorage(() => AsyncStorage),
+      // 쓰기 실패(저장 공간 부족 등)는 처리하지 않은 거부가 되지 않게 기록만 한다. 본 안내는 이번 실행 동안은 남는다(U9 Q6)
+      storage: createJSONStorage(() => ({
+        getItem: (k: string) => AsyncStorage.getItem(k),
+        setItem: (k: string, v: string) => AsyncStorage.setItem(k, v).catch((e: unknown) => reportError(e, 'tips')),
+        removeItem: (k: string) => AsyncStorage.removeItem(k),
+      })),
       partialize: (s) => ({ seenTips: s.seenTips }),
       onRehydrateStorage: () => () => useTips.setState({ ready: true }),
     },

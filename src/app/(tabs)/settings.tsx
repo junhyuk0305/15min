@@ -9,9 +9,10 @@ import { showToast } from '@/components/Toast';
 import { H1, Row, Screen } from '@/components/ui';
 import { toApiError } from '@/lib/api';
 import { copy, errorText } from '@/lib/copy';
-import { getExactAlarm, openExactAlarmSettings, openSystemSettings } from '@/lib/notify';
+import { getExactAlarm, openExactAlarmSettings } from '@/lib/notify';
 import { fmtClock } from '@/lib/rules';
-import { useRuntime } from '@/lib/runtime';
+import { reportError } from '@/lib/report';
+import { turnOnNotifications, useRuntime } from '@/lib/runtime';
 import { useApp } from '@/lib/store';
 import { api } from '@/lib/supabase';
 import { B, C, F, R, S, T } from '@/lib/theme';
@@ -93,8 +94,9 @@ export default function Settings() {
     }
   };
 
-  // 권한을 읽기 전(앱 시작 직후)과 아직 묻지 않은 상태는 'undetermined'다. 홈 배너처럼 판단을 미루고 값을 비운다
-  const notifOff = permission === 'denied';
+  // 권한을 읽기 전(null)에는 값을 비운다(깜빡임 방지). 읽었는데 허용이 아니면(거부, 아직 묻지 않음) 꺼짐이다(U9 Q2).
+  // 누르면 아직 묻지 않았을 때는 권한 창, 거부했으면 시스템 설정
+  const notifOff = permission !== null && permission !== 'granted';
   // 정확한 시각 알림은 Android 권한이다. 확인할 수 없으면(unknown) 줄을 두지 않는다. 거부는 Android에서만 나온다
   const showExact = exactAlarm === 'denied' || (Platform.OS === 'android' && exactAlarm === 'granted');
   const exactOff = exactAlarm === 'denied';
@@ -138,7 +140,7 @@ export default function Settings() {
           value={notifOff ? t.notifOff : permission === 'granted' ? t.notifOn : undefined}
           dot={notifOff}
           chevron={notifOff}
-          onPress={notifOff ? openSystemSettings : undefined}
+          onPress={notifOff ? () => void turnOnNotifications().catch((e: unknown) => reportError(e, 'notify')) : undefined}
         />
         {showExact ? (
           <Row

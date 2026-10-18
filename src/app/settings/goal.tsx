@@ -1,8 +1,8 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Chip } from '@/components/goal/Chip';
-import { clampTarget, toggleWeekday, WEEKDAY_ORDER, weekdaysShort } from '@/components/goal/logic';
+import { clampTarget, toggleWeekday, weekdaysShort } from '@/components/goal/logic';
+import { WeekdayCells } from '@/components/goal/PlanFields';
 import { ConfirmSheet } from '@/components/BottomSheet';
 import { ErrorLine } from '@/components/ErrorLine';
 import { Header } from '@/components/Header';
@@ -107,17 +107,8 @@ export default function GoalSettings() {
 
       <View style={{ gap: S.sm }}>
         <Label>{t.weekdaysLabel}</Label>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: S.sm }}>
-          {WEEKDAY_ORDER.map((w) => (
-            <Chip
-              key={w}
-              role="checkbox"
-              label={t.weekdayNames[w]}
-              on={v.weekdays.includes(w)}
-              onPress={() => edit({ weekdays: toggleWeekday(v.weekdays, w) })}
-            />
-          ))}
-        </View>
+        {/* 칩 7개는 390폭에서 두 줄로 넘쳐 "일"이 바닥 버튼에 가렸다. 목표 정하기 2/3과 같은 붙은 7칸으로 한 줄에 둔다(U9 M5) */}
+        <WeekdayCells weekdays={v.weekdays} onToggle={(w) => edit({ weekdays: toggleWeekday(v.weekdays, w) })} />
       </View>
 
       <View style={{ gap: S.xs }}>

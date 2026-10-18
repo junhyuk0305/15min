@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import type { AppGoal, Message } from '../model';
 import { tapTarget, type TapState } from '../notifyTarget';
 import type { DayStatus } from '../rules';
-import { EMPTY_CACHE, homeBanners, homeNoteOf, lastStudyResult, loadPhaseOf, longWaitOf, nextStudyDay, planInputOf, retroFirstLine } from '../selectors';
+import { EMPTY_CACHE, homeBanners, homeNoteOf, lastStudyResult, loadPhaseOf, longWaitOf, nextStudyDay, planInputOf, retroFirstLine, shortWaitOf } from '../selectors';
 
 // 2026-10-19 월요일부터 월~금
 const goal = (over: Partial<AppGoal> = {}): AppGoal => ({
@@ -48,8 +48,12 @@ test('배너: 정확한 알람 권한을 알 수 없으면(Expo Go, 웹) 띄우�
   assert.deepEqual(homeBanners({ permission: 'granted', exactAlarm: 'unknown', loadFailed: false, offline: false }), []);
 });
 
-test('배너: 권한을 아직 묻지 않았으면 알림 배너는 없다', () => {
-  assert.deepEqual(homeBanners({ permission: 'undetermined', exactAlarm: 'denied', loadFailed: false, offline: false }), []);
+test('배너: 권한을 아직 읽지 않았으면(null) 알림 배너는 없다', () => {
+  assert.deepEqual(homeBanners({ permission: null, exactAlarm: 'denied', loadFailed: false, offline: false }), []);
+});
+
+test('배너: 읽었더니 아직 묻지 않은 상태(undetermined)면 알림이 오지 않으니 알림 배너를 띄운다(U9 Q2)', () => {
+  assert.deepEqual(homeBanners({ permission: 'undetermined', exactAlarm: 'denied', loadFailed: false, offline: false }), ['notif_off']);
 });
 
 test('배너: 읽기 실패는 맨 위. 네트워크면 오프라인, 아니면 불러오기 실패', () => {
@@ -236,4 +240,14 @@ test('홈 카운트다운: 24시간 이상이면 일과 시간, 그보다 짧으
   // 33:33:17 → 1일 9시간
   assert.deepEqual(longWaitOf(33 * H + 33 * 60_000 + 17_000), { days: 1, hours: 9 });
   assert.deepEqual(longWaitOf(50 * H), { days: 2, hours: 2 });
+});
+
+test('홈 카운트다운: 24시간보다 짧으면 1시간 이상은 시간과 분, 그보다 짧으면 분과 초(시각 모양과 다르게)', () => {
+  const H = 3_600_000;
+  assert.deepEqual(shortWaitOf(3 * H + 24 * 60_000 + 59_000), { hours: 3, minutes: 24 });
+  assert.deepEqual(shortWaitOf(23 * H + 59 * 60_000 + 59_000), { hours: 23, minutes: 59 });
+  assert.deepEqual(shortWaitOf(H), { hours: 1, minutes: 0 });
+  assert.deepEqual(shortWaitOf(H - 1000), { minutes: 59, seconds: 59 });
+  assert.deepEqual(shortWaitOf(24 * 60_000 + 13_400), { minutes: 24, seconds: 13 });
+  assert.deepEqual(shortWaitOf(-5000), { minutes: 0, seconds: 0 });
 });

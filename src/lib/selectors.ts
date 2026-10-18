@@ -140,26 +140,37 @@ export type HomeBanner = 'offline' | 'load_failed' | 'notif_off' | 'exact_alarm'
 
 /**
  * 알림이 꺼져 있으면 설정 열기(12.2). 알림은 켜졌는데 Android 정확한 알람 권한이 없으면 그 설정 열기(P8-3).
+ * 권한을 아직 읽지 않았으면(null) 띄우지 않는다(앱 시작 직후 깜빡임 방지). 읽었는데 허용이 아니면(거부, 아직 묻지 않음) 띄운다(U9 Q2).
  * 정확한 알람 권한을 확인할 수 없으면('unknown', Expo Go와 웹) 띄우지 않는다.
  */
 export function homeBanners(i: {
-  permission: 'granted' | 'denied' | 'undetermined';
+  permission: 'granted' | 'denied' | 'undetermined' | null;
   exactAlarm: 'granted' | 'denied' | 'unknown';
   loadFailed: boolean;
   offline: boolean;
 }): HomeBanner[] {
   const out: HomeBanner[] = [];
   if (i.loadFailed) out.push(i.offline ? 'offline' : 'load_failed');
-  if (i.permission === 'denied') out.push('notif_off');
+  if (i.permission !== null && i.permission !== 'granted') out.push('notif_off');
   else if (i.permission === 'granted' && i.exactAlarm === 'denied') out.push('exact_alarm');
   return out;
 }
 
-/** 남은 시간이 24시간 이상이면 일과 시간("1일 9시간"). 그보다 짧으면 null이고 홈은 시:분:초로 센다 */
+/** 남은 시간이 24시간 이상이면 일과 시간("1일 9시간"). 그보다 짧으면 null이고 홈은 shortWaitOf로 센다 */
 export function longWaitOf(ms: number): { days: number; hours: number } | null {
   if (ms < 86_400_000) return null;
   const hours = Math.floor(ms / 3_600_000);
   return { days: Math.floor(hours / 24), hours: hours % 24 };
+}
+
+/**
+ * 24시간보다 짧은 남은 시간. 1시간 이상이면 시간과 분("3시간 24분"), 그보다 짧으면 분과 초("24분 13초").
+ * "00:24"처럼 시각과 같은 모양이면 남은 시간인지 알 수 없었다(U9 D10)
+ */
+export function shortWaitOf(ms: number): { hours: number; minutes: number } | { minutes: number; seconds: number } {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  if (s >= 3600) return { hours: Math.floor(s / 3600), minutes: Math.floor((s % 3600) / 60) };
+  return { minutes: Math.floor(s / 60), seconds: s % 60 };
 }
 
 /** from부터(포함) 처음 오는 학습일. 2주 안에 없으면 null */

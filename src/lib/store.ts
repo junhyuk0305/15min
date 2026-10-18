@@ -143,13 +143,18 @@ export const useApp = create<AppState>()(
         return g;
       };
 
-      /** 액션 공통: 정지나 영구 정지가 서버에서 오면 프로필을 다시 읽어 라우팅이 바뀌게 한다 */
-      async function act<T>(run: () => Promise<T>): Promise<T> {
+      /**
+       * 액션 공통: 정지나 영구 정지가 서버에서 오면 프로필을 다시 읽어 라우팅이 바뀌게 한다.
+       * recheck면 연결 실패 뒤에도 다시 읽는다. 응답만 끊기고 서버에서는 처리됐을 수 있다(쿠폰, 포기 신청, U9 Q3).
+       * 학습 중 저장과 대화는 넣지 않는다. 끊긴 동안 5초마다 다시 읽게 되고, 홈이 읽기 실패 상태로 남는다
+       */
+      async function act<T>(run: () => Promise<T>, recheck = false): Promise<T> {
         try {
           return await run();
         } catch (e) {
           const err = toApiError(e);
           if (err.kind === 'suspended' || err.kind === 'banned' || (err.code && STALE_CODES.includes(err.code))) void get().refresh();
+          else if (recheck && NETWORK_KINDS.includes(err.kind)) void get().refresh();
           throw err;
         }
       }
@@ -333,20 +338,20 @@ export const useApp = create<AppState>()(
             const r = await api.spendCoupon(g.id);
             set({ goal: { ...g, coupons: r.coupons, couponProgressDays: 0 }, leftAt: null });
             await get().refresh(); // 오늘 행(coupon)은 서버가 만들었다
-          }),
+          }, true),
 
         requestGiveup: () =>
           act(async () => {
             const goal = await api.requestGiveup(requireGoal().id);
             set({ goal });
-          }),
+          }, true),
 
         withdrawGiveup: () =>
           act(async () => {
             const goal = await api.withdrawGiveup(requireGoal().id);
             set({ goal });
             void get().refresh(); // 대기 중이던 날의 판정(giveup_wait)
-          }),
+          }, true),
 
         declareAchievement: () =>
           act(async () => {
@@ -359,7 +364,7 @@ export const useApp = create<AppState>()(
           act(async () => {
             const goal = await api.changeSchedule(requireGoal().id, startMinutes, targetMinutes, weekdays);
             set({ goal });
-          }),
+          }, true),
 
         lessonTurn: (text, id) =>
           act(async () => {
@@ -453,11 +458,14 @@ export const useApp = create<AppState>()(
               await api.deleteAccount();
             } catch (e) {
               const err = toApiError(e);
-              // 응답만 못 받았고 서버에서는 지워졌을 수 있다. 다시 읽어 확인한다(지워졌으면 refresh가 로그아웃한다)
-              if (err.kind === 'timeout' || err.kind === 'server') await get().refresh();
+              // 응답만 못 받았고 서버에서는 지워졌을 수 있다. 다시 읽어 확인한다(지워졌으면 refresh가 알리고 로그아웃한다).
+              // 연결이 끊긴 경우(network)도 같다(U9 Q1)
+              if (NETWORK_KINDS.includes(err.kind) || err.kind === 'server') await get().refresh();
               if (!get().authed) return;
               throw err;
             }
+            // 로그인 화면에서 지워졌다는 것을 알린다(U9 Q5)
+            useRuntime.getState().setNotice(copy.status.accountGone);
             await get().signOut();
           }),
 

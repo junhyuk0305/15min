@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { create } from 'zustand';
 import { DUR, EASE } from '@/lib/motion';
-import { C, FRAME_MAX, R, S, T } from '@/lib/theme';
+import { FRAME_MAX, PALETTES, R, S, T } from '@/lib/theme';
 import { useReducedMotion } from '@/lib/useReducedMotion';
 
 /**
@@ -17,13 +17,29 @@ const useToast = create<{ text: string | null; id: number }>(() => ({ text: null
 export const showToast = (text: string) => useToast.setState((s) => ({ text, id: s.id + 1 }));
 export const hideToast = () => useToast.setState({ text: null });
 
+// 떠 있는 다크 화면(학습 B) 수. 다크 위에서는 검정 토스트가 바탕에 묻혀 밝은 바탕으로 바꾼다(U9 Q7)
+const useDarkCount = create<{ n: number }>(() => ({ n: 0 }));
+
+/** 다크 화면이 떠 있는 동안 on을 참으로 둔다(LearnShell) */
+export function useDarkToast(on: boolean) {
+  useEffect(() => {
+    if (!on) return;
+    useDarkCount.setState((s) => ({ n: s.n + 1 }));
+    return () => useDarkCount.setState((s) => ({ n: s.n - 1 }));
+  }, [on]);
+}
+
 const HIDDEN = -160;
 
-/** 위에서 200ms 내려오고 4초 뒤 올라가며 사라진다. 위로 밀면 바로 닫힌다. 줄인 움직임이면 150ms 페이드 */
+/**
+ * 위에서 200ms 내려오고 4초 뒤 올라가며 사라진다. 위로 밀면 바로 닫힌다. 줄인 움직임이면 150ms 페이드.
+ * 헤더를 덮을 때 양옆 버튼(chevron, ⋯)이 반만 비치지 않게 좌우 8만 남긴다(U9 A22).
+ */
 export function ToastHost() {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const { text, id } = useToast();
+  const p = PALETTES[useDarkCount((s) => s.n > 0) ? 'dark' : 'ivory'];
   const y = useSharedValue(HIDDEN);
   const o = useSharedValue(0);
 
@@ -81,11 +97,11 @@ export function ToastHost() {
         {
           position: 'absolute',
           top: insets.top + S.sm,
-          left: S.lg,
-          right: S.lg,
-          maxWidth: FRAME_MAX - S.lg * 2,
+          left: S.sm,
+          right: S.sm,
+          maxWidth: FRAME_MAX - S.sm * 2,
           alignSelf: 'center',
-          backgroundColor: C.ink,
+          backgroundColor: p.ink,
           borderRadius: R.lg,
           padding: S.md,
         },
@@ -94,7 +110,7 @@ export function ToastHost() {
     >
       {/* 누르면 닫힌다. 토스트가 헤더 뒤로 버튼 자리를 4초 동안 가리지 않게 */}
       <Pressable onPress={hideToast}>
-        <Text style={[T.small, { color: C.onInk }]}>{text}</Text>
+        <Text style={[T.small, { color: p.onInk }]}>{text}</Text>
       </Pressable>
     </Animated.View>
   );

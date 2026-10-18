@@ -62,7 +62,8 @@ export default function Reason() {
       }
     >
       <H1>{t.reasonTitle}</H1>
-      <Body muted>{t.reasonSub}</Body>
+      {/* 지난 이유가 없으면(첫날) 비교할 문장이 없다. 아래 처음 이유를 "지난번"으로 읽지 않게 숨긴다 */}
+      {previous ? <Body muted>{t.reasonSub}</Body> : null}
       <Card>
         <Label>{goal.name}</Label>
         <Body>{goal.reason}</Body>

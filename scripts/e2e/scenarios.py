@@ -111,7 +111,7 @@ def s1(b, c: Check):
     click(page, '약속 확인하기')  # U8: '확인하기' → '약속 확인하기'
     settle(page, 800)
     c.ok('확인 화면에 내일 시작 안내', has(page, '내일'), text(page)[:300].replace('\n', ' / '))
-    click(page, '시작하기')  # U8: '이걸로 시작' → '시작하기'
+    click(page, '목표 만들기')  # U9 D3: 3/3 '시작하기' → '목표 만들기'
     settle(page, 2500)
     body = text(page)
     c.ok('홈에 목표 카드(목표 이름)', '카페에서 영어로 말하기' in body, body[:200].replace('\n', ' / '))
@@ -158,11 +158,11 @@ def session_page(b, email: str):
 
 
 def start_today(page, reason: str):
-    """홈에서 시작하기 → 오늘의 이유 → 시작하기"""
+    """홈에서 시작하기 → 오늘의 이유 → 이유 제출하기"""
     click(page, '시작하기')
     settle(page)
     page.get_by_placeholder('오늘 이걸 하는 이유를 쓰십시오.').fill(reason)
-    click(page, '시작하기')
+    click(page, '이유 제출하기')  # U9 D3: 오늘의 이유 '시작하기' → '이유 제출하기'
     settle(page, 2500)
 
 
@@ -183,7 +183,7 @@ def s3(b, c: Check):
     c.ok('오늘의 이유 화면', has(page, '오늘은 왜 하십니까?'), page.url)
     c.shot(page, '2이유')
     page.get_by_placeholder('오늘 이걸 하는 이유를 쓰십시오.').fill('출장 전에 카페 주문 한 문장이라도 더 말해 보려고 합니다.')
-    click(page, '시작하기')
+    click(page, '이유 제출하기')  # U9 D3
     settle(page, 3000)
     c.ok('A 단계(첫날 수준 확인)', '/session/learn' in page.url and (has(page, '수준 확인') or has(page, '지난 학습 복습')), text(page)[:200].replace('\n', ' / '))
     c.shot(page, '3A')

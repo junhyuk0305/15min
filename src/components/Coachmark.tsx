@@ -7,6 +7,7 @@ import { Button } from '@/components/ui';
 import { copy } from '@/lib/copy';
 import { enter } from '@/lib/motion';
 import { B, PALETTES, R, S, T } from '@/lib/theme';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 
 export type CoachStep = {
   /** 가리킬 대상. measureInWindow로 위치를 잰다 */
@@ -39,6 +40,7 @@ export function Coachmark({
   skippable?: boolean;
 }) {
   const win = useWindowDimensions();
+  const reduced = useReducedMotion();
   const [i, setI] = useState(0);
   // 잰 위치. 어느 단계의 위치인지 같이 둔다
   const [measured, setMeasured] = useState<{ i: number; box: Box } | null>(null);
@@ -74,7 +76,8 @@ export function Coachmark({
   const bubbleLeft = Math.max(S.md, Math.min(box ? box.x : S.md, win.width - BUBBLE_MAX - S.md));
 
   return (
-    <Modal transparent visible animationType="fade" statusBarTranslucent onRequestClose={skippable ? onDone : next}>
+    // 줄인 움직임이면 덮개도 페이드 없이 뜬다(4.1). 말풍선 entering은 Reanimated가 기기 설정을 따라 끈다
+    <Modal transparent visible animationType={reduced ? 'none' : 'fade'} statusBarTranslucent onRequestClose={skippable ? onDone : next}>
       <SurfaceProvider theme="ivory">
         <View style={{ flex: 1 }}>
           {hole ? (

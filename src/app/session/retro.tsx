@@ -97,7 +97,7 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
   const clock = useLearnClock({
     initial: done ? RETRO_SECONDS : rec.retroSeconds,
     total: RETRO_SECONDS,
-    gates: { waiting, revealing: reveal.revealing, offline, failed: failed !== null || saveStuck, overlay: leaveOpen || menu.opened, tip: false, blocked: done || blocked },
+    gates: { waiting, revealing: reveal.revealing, offline, failed: failed !== null || saveStuck, overlay: leaveOpen || menu.opened, tip: menu.tip, blocked: done || blocked },
     save,
   });
   const { touch, syncTo, current } = clock;

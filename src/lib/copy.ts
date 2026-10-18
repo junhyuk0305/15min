@@ -41,7 +41,7 @@ export const copy = {
     promise: '해내실 때까지\n물고 늘어지겠습니다.',
     promiseSub: '대신 정한 요일에는 무조건 하셔야 합니다.',
     page: (n: number, total: number) => `${n} / ${total}`,
-    warnTitle: '약속한 시각에\n시작하지 않으면\n1분마다 알림이 갑니다.',
+    warnTitle: '약속한 시각보다\n하루 학습 분만큼 늦으면\n1분마다 알림이 갑니다.',
     warnRows: [
       '알림은 최대 60회입니다. 학습을 마치면 멈춥니다.',
       '쿠폰은 3장입니다. 쓴 날은 실패로 세지 않습니다.',
@@ -94,7 +94,7 @@ export const copy = {
     tomorrow: (clock: string) => `내일 ${clock}`,
     onDate: (month: number, day: number, weekday: string, clock: string) => `${month}월 ${day}일 ${weekday}요일 ${clock}`,
     startsAt: (when: string) => `${when}부터 시작합니다. 이름과 이유는 바꿀 수 없습니다.`,
-    create: '시작하기',
+    create: '목표 만들기',
     // 직접 쓰기로 만든 목표의 하위 상황. 코치가 만든 목록이 없을 때만 쓴다
     defaultScenes: ['인사', '요청하기', '질문하기', '문제 해결', '마무리'],
   },
@@ -119,7 +119,7 @@ export const copy = {
 
   home: {
     total: '누적 학습',
-    milestone: (left: number, next: number) => `${next.toLocaleString()}분까지 ${left.toLocaleString()}분 남았습니다.`,
+    milestone: (left: number, next: number) => `누적 ${next.toLocaleString()}분까지 ${left.toLocaleString()}분 남았습니다.`,
     streak: (n: number) => `연속 ${n}일`,
     streakLabel: '연속',
     couponOpen: '쿠폰 쓰기',
@@ -129,6 +129,9 @@ export const copy = {
     achieveAfter: (d: number) => `첫 학습일부터 ${d}일 뒤 달성 선언`,
     // 24시간이 넘는 남은 시간
     longWait: (d: number, h: number) => (h ? `${d}일 ${h}시간` : `${d}일`),
+    // 24시간보다 짧은 남은 시간. 시각(22:00)과 헷갈리지 않게 단위를 붙인다
+    hoursWait: (h: number, m: number) => (m ? `${h}시간 ${m}분` : `${h}시간`),
+    minutesWait: (m: number, s: number) => (m ? `${m}분 ${s}초` : `${s}초`),
     noGoalTitle: '목표가 없습니다',
     noGoalBody: '목표를 정하면 다음 날부터 학습이 시작됩니다.',
     newGoal: '목표 정하기',
@@ -165,6 +168,7 @@ export const copy = {
     withdraw: '포기 철회하기',
     giveupDone: '포기가 이미 확정되었습니다. 잠시 뒤 화면이 바뀝니다.',
     offlineStart: '서버에 연결되지 않아 지금은 시작할 수 없습니다. 연결되면 다시 불러오기를 누르십시오.',
+    loadFailedStart: '최신 내용을 불러오지 못해 지금은 시작할 수 없습니다. 다시 불러오기를 누르십시오.',
     notifOff: '알림이 꺼져 있습니다. 약속한 시각에 연락할 수 없습니다.',
     exactAlarm: '알람 및 리마인더 권한이 꺼져 있습니다. 알림이 몇 분씩 늦을 수 있습니다.',
     openSettings: '설정 열기',
@@ -189,7 +193,7 @@ export const copy = {
     maxChars: (n: number) => `${n}자까지 쓸 수 있습니다.`,
     // 단계별 시간(첫 학습 규칙 모달)
     planTime: (sec: number) => (sec % 60 ? `${Math.floor(sec / 60)}분 ${sec % 60}초` : `${sec / 60}분`),
-    begin: '시작하기',
+    begin: '이유 제출하기',
   },
 
   // 학습 화면: A 지난 학습 복습, B 상황 대화, C 오늘 학습 복습, 회고, 완료. 코치 문구는 긁지 않는다(기획서 11.9).
@@ -615,16 +619,17 @@ export const copy = {
 
   // 처음 안내(갭분석 3.1). 한 번씩만 뜬다. 학습 중 문구라 긁지 않는다
   tips: {
-    start: '시작하기',
     // 2번 목표 정하기 첫 진입 시트
     goalIntroTitle: '코치와 대화로 정합니다',
     goalIntroBody: '3단계, 3분쯤 걸립니다. 목표 이름과 처음 이유는 나중에 바꿀 수 없습니다.',
+    goalIntroStart: '대화 시작하기',
     // 4번 첫 학습 규칙 모달. 건너뛰기 없음
     rulesTitle: '학습 규칙',
     rulesPlan: '오늘 학습 순서',
+    rulesStart: '확인하기',
     rules: ['화면을 켜 두고 학습하는 동안만 시간이 줄어듭니다.', '2분 동안 입력이 없으면 멈춥니다.', '나가면 남은 시간을 채울 때까지 다시 알림이 갑니다.'],
     // 6번, 9번 단계 전환 화면의 한 줄
-    phaseB: '상대와 영어로 대화합니다. 막히면 코치가 표현을 알려 줍니다. 한국어로 써도 됩니다.',
+    phaseB: '상대와 영어로 대화합니다. 막히면 코치가 표현을 알려 줍니다.',
     phaseC: '오늘 배운 표현을 다시 확인합니다.',
     // 7번 첫 코치 모달 아래 한 줄
     coachModal: '닫으면 같은 상황의 새 질문이 옵니다.\n배운 표현을 넣어 답하십시오.',

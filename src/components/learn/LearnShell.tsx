@@ -9,6 +9,7 @@ import { Glyph } from '@/components/Glyph';
 import { HeaderMore } from '@/components/Header';
 import { PrimaryFooter } from '@/components/PrimaryFooter';
 import { SurfaceProvider, useSurface } from '@/components/surface';
+import { useDarkToast } from '@/components/Toast';
 import { copy } from '@/lib/copy';
 import { fmtLeft, type BarCell } from '@/lib/learn';
 import { fmtDuration } from '@/lib/rules';
@@ -60,6 +61,7 @@ export function LearnShell({
 }) {
   const insets = useSafeAreaInsets();
   const p = PALETTES[theme];
+  useDarkToast(theme === 'dark');
   return (
     <SurfaceProvider theme={theme}>
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: p.bg }}>

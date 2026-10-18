@@ -166,10 +166,11 @@ export function CoachModal({
   modal: CoachModalView | null;
   /** 코치 안내 한 문장 */
   note?: string;
-  /** 모달 아래 한 줄 처음 안내(갭분석 3.1-7) */
+  /** 닫기 아래 한 줄 처음 안내(갭분석 3.1-7). 카드 밖 어두운 대화 위에 겹치지 않게 카드 안에 둔다(U9 D11) */
   tip?: string | null;
   onClose: () => void;
 }) {
+  const { p } = useSurface();
   return (
     <Modal transparent visible={!!modal} animationType="fade" onRequestClose={onClose}>
       <View style={[s.dim, s.center]}>
@@ -178,8 +179,8 @@ export function CoachModal({
             {modal?.expression ? <Entry kind={t.expression} e={modal.expression} /> : null}
             {modal?.words.map((w) => <Entry key={w.en} kind={t.word} e={w} />)}
             <Button title={t.close} onPress={onClose} style={{ marginTop: S.xs }} />
+            {tip ? <Text style={[T.small, { color: p.sub, textAlign: 'center' }]}>{tip}</Text> : null}
           </CoachNote>
-          {tip ? <Text style={[T.small, { color: PALETTES.dark.ink, textAlign: 'center', marginTop: S.md }]}>{tip}</Text> : null}
         </Appear>
       </View>
     </Modal>

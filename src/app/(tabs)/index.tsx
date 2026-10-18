@@ -1,8 +1,9 @@
 import { router, useNavigation } from 'expo-router';
 import { useIsFocused } from 'expo-router/react-navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { cancelAnimation, useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { Appear } from '@/components/Appear';
 import { Banner } from '@/components/Banner';
 import { Coachmark, type CoachStep } from '@/components/Coachmark';
@@ -14,7 +15,8 @@ import { Big, Body, Button, Gauge, Label, Screen, useNow } from '@/components/ui
 import { WeekStrip } from '@/components/WeekStrip';
 import { copy } from '@/lib/copy';
 import type { AppGoal } from '@/lib/model';
-import { getExactAlarm, openExactAlarmSettings, openSystemSettings } from '@/lib/notify';
+import { getExactAlarm, openExactAlarmSettings } from '@/lib/notify';
+import { reportError } from '@/lib/report';
 import {
   achieveDay,
   addDays,
@@ -24,7 +26,6 @@ import {
   daysBetween,
   daysToNextCoupon,
   fmtClock,
-  fmtDuration,
   giveupEndsAt,
   homeState,
   RETRO_SECONDS,
@@ -34,8 +35,8 @@ import {
   type HomeState,
 } from '@/lib/rules';
 import { LEARN_PATH, RETRO_PATH } from '@/lib/route';
-import { useRuntime } from '@/lib/runtime';
-import { homeBanners, homeNoteOf, longWaitOf, nextStudyDay, retroFirstLine, showsKstLabel, type HomeBanner } from '@/lib/selectors';
+import { turnOnNotifications, useRuntime } from '@/lib/runtime';
+import { homeBanners, homeNoteOf, longWaitOf, nextStudyDay, retroFirstLine, shortWaitOf, showsKstLabel, type HomeBanner } from '@/lib/selectors';
 import { goalDaysOf, messagesOf, nowMs, todayKeyOf, todayRowOf, useApp } from '@/lib/store';
 import { warning } from '@/lib/haptics';
 import { DUR, EASE } from '@/lib/motion';
@@ -53,10 +54,12 @@ function nextMilestone(total: number) {
   return { next, ratio: (total - prev) / (next - prev) };
 }
 
-/** 남은 시간. 24시간이 넘으면 "1일 9시간", 아니면 시:분:초 */
+/** 남은 시간. 24시간이 넘으면 "1일 9시간", 1시간이 넘으면 "3시간 24분", 그보다 짧으면 "24분 13초"(시각과 헷갈리지 않게, U9 D10) */
 function countdown(ms: number): string {
   const long = longWaitOf(ms);
-  return long ? h.longWait(long.days, long.hours) : fmtDuration(ms);
+  if (long) return h.longWait(long.days, long.hours);
+  const w = shortWaitOf(ms);
+  return 'hours' in w ? h.hoursWait(w.hours, w.minutes) : h.minutesWait(w.minutes, w.seconds);
 }
 
 /** 그날 시작 시각을 "내일 22:00" 또는 "10월 20일 22:00"으로 */
@@ -68,13 +71,20 @@ function whenOf(goal: AppGoal, day: string, today: string): string {
 
 function Banners({ list }: { list: HomeBanner[] }) {
   const setExactAlarm = useRuntime((s) => s.setExactAlarm);
+  // 아직 묻지 않았으면 누르면 권한 창이 뜬다. 온보딩 "알림 켜기"와 같은 행동이라 같은 이름이다(MVP 7.5-8)
+  const ask = useRuntime((s) => s.permission === 'undetermined');
   return (
     <>
       {list.map((b) =>
         b === 'offline' || b === 'load_failed' ? (
           <StatusBanner key={b} />
         ) : b === 'notif_off' ? (
-          <Banner key={b} message={h.notifOff} actionTitle={h.openSettings} onAction={openSystemSettings} />
+          <Banner
+            key={b}
+            message={h.notifOff}
+            actionTitle={ask ? copy.onboarding.warnAgree : h.openSettings}
+            onAction={() => void turnOnNotifications().catch((e: unknown) => reportError(e, 'notify'))}
+          />
         ) : (
           <Banner
             key={b}
@@ -139,9 +149,9 @@ function useRedEntry(red: boolean, nag: boolean, key: string, focused: boolean) 
   return { blend, flashStyle };
 }
 
-/** 아이보리 덮개. 붙는 순간 불투명하고 400ms에 걷힌다 */
+/** 아이보리 덮개. 0.75에서 시작해 400ms에 걷힌다. 1에서 시작하면 첫 프레임이 내용 없는 아이보리 한 장이라 깜빡임으로 보였다(U9 M3) */
 function Veil() {
-  const o = useSharedValue(1);
+  const o = useSharedValue(0.75);
   useEffect(() => {
     o.value = withTiming(0, { duration: BLEND_MS, easing: EASE });
   }, [o]);
@@ -159,6 +169,47 @@ function useTabBarRed(red: boolean) {
       tabBarStyle: { backgroundColor: C.bg, borderTopColor: red ? C.red : C.line, height: 60 },
     });
   }, [red, navigation]);
+}
+
+/** 앞 블록. 새 블록 위에서 바탕색과 함께 페이드아웃한다 */
+function FadeOut({ bg, onDone, children }: { bg: string; onDone: () => void; children: ReactNode }) {
+  const reduced = useReducedMotion();
+  const o = useSharedValue(1);
+  useEffect(() => {
+    o.value = withTiming(0, { duration: reduced ? DUR.reduced : DUR.base, easing: EASE }, (fin) => {
+      if (fin) scheduleOnRN(onDone);
+    });
+  }, [o, reduced, onDone]);
+  const anim = useAnimatedStyle(() => ({ opacity: o.value }));
+  return (
+    <Animated.View pointerEvents="none" importantForAccessibility="no-hide-descendants" style={[StyleSheet.absoluteFill, { backgroundColor: bg, gap: S.sm }, anim]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+/**
+ * 가운데 상태 블록(갭분석 M15). 상태(k)가 바뀌면 새 블록은 바로 보이고 앞 블록이 그 위에서 200ms 페이드아웃한다.
+ * 새 블록이 0에서 나타나면 그 사이 빈 프레임이 보였다(U9 M3). 앞 블록은 바뀌기 직전 그림을 렌더 중 상태 맞추기로 붙잡아 둔다.
+ */
+function StateBlock({ k, bg, children }: { k: string; bg: string; children: ReactNode }) {
+  const [shown, setShown] = useState({ k, node: children });
+  const [old, setOld] = useState<{ k: string; node: ReactNode } | null>(null);
+  if (shown.k !== k) {
+    setOld(shown);
+    setShown({ k, node: children });
+  } else if (shown.node !== children) setShown({ k, node: children });
+  const clear = useCallback(() => setOld(null), []);
+  return (
+    <View style={{ gap: S.sm, overflow: 'hidden' }}>
+      {children}
+      {old ? (
+        <FadeOut key={old.k} bg={bg} onDone={clear}>
+          {old.node}
+        </FadeOut>
+      ) : null}
+    </View>
+  );
 }
 
 const TOUR = 'home-tour';
@@ -225,10 +276,12 @@ export default function Home() {
   const note = st === 'before_first' || st === 'giveup' ? null : homeNoteOf(goal, mine, today);
   // 서버에 닿지 않으면 학습 시작 버튼 자리에 안내를 둔다 (MP 7.3 서버 점검이나 5xx)
   const startBlocked = state.loadFailed;
+  // 끊김과 서버 오류(5xx)는 다른 문장이다(U9 Q7)
+  const blockedText = state.offline ? h.offlineStart : h.loadFailedStart;
 
   const start = () => router.push('/session/reason');
   const startButton = (inverse: boolean) =>
-    startBlocked ? <Body inverse={inverse}>{h.offlineStart}</Body> : <Button title={h.start} kind={inverse ? 'inverse' : 'primary'} onPress={start} />;
+    startBlocked ? <Body inverse={inverse}>{blockedText}</Body> : <Button title={h.start} kind={inverse ? 'inverse' : 'primary'} onPress={start} />;
 
   let middle: React.ReactNode = null;
   let primary: React.ReactNode = null;
@@ -240,12 +293,13 @@ export default function Home() {
       const fc = cycleOf(first, fs.startMinutes, fs.targetMinutes, tz);
       middle = (
         <>
+          {/* 코치마크 ①은 시각 줄까지 감싼다. 말풍선이 "내일 22:00부터" 줄을 가리지 않게(U9 D2) */}
           <View ref={countdownRef} collapsable={false} style={{ gap: S.sm }}>
             <Label>{h.beforeFirstLabel}</Label>
             <Big>{countdown(fc.start - now)}</Big>
+            <Body serif>{h.beforeFirstBody(whenOf(goal, first, today), fs.targetMinutes)}</Body>
+            {kst}
           </View>
-          <Body serif>{h.beforeFirstBody(whenOf(goal, first, today), fs.targetMinutes)}</Body>
-          {kst}
         </>
       );
       tourMinutes = fs.targetMinutes;
@@ -321,7 +375,7 @@ export default function Home() {
         </>
       );
       primary = startBlocked ? (
-        <Body inverse>{h.offlineStart}</Body>
+        <Body inverse>{blockedText}</Body>
       ) : (
         <Button title={h.resume} kind="inverse" onPress={() => router.push(inRetro ? RETRO_PATH : LEARN_PATH)} />
       );
@@ -409,10 +463,10 @@ export default function Home() {
         {note ? <Text style={[T.small, { color: ink }]}>{note === 'failed' ? h.failedNote : h.backNote}</Text> : null}
 
         <View style={{ paddingVertical: S.md, borderTopWidth: 1.5, borderBottomWidth: 1.5, borderColor: ink }}>
-          {/* 상태가 바뀌면 가운데 블록이 200ms 페이드로 바뀐다(갭분석 M15) */}
-          <Appear key={st} style={{ gap: S.sm }}>
+          {/* 상태가 바뀌면 가운데 블록이 200ms에 바뀐다(갭분석 M15) */}
+          <StateBlock k={st} bg={red ? C.red : C.bg}>
             {middle}
-          </Appear>
+          </StateBlock>
         </View>
 
         {st === 'giveup' ? null : (

@@ -29,6 +29,7 @@ export function DevTools() {
       <Text style={[T.label, { color: C.sub, marginTop: S.md }]}>DEV NOTIFY STATE</Text>
       <Row left="notifications denied" onPress={() => useRuntime.getState().setPermission('denied')} />
       <Row left="notifications granted" onPress={() => useRuntime.getState().setPermission('granted')} />
+      <Row left="notifications undetermined" onPress={() => useRuntime.getState().setPermission('undetermined')} />
       <Row left="exact alarm denied" onPress={() => useRuntime.getState().setExactAlarm('denied')} />
       <Row left="exact alarm granted" onPress={() => useRuntime.getState().setExactAlarm('granted')} />
     </View>

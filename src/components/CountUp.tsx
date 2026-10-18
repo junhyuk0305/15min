@@ -11,12 +11,14 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { DUR, EASE } from '@/lib/motion';
+import { S } from '@/lib/theme';
 import { useReducedMotion } from '@/lib/useReducedMotion';
 
 /**
  * 0에서 value까지 세는 숫자(갭분석 M10, F9, F10, M16). 값은 UI 스레드에서 움직이고, 보이는 정수가 바뀔 때만 글자를 바꾼다(웹에서도 같다).
  * pop이면 다 센 뒤 크기 1 → 1.08 → 1. 줄인 움직임이면 처음부터 최종 값이다.
  * 스크린리더는 처음부터 최종 값을 읽는다.
+ * 자리 폭은 최종 값으로 처음부터 잡는다. 세는 동안 숫자 폭이 늘어 옆 묶음이 밀리지 않게 한다(U9 M4).
  */
 export function CountUp({
   value,
@@ -59,7 +61,11 @@ export function CountUp({
   const text = format(reduced ? value : shown);
   return (
     <Animated.View accessible accessibilityLabel={format(value)} style={[{ alignSelf: 'flex-start' }, anim]}>
-      <Text style={style} importantForAccessibility="no">
+      {/* 최종 값을 투명하게 그려 폭을 잡고, 세는 숫자는 그 위에 겹친다. 글꼴 숫자 폭이 조금 달라도 줄이 바뀌지 않게 오른쪽에 여유를 둔다 */}
+      <Text style={[style, { opacity: 0 }]} importantForAccessibility="no">
+        {format(value)}
+      </Text>
+      <Text style={[style, { position: 'absolute', left: 0, top: 0, right: -S.xl }]} importantForAccessibility="no">
         {text}
       </Text>
     </Animated.View>

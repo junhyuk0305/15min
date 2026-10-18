@@ -45,6 +45,8 @@ export default function Auth() {
   const now = useNow(1000, Date.now);
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
+  // 이메일 칸을 벗어났거나 키보드 완료를 눌렀다. 그 전에는 형식이 틀려도 빨강을 띄우지 않는다(쓰는 중, U9 D7)
+  const [emailDone, setEmailDone] = useState(false);
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [consent, setConsent] = useState({ age: false, terms: false, ai: false });
@@ -131,9 +133,11 @@ export default function Auth() {
 
   if (step === 'email') {
     const allAgreed = consent.age && consent.terms && consent.ai;
-    // 빈 입력은 이유 없이 비활성. 쓴 이메일이 틀리거나 동의가 빠졌을 때만 빨강 이유를 보인다(3절 빨강 안내)
+    // 빈 입력은 이유 없이 비활성. 쓴 이메일이 틀리거나 동의가 빠졌을 때만 빨강 이유를 보인다(3절 빨강 안내).
+    // 형식 오류는 칸을 벗어난 뒤에만 보인다. 첫 글자부터 빨강이면 다 쓰기도 전에 틀렸다고 말하는 셈이다
     const typed = email.trim().length > 0;
-    const reason = !typed ? null : !EMAIL_RE.test(email.trim()) ? t.badEmail : !allAgreed ? t.needConsent : null;
+    const badEmail = !EMAIL_RE.test(email.trim());
+    const reason = !typed ? null : badEmail ? (emailDone ? t.badEmail : null) : !allAgreed ? t.needConsent : null;
     body = (
       <>
         <H1>{t.title}</H1>
@@ -147,6 +151,8 @@ export default function Auth() {
           textContentType="emailAddress"
           autoComplete="email"
           returnKeyType="done"
+          onBlur={() => setEmailDone(true)}
+          onSubmitEditing={() => setEmailDone(true)}
         />
         <View style={{ gap: S.xs }}>
           {/* 모두 동의(갭분석 V9). 아래 3개를 한 번에 체크하고 푼다. 3개가 모두 체크되면 같이 체크된다 */}
@@ -181,7 +187,7 @@ export default function Auth() {
         </View>
       </>
     );
-    footer = <Button title={t.sendCode} onPress={submitEmail} busy={busy} disabled={!typed || !!reason} disabledReason={reason} />;
+    footer = <Button title={t.sendCode} onPress={submitEmail} busy={busy} disabled={!typed || badEmail || !!reason} disabledReason={reason} />;
   } else if (step === 'code') {
     const left = CODE_LENGTH - code.length;
     const wait = Math.max(0, Math.ceil((resendAt - now) / 1000));

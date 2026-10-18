@@ -58,8 +58,12 @@ export default function Achieve() {
   if (done) return <Celebration days={done.days} total={done.total} />;
 
   const today = todayKey(state);
-  // 선언 요청이 끝나기 직전에 활성 목표가 먼저 사라진다. 그 한 프레임에 "선언할 목표가 없습니다."가 비치지 않게 비워 둔다
-  if (!goal && declareAction.busy) return <Screen>{null}</Screen>;
+  // 선언 요청이 끝나기 직전에 활성 목표가 먼저 사라진다(store가 lastGoal로 옮김). 빈 화면 대신 바로 축하 화면을 그린다.
+  // 이어서 done이 채워져도 같은 자리의 같은 부품이라 다시 그리지 않고 카운트업이 이어진다(U9 M2)
+  if (!goal && declareAction.busy && state.lastGoal) {
+    const last = state.lastGoal;
+    return <Celebration days={last.periodDays} total={totalMinutes(state.days.filter((d) => d.goalId === last.id))} />;
+  }
   if (!goal) {
     return (
       <Screen header={<Header title={t.header} onLeft={back} />} footer={<Button title={t.home} onPress={() => router.replace('/')} />}>

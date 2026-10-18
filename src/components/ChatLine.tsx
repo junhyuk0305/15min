@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useInk } from '@/components/surface';
@@ -76,7 +76,8 @@ export function TypingLine({ who, note, prev }: { who: string; note?: string; pr
   return (
     <View style={{ marginTop: chatGap(prev, 'partner'), gap: CHAT_GAP.same }}>
       {prev !== 'partner' ? <Text style={[s.who, { color: sub }]}>{who}</Text> : null}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      {/* 대사 한 줄 높이(26)를 잡아 둔다. 한 줄 응답이 이 자리에 들어올 때 대화가 움직이지 않는다(U9 M1) */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: s.say.lineHeight }}>
         <TypingDots />
         {note ? <Text style={[T.small, { color: sub, flexShrink: 1 }]}>{note}</Text> : null}
       </View>
@@ -86,12 +87,14 @@ export function TypingLine({ who, note, prev }: { who: string; note?: string; pr
 
 /**
  * 새 줄 등장(갭분석 M7): 페이드 + 8px 올라옴 220ms. animate가 거짓이면 바로 보인다.
+ * animate는 처음 그릴 때 값만 쓴다. 나중에 바뀌어도 다시 나타나지 않는다(글자 표시가 끝난 줄이 다시 페이드되지 않게).
  * 줄인 움직임이면 withTiming의 기본(ReduceMotion.System)이 바로 끝값으로 보낸다(줄이 200개여도 설정 구독을 줄마다 만들지 않는다).
  * Reanimated 레이아웃 entering은 웹에서 끝난 뒤에도 position absolute를 남겨 줄이 겹친다(2026-10-19 확인). 그래서 값 애니메이션으로 만든다.
  */
 export function LineEnter({ animate, style, children }: { animate: boolean; style?: StyleProp<ViewStyle>; children: ReactNode }) {
+  const [enter] = useState(animate);
   // 이미 있던 줄은 애니메이션 값 없이 그린다. 줄이 200개여도 값과 스타일을 줄마다 만들지 않는다
-  if (!animate) return <View style={style}>{children}</View>;
+  if (!enter) return <View style={style}>{children}</View>;
   return <Enter style={style}>{children}</Enter>;
 }
 

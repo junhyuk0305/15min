@@ -23,7 +23,7 @@ import {
 import { PlanFields } from '@/components/goal/PlanFields';
 import { HeaderMore } from '@/components/Header';
 import { Transcript } from '@/components/learn/Transcript';
-import { useLineMenu, type LineTarget } from '@/components/LineMenu';
+import { useLineMenu } from '@/components/LineMenu';
 import { TextButton } from '@/components/TextButton';
 import { Body, Button, Field, Row, useNow } from '@/components/ui';
 import { toApiError } from '@/lib/api';
@@ -119,11 +119,16 @@ function ChatStage() {
   // 처음 들어오면 어떻게 정하는지 시트 한 장(갭분석 3.1-2). 닫아도 시작이다
   const introSeen = useTipSeen(INTRO_TIP);
   const { open: openMenu, setLatest } = menu;
-  const targetOf = (l: Line): LineTarget => ({
-    id: l.id,
-    text: l.text,
-    send: l.reportable ? (r) => useApp.getState().reportAiText('goal-setup', l.text, r) : undefined,
-  });
+  // Transcript는 memo다. 넘기는 함수를 고정해 입력할 때마다 목록을 다시 그리지 않게 한다(UXP 6.3)
+  const onLine = useCallback(
+    (l: Line) =>
+      openMenu({
+        id: l.id,
+        text: l.text,
+        send: l.reportable ? (r) => useApp.getState().reportAiText('goal-setup', l.text, r) : undefined,
+      }),
+    [openMenu],
+  );
   // 헤더 "⋯"의 신고하기는 가장 최근 코치 답을 신고한다
   const latest = view.findLast((l) => l.kind !== 'me' && l.reportable);
   const latestId = latest?.id;
@@ -212,10 +217,10 @@ function ChatStage() {
         waiting={busy}
         target={reveal.target}
         isNew={reveal.isNew}
-        onLine={(l) => openMenu(targetOf(l))}
+        onLine={onLine}
       />
       {menu.sheets}
-      <ConfirmSheet visible={!introSeen} onClose={startIntro} title={copy.tips.goalIntroTitle} body={copy.tips.goalIntroBody} primary={copy.tips.start} onPrimary={startIntro} />
+      <ConfirmSheet visible={!introSeen} onClose={startIntro} title={copy.tips.goalIntroTitle} body={copy.tips.goalIntroBody} primary={copy.tips.goalIntroStart} onPrimary={startIntro} />
     </Frame>
   );
 }
@@ -342,7 +347,7 @@ function ConfirmStage() {
       <Text accessibilityRole="header" style={[T.h2, { color: C.ink }]}>
         {g.confirmTitle}
       </Text>
-      <Field label={g.fields.goal_name} value={fields.goal_name ?? ''} onChange={(v) => setField('goal_name', v)} note={g.nameNote} maxLength={FIELD_MAX.goal_name} />
+      <Field label={g.fields.goal_name} value={fields.goal_name ?? ''} onChange={(v) => setField('goal_name', v)} maxLength={FIELD_MAX.goal_name} />
       <View>
         <Row left={g.fields.place} right={fields.place} />
         <Row left={g.fields.my_role} right={fields.my_role} />
