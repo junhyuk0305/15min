@@ -109,19 +109,21 @@ export default function Settings() {
       <H1>{t.title}</H1>
 
       <Group label={t.goalGroup}>
+        {/* Group이 줄 사이에 선을 긋도록 Fragment 대신 배열로 넘긴다(Children.toArray는 Fragment를 펼치지 않는다) */}
         {goal ? (
-          <>
-            <Row inset pressBg left={t.goal} value={goal.name} chevron onPress={() => router.push('/settings/goal')} />
-            <Row inset pressBg left={t.coupons} value={copy.unit.sheets(goal.coupons)} chevron onPress={() => router.push('/coupon')} />
+          [
+            <Row key="goal" inset pressBg left={t.goal} value={goal.name} chevron onPress={() => router.push('/settings/goal')} />,
+            <Row key="coupons" inset pressBg left={t.coupons} value={copy.unit.sheets(goal.coupons)} chevron onPress={() => router.push('/coupon')} />,
             <Row
+              key="schedule"
               inset
               pressBg
               left={t.schedule}
               value={t.scheduleValue(daysLabel(goal.weekdays), fmtClock(goal.startMinutes))}
               chevron
               onPress={() => router.push('/settings/goal')}
-            />
-          </>
+            />,
+          ]
         ) : (
           <Row inset pressBg left={t.setGoal} chevron onPress={() => router.push('/goal/new')} />
         )}
