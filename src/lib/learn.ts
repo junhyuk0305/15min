@@ -25,6 +25,8 @@ export type ClockGates = {
   focused: boolean;
   /** 응답을 기다리는 중이다 */
   waiting: boolean;
+  /** 새 응답을 글자 단위로 보이는 중이다. 응답 중으로 본다(UXP 3절 "글자 표시와 시계", 영향지도 B-5) */
+  revealing: boolean;
   /** 연결이 끊겼다 */
   offline: boolean;
   /** 응답 실패 안내가 떠 있다 */
@@ -36,12 +38,12 @@ export type ClockGates = {
 };
 
 export function clockRunning(g: ClockGates): boolean {
-  return g.appActive && g.focused && !g.waiting && !g.offline && !g.failed && !g.overlay && !g.blocked;
+  return g.appActive && g.focused && !g.waiting && !g.revealing && !g.offline && !g.failed && !g.overlay && !g.blocked;
 }
 
 /**
  * secs: 센 시간(초). quietMs: 시계가 도는 동안 활동 없이 지난 시간.
- * 딴짓 판정은 시계가 도는 시간만 센다. 응답을 기다리거나 앱 밖에 있던 시간은 딴짓이 아니다.
+ * 딴짓 판정은 시계가 도는 시간만 센다. 응답을 기다리거나 글자를 보이는 중이거나 앱 밖에 있던 시간은 딴짓이 아니다.
  */
 export type ClockState = { secs: number; quietMs: number; idle: boolean };
 

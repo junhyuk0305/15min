@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { ErrorLine } from '@/components/ErrorLine';
-import { CoachModal, Composer, ReportButton, themeOf, useReport } from '@/components/learn/parts';
+import { CoachModal, themeOf } from '@/components/learn/parts';
 import { LearnShell } from '@/components/learn/LearnShell';
 import type { PanelProps } from '@/components/learn/types';
 import { useSurface } from '@/components/surface';
@@ -32,6 +32,7 @@ export function QuizPanel({
   setFailed,
   touch,
   offline,
+  menu,
   onLevelCheck,
 }: PanelProps & { phase: 'A' | 'C'; onLevelCheck?: (levelCheck: boolean) => void }) {
   const [q, setQ] = useState<QuizQuestion | null>(null);
@@ -46,7 +47,16 @@ export function QuizPanel({
   const [failure, setFailure] = useState<Failure | null>(null);
   const [netFail, setNetFail] = useState(false);
   const advance = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const report = useReport(touch);
+  // 상황 적용 문항의 상대 대사는 AI가 쓴다. 길게 누르기와 헤더 "⋯"로 신고한다(Play AI 생성 콘텐츠 정책, UXP 3절)
+  const { open: openMenu, setLatest } = menu;
+  const situationId = q?.type === 'situation' ? q.id : null;
+  const situationText = q?.type === 'situation' ? q.prompt : '';
+  const situation = useMemo(
+    () => (situationId ? { id: situationId, text: situationText, send: (r: string) => useApp.getState().reportMessage(situationId, r) } : null),
+    [situationId, situationText],
+  );
+  useEffect(() => setLatest(situation), [situation, setLatest]);
+  useEffect(() => () => setLatest(null), [setLatest]);
 
   const fail = useCallback(
     (f: Failure | null) => {
@@ -171,18 +181,16 @@ export function QuizPanel({
         </>
       ) : (
         <>
-          <Composer
+          <AnswerInput
             value={answer}
             onChange={(v) => {
               setAnswer(v);
               touch();
             }}
-            onSend={() => void submit()}
-            busy={busy}
-            failed={false}
-            placeholder={t.answerPlaceholder}
-            sendTitle={retrying ? t.retry : t.submit}
+            onSubmit={() => void submit()}
+            editable={!busy}
           />
+          <Button title={retrying ? t.retry : t.submit} busy={busy} disabled={!answer.trim()} onPress={() => void submit()} />
           {extra}
         </>
       );
@@ -201,7 +209,7 @@ export function QuizPanel({
             touch();
             setChoice(i);
           }}
-          onReport={() => report.open(q.id)}
+          onLongPress={situation ? () => openMenu(situation) : undefined}
         />
       ) : busy ? (
         <Body muted>{t.preparing}</Body>
@@ -214,7 +222,6 @@ export function QuizPanel({
           setExplain(null);
         }}
       />
-      {report.sheet}
     </LearnShell>
   );
 }
@@ -224,24 +231,23 @@ function Question({
   choice,
   locked,
   onChoose,
-  onReport,
+  onLongPress,
 }: {
   q: QuizQuestion;
   choice: number | null;
   locked: boolean;
   onChoose: (i: number) => void;
   /** 상황 적용 문항만. 상대 대사를 AI가 써서 신고할 수 있어야 한다(Play AI 생성 콘텐츠 정책). 나머지 유형은 서버가 만든 글이다 */
-  onReport: () => void;
+  onLongPress?: () => void;
 }) {
   const { p } = useSurface();
   const [first, ...rest] = q.prompt.split('\n');
   return (
     <View style={{ gap: S.md }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Label>{q.levelCheck ? t.levelCheck(q.index + 1) : t.question(q.index + 1)}</Label>
-        {q.type === 'situation' ? <ReportButton onPress={onReport} /> : null}
-      </View>
-      <Text style={[T.bodySerif, { fontSize: 17, lineHeight: 28, color: p.ink }]}>{first}</Text>
+      <Label>{q.levelCheck ? t.levelCheck(q.index + 1) : t.question(q.index + 1)}</Label>
+      <Pressable onLongPress={onLongPress} delayLongPress={400} disabled={!onLongPress}>
+        <Text style={[T.bodySerif, { fontSize: 17, lineHeight: 28, color: p.ink }]}>{first}</Text>
+      </Pressable>
       {rest.join('\n').trim() ? <Text style={[T.body, { color: p.sub }]}>{rest.join('\n').trim()}</Text> : null}
       {q.choices?.map((c, i) => {
         const on = choice === i;
@@ -269,6 +275,27 @@ function Question({
         );
       })}
     </View>
+  );
+}
+
+/** 복습 답 한 줄 입력(갭분석 C4). 키보드의 보내기 키로 제출한다. 영어 답이라 자동 대문자와 자동 고침을 끈다 */
+function AnswerInput({ value, onChange, onSubmit, editable }: { value: string; onChange: (v: string) => void; onSubmit: () => void; editable: boolean }) {
+  const { p } = useSurface();
+  return (
+    <TextInput
+      value={value}
+      onChangeText={onChange}
+      onSubmitEditing={() => value.trim() && onSubmit()}
+      placeholder={t.answerPlaceholder}
+      placeholderTextColor={p.sub}
+      accessibilityLabel={t.answerPlaceholder}
+      editable={editable}
+      returnKeyType="send"
+      submitBehavior="submit"
+      autoCapitalize="none"
+      autoCorrect={false}
+      style={[T.body, { minHeight: 44, borderWidth: B.base, borderColor: p.ink, borderRadius: 22, backgroundColor: p.card, color: p.ink, paddingHorizontal: S.md }]}
+    />
   );
 }
 

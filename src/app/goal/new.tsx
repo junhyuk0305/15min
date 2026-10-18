@@ -1,7 +1,7 @@
 import { router, Stack, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, Text, TextInput, View } from 'react-native';
-import { ChatLine } from '@/components/ChatLine';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, BackHandler, Text, View } from 'react-native';
+import { Composer } from '@/components/Composer';
 import { ErrorLine } from '@/components/ErrorLine';
 import { Chip } from '@/components/goal/Chip';
 import { useGoalDraft } from '@/components/goal/draft';
@@ -20,15 +20,19 @@ import {
   type FieldKey,
 } from '@/components/goal/logic';
 import { PlanFields } from '@/components/goal/PlanFields';
-import { useSetupReport } from '@/components/goal/ReportSheet';
+import { HeaderMore } from '@/components/Header';
+import { Transcript } from '@/components/learn/Transcript';
+import { useLineMenu, type LineTarget } from '@/components/LineMenu';
 import { TextButton } from '@/components/TextButton';
 import { Body, Button, Field, Row, useNow } from '@/components/ui';
 import { toApiError } from '@/lib/api';
 import { copy, errorText } from '@/lib/copy';
+import type { Line } from '@/lib/learn';
 import { APP_TIME_ZONE, crossesBoundary, fmtClock, MIN_NOTE_CHARS } from '@/lib/rules';
 import { useApp } from '@/lib/store';
 import { useAction } from '@/lib/useAction';
-import { B, C, HIT, R, S, T } from '@/lib/theme';
+import { useReveal } from '@/lib/useReveal';
+import { B, C, S, T } from '@/lib/theme';
 
 // 목표 설정 (MP 3절, 결정안 1, 8). 첫 목표와 달성 뒤 새 목표가 모두 이 화면이다. 닫기 없음, 화면 밖으로 뒤로 가기 막음.
 // 2/3, 3/3은 헤더 chevron과 Android 뒤로가 앞 단계로 간다. 1/3은 강제 화면이라 chevron 대신 이유 한 줄이다(갭분석 N6).
@@ -96,7 +100,31 @@ function ChatStage() {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const report = useSetupReport();
+  // 첫 줄은 앱이 쓴 고정 질문이라 신고하지 않는다. 그 뒤 코치 답만 신고한다(report_ai_text, 대화를 저장하지 않아 글을 함께 보낸다)
+  const view = useMemo<Line[]>(
+    () =>
+      lines.map((l, i) =>
+        l.role === 'user'
+          ? { key: l.id, kind: 'me', text: l.text, id: l.id, pending: false, reportable: false }
+          : { key: l.id, kind: 'coach', text: l.text, id: l.id, modal: null, reportable: i > 0 },
+      ),
+    [lines],
+  );
+  const reveal = useReveal(view.map((l) => ({ id: l.id, text: l.text, ai: l.kind !== 'me' })));
+  const menu = useLineMenu();
+  const { open: openMenu, setLatest } = menu;
+  const targetOf = (l: Line): LineTarget => ({
+    id: l.id,
+    text: l.text,
+    send: l.reportable ? (r) => useApp.getState().reportAiText('goal-setup', l.text, r) : undefined,
+  });
+  // 헤더 "⋯"의 신고하기는 가장 최근 코치 답을 신고한다
+  const latest = view.findLast((l) => l.kind !== 'me' && l.reportable);
+  const latestId = latest?.id;
+  const latestText = latest?.text ?? '';
+  useEffect(() => {
+    setLatest(latestId ? { id: latestId, text: latestText, send: (r) => useApp.getState().reportAiText('goal-setup', latestText, r) } : null);
+  }, [latestId, latestText, setLatest]);
 
   const send = async (raw: string) => {
     const body = raw.trim();
@@ -132,21 +160,20 @@ function ChatStage() {
   };
 
   const last = lines[lines.length - 1];
-  const chips = !busy && last?.role === 'coach' ? choicesOf(last.text) : [];
-  if (!busy && last?.role === 'coach' && fields.goal_name && !done) chips.push(g.acceptName);
+  // 빠른 답 칩은 코치 질문이 다 보인 뒤에 보인다
+  const asked = !busy && !reveal.revealing && last?.role === 'coach';
+  const chips = asked ? choicesOf(last.text) : [];
+  if (asked && fields.goal_name && !done) chips.push(g.acceptName);
   const askingReason = missingFields(fields).includes('reason');
   const n = text.trim().length;
-  // 이유를 묻는 동안은 20자부터 보낸다. 비활성 이유는 입력창 바로 위에 둔다(MP 7.5-5)
+  // 이유를 묻는 동안은 20자부터 보낸다. 카운터는 입력창 안에 있고, 쓰기 시작했는데 모자라면 위에 빨강 한 줄(UXP 3절 빨강 안내)
   const short = askingReason ? Math.max(0, MIN_NOTE_CHARS - n) : 0;
-  const off = busy || !n || short > 0;
-  const hint = busy ? null : short > 0 ? g.needChars(short) : !n ? g.needText : null;
-
-  const speakerOf = (role: 'user' | 'coach'): 'me' | 'partner' => (role === 'user' ? 'me' : 'partner');
 
   return (
     <Frame
       stick
-      header={<SetupHeader stage="chat" fields={fields} />}
+      chat={{ count: view.length, mineLast: last?.role === 'user', revealing: reveal.revealing, onTouch: reveal.finish }}
+      header={<SetupHeader stage="chat" fields={fields} right={latestId ? <HeaderMore onPress={menu.more} /> : undefined} />}
       footer={
         <>
           {chips.length ? (
@@ -156,71 +183,32 @@ function ChatStage() {
               ))}
             </View>
           ) : null}
-          {error ? (
-            <View style={{ gap: S.xs }}>
-              <ErrorLine message={error} />
-              <TextButton title={g.retry} onPress={() => void send(text)} disabled={off} style={{ alignSelf: 'flex-start' }} />
-            </View>
-          ) : null}
-          {hint ? <Text style={[T.small, { color: C.sub }]}>{hint}</Text> : null}
-          <View style={{ flexDirection: 'row', gap: S.sm, alignItems: 'stretch' }}>
-            <TextInput
-              value={text}
-              onChangeText={setText}
-              placeholder={g.placeholder}
-              placeholderTextColor={C.sub}
-              accessibilityLabel={g.placeholder}
-              maxLength={FIELD_MAX.reason}
-              multiline
-              editable={!busy}
-              style={[
-                T.body,
-                { flex: 1, minWidth: 0, minHeight: 48, maxHeight: 140, borderWidth: B.base, borderColor: C.ink, borderRadius: R.md, backgroundColor: C.card, color: C.ink, paddingHorizontal: 14, paddingVertical: 12, textAlignVertical: 'top' },
-              ]}
-            />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={g.send}
-              accessibilityState={{ disabled: off, busy }}
-              disabled={off}
-              onPress={() => void send(text)}
-              style={({ pressed }) => ({
-                minWidth: 64,
-                minHeight: HIT,
-                borderRadius: R.md,
-                alignItems: 'center',
-                justifyContent: 'center',
-                paddingHorizontal: S.sm,
-                backgroundColor: off ? C.disabled : C.ink,
-                opacity: pressed ? 0.8 : 1,
-              })}
-            >
-              {busy ? <ActivityIndicator size="small" color={C.onInk} /> : <Text style={[T.buttonSm, { color: C.onInk }]}>{g.send}</Text>}
-            </Pressable>
-          </View>
+          {n > 0 && short > 0 ? <Text style={[T.small, { color: C.redText }]}>{g.needChars(short)}</Text> : null}
+          <Composer
+            value={text}
+            onChange={setText}
+            onSend={() => void send(text)}
+            busy={busy}
+            error={error}
+            min={askingReason ? MIN_NOTE_CHARS : undefined}
+            maxLength={FIELD_MAX.reason}
+            placeholder={g.placeholder}
+            onInputStart={reveal.finish}
+          />
           {done ? <TextButton title={g.toPlan} onPress={() => useGoalDraft.getState().setStage('plan')} /> : null}
         </>
       }
     >
-      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-        {lines.map((l, i) => (
-          <View key={l.id}>
-            <ChatLine speaker={speakerOf(l.role)} text={l.text} who={l.role === 'user' ? g.me : g.coach} prev={i > 0 ? speakerOf(lines[i - 1].role) : null} />
-            {/* 첫 줄은 앱이 쓴 고정 질문이다. 그 뒤 코치 답만 신고할 수 있다 */}
-            {l.role === 'coach' && i > 0 ? (
-              <TextButton
-                title={copy.report.action}
-                tone="sub"
-                accessibilityLabel={copy.report.label}
-                onPress={() => report.open(l.text)}
-                style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }}
-              />
-            ) : null}
-          </View>
-        ))}
-        {busy ? <ChatLine speaker="narration" text={g.typing} prev="me" /> : null}
-      </View>
-      {report.sheet}
+      <Transcript
+        lines={view}
+        partnerName={g.coach}
+        coachSpeaks
+        waiting={busy}
+        target={reveal.target}
+        isNew={reveal.isNew}
+        onLine={(l) => openMenu(targetOf(l))}
+      />
+      {menu.sheets}
     </Frame>
   );
 }

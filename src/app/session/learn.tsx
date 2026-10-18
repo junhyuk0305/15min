@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Banner } from '@/components/Banner';
 import { ErrorLine } from '@/components/ErrorLine';
+import { useLineMenu } from '@/components/LineMenu';
 import { ClockHeader, LearnShell } from '@/components/learn/LearnShell';
 import { LessonPanel } from '@/components/learn/LessonPanel';
 import { IdleModal, PhaseOverlay, StopView, themeOf, useLeave } from '@/components/learn/parts';
@@ -58,6 +59,12 @@ function LearnBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
   const saveFails = useRef(0);
   // 나가기 시트가 떠 있는 동안 시계를 멈춘다(안내 모달). 시계보다 먼저 둔다
   const [leaveOpen, setLeaveOpen] = useState(false);
+  // B의 글자 단위 표시 중에는 응답 중으로 보고 시계를 멈춘다(UXP 3절, 영향지도 B-5)
+  const [revealing, setRevealing] = useState(false);
+  // 줄 길게 누르기와 헤더 "⋯" 신고 시트. 떠 있는 동안 시계를 멈춘다(안내 모달, UXP 6.1). 활동은 시계가 생긴 뒤 ref로 잇는다
+  const touchRef = useRef<() => void>(() => undefined);
+  const onMenuActivity = useCallback(() => touchRef.current(), []);
+  const menu = useLineMenu(onMenuActivity);
 
   const save = useCallback(
     (secs: number) => {
@@ -89,12 +96,15 @@ function LearnBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
     initial: rec.activeSeconds,
     total,
     limit: shown ? phaseEnd(shown, targetMinutes) : 0,
-    gates: { waiting: waiting > 0, offline, failed: failed || saveStuck, overlay: leaveOpen, blocked },
+    gates: { waiting: waiting > 0, revealing, offline, failed: failed || saveStuck, overlay: leaveOpen || menu.opened, blocked },
     save,
   });
   useSessionPresence(() => save(clock.current()));
 
   const { touch, syncTo, current } = clock;
+  useEffect(() => {
+    touchRef.current = touch;
+  }, [touch]);
   const leave = useLeave({ enabled: !blocked, open: leaveOpen, setOpen: setLeaveOpen, body: t.leaveBody(leftMinutes(total - clock.secs)), onActivity: touch });
   const request = useCallback(
     async <T,>(job: () => Promise<T>): Promise<Result<T>> => {
@@ -169,6 +179,9 @@ function LearnBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
     return () => clearTimeout(id);
   }, [retryRetro, startRetro]);
 
+  // 단계 화면에 넘기는 것은 고정된 함수만(1초마다 다시 그려져도 바뀌지 않게, UXP 9.3)
+  const { open: openLine, setLatest } = menu;
+  const lineMenu = useMemo(() => ({ open: openLine, setLatest }), [openLine, setLatest]);
   const view = shown ?? phaseAt(clock.secs, targetMinutes);
   const header = (
     <ClockHeader
@@ -177,8 +190,10 @@ function LearnBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
       remaining={total - clock.secs}
       ratio={total ? clock.secs / total : 0}
       paused={!clock.running}
+      idle={clock.idle}
       // 한도 초과로 멈춘 화면(StopView)에는 X 대신 기존 홈으로 가기 버튼만 둔다
       onClose={blocked ? undefined : leave.ask}
+      onMore={!blocked && menu.latest ? menu.more : undefined}
     />
   );
   const banner = offline ? (
@@ -191,12 +206,13 @@ function LearnBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
       <PhaseOverlay overlay={overlay} levelCheck={levelCheck} />
       <IdleModal visible={clock.idle} onContinue={clock.dismissIdle} />
       {leave.sheet(themeOf(view))}
+      {menu.sheets}
     </>
   );
 
   if (blocked) return <StopView theme={themeOf(view)} header={header} title={t.limitTitle} body={t.limitBody} />;
 
-  const props: PanelProps = { header, banner, overlay: layer, request, setFailed, touch, offline };
+  const props: PanelProps = { header, banner, overlay: layer, request, setFailed, touch, offline, setRevealing, menu: lineMenu };
   if (shown === 'A' || shown === 'C') return <QuizPanel key={shown} phase={shown} onLevelCheck={shown === 'A' ? onLevelCheck : undefined} {...props} />;
   if (shown === 'B') return <LessonPanel {...props} />;
   return (

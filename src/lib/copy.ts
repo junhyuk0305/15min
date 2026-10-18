@@ -63,12 +63,8 @@ export const copy = {
     first: '영어를 하려는 이유를 20자 이상 써 주십시오. 처음 이유는 나중에 바꿀 수 없습니다.',
     fields: { reason: '이유', place: '장소', my_role: '내 역할', partner: '상대', task: '해결할 일', goal_name: '목표' },
     placeholder: '한국어로 답하셔도 됩니다.',
-    send: '보내기',
-    needText: '보낼 답을 쓰십시오.',
     needChars: (n: number) => `${n}자 더 쓰십시오.`,
-    typing: '코치가 답을 쓰고 있습니다.',
     acceptName: '이 이름으로 정합니다.',
-    retry: '다시 보내기',
     toPlan: '이어서 정하기',
     // 1/3 채팅은 강제 화면이다. 헤더에 뒤로 대신 이 한 줄을 둔다
     locked: '목표를 정해야 시작할 수 있습니다.',
@@ -202,10 +198,9 @@ export const copy = {
     paused: '멈춤',
     me: '나',
     coach: '코치',
-    waiting: '답을 기다리는 중입니다. 이 시간은 세지 않습니다.',
+    // 응답 대기 중 점 3개 옆 작은 글자(기획서 11.2 고지)
+    uncounted: '이 시간은 세지 않습니다.',
     inputPlaceholder: '영어로 답하십시오.',
-    send: '보내기',
-    emptyAnswer: '답을 쓰면 누를 수 있습니다.',
     failed: '응답을 받지 못했습니다. 다시 보내 주십시오.',
     resend: '다시 보내기',
     // 보낸 적 없는 것(다음 문항, 회고 첫 질문, 상황 대화 시작)을 다시 받을 때
@@ -542,7 +537,6 @@ export const copy = {
     opensUnknown: '반성문은 포기한 목표의 원래 시작 시각에 열립니다.',
     closesAt: (clock: string) => `${clock}에 닫힙니다.`,
     placeholder: '왜 포기했는지 쓰십시오.',
-    send: '보내기',
     loading: '반성문을 불러오는 중입니다.',
     deleteAccount: '계정 삭제하기',
     terms: '이용약관',
@@ -558,11 +552,15 @@ export const copy = {
   },
 
   report: {
-    action: '신고',
+    // 신고 이유 시트 제목
     label: '이 응답 신고하기',
     reasons: ['부적절한 내용', '틀린 설명', '그 밖의 문제'],
     done: '신고했습니다.',
-    cancel: '닫기',
+    // 줄 길게 누르기 시트와 헤더 "⋯" 메뉴(UXP 3절 "신고 위치")
+    menu: '신고하기',
+    copy: '복사하기',
+    copied: '복사했습니다.',
+    longPressTip: '이상한 답은 길게 눌러 신고할 수 있습니다.',
   },
 
   legal: {
@@ -598,6 +596,8 @@ export const copy = {
     skip: '건너뛰기',
     next: '다음',
     typing: '답을 쓰는 중입니다.',
+    // 위로 올려 읽는 중에 새 메시지가 오면 아래에 뜨는 알약 버튼(갭분석 C5)
+    newMessage: '새 메시지',
   },
 };
 

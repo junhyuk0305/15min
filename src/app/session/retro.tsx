@@ -1,19 +1,22 @@
 import { router } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Banner } from '@/components/Banner';
+import { Composer } from '@/components/Composer';
 import { ErrorLine } from '@/components/ErrorLine';
 import { ClockHeader, LearnShell } from '@/components/learn/LearnShell';
-import { Composer, IdleModal, StopView, useLeave, useReport } from '@/components/learn/parts';
-import { Transcript } from '@/components/learn/Transcript';
+import { IdleModal, StopView, useLeave } from '@/components/learn/parts';
+import { lineText, Transcript } from '@/components/learn/Transcript';
+import { useLineMenu } from '@/components/LineMenu';
 import { useLearnClock, useOnline, useSessionPresence } from '@/components/learn/useLearnClock';
 import { Body, Button, useNow } from '@/components/ui';
 import { toApiError } from '@/lib/api';
 import { copy, errorText } from '@/lib/copy';
-import { dayEnded, leftMinutes, linesOf, retroAwaitsAnswer, retroClosing, saveFailure, sendId } from '@/lib/learn';
+import { dayEnded, leftMinutes, linesOf, retroAwaitsAnswer, retroClosing, saveFailure, sendId, type Line } from '@/lib/learn';
 import { dayKeyId, uuidv4, type Message } from '@/lib/model';
 import { reportError } from '@/lib/report';
 import { RETRO_SECONDS, type DayRow } from '@/lib/rules';
 import { todayKey, todayKeyOf, todayRow, useApp } from '@/lib/store';
+import { useReveal } from '@/lib/useReveal';
 
 const t = copy.learn;
 const NONE: Message[] = [];
@@ -23,6 +26,7 @@ const NONE: Message[] = [];
  * 마지막 20초에 보내면 closing으로 보내 서버가 새 질문 없이 마무리한다.
  * 3분을 채우면 주 버튼은 완료하기다. 답을 기다리는 질문이 남아 있으면 입력창을 그 위에 두고 보내기를 테두리 버튼으로 낮춘다.
  * 완료는 서버가 학습 분과 회고 3분을 다시 확인한다.
+ * 새 코치 질문은 글자 단위로 보이고 그동안 시계를 멈춘다(UXP 3절). 줄을 길게 누르거나 헤더 "⋯"로 신고한다.
  */
 export default function Retro() {
   // 들어온 날에 고정한다. 04:00이 지나 하루가 바뀌면 빈 화면 대신 끝났다는 안내를 보인다(Q-E)
@@ -57,6 +61,13 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
   const saveFails = useRef(0);
   // 나가기 시트가 떠 있는 동안 시계를 멈춘다(안내 모달). 시계보다 먼저 둔다
   const [leaveOpen, setLeaveOpen] = useState(false);
+  const lines = useMemo(() => linesOf(messages, 'retro'), [messages]);
+  // 글자 단위 표시 중에는 응답 중으로 보고 시계를 멈춘다(영향지도 B-5). 시계보다 먼저 둔다
+  const reveal = useReveal(lines.map((l) => ({ id: l.id, text: l.text, ai: l.kind !== 'me' })));
+  // 신고 시트가 떠 있는 동안 시계를 멈춘다(UXP 6.1). 활동은 시계가 생긴 뒤 ref로 잇는다
+  const touchRef = useRef<() => void>(() => undefined);
+  const onMenuActivity = useCallback(() => touchRef.current(), []);
+  const menu = useLineMenu(onMenuActivity);
 
   const save = useCallback(
     (secs: number) => {
@@ -86,12 +97,25 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
   const clock = useLearnClock({
     initial: done ? RETRO_SECONDS : rec.retroSeconds,
     total: RETRO_SECONDS,
-    gates: { waiting, offline, failed: failed !== null || saveStuck, overlay: leaveOpen, blocked: done || blocked },
+    gates: { waiting, revealing: reveal.revealing, offline, failed: failed !== null || saveStuck, overlay: leaveOpen || menu.opened, blocked: done || blocked },
     save,
   });
   const { touch, syncTo, current } = clock;
+  useEffect(() => {
+    touchRef.current = touch;
+  }, [touch]);
   useSessionPresence(() => save(current()));
-  const report = useReport(touch);
+  const { open: openMenu, setLatest } = menu;
+  const latest = lines.findLast((l) => l.kind !== 'me' && l.reportable);
+  const latestId = latest?.id;
+  const latestText = latest ? lineText(latest) : '';
+  useEffect(() => {
+    setLatest(latestId ? { id: latestId, text: latestText, send: (r) => useApp.getState().reportMessage(latestId, r) } : null);
+  }, [latestId, latestText, setLatest]);
+  const onLine = useCallback(
+    (l: Line) => openMenu({ id: l.id, text: lineText(l), send: l.reportable ? (r) => useApp.getState().reportMessage(l.id, r) : undefined }),
+    [openMenu],
+  );
   // 3분을 채운 뒤에는 남은 분 대신 완료하기를 눌러야 끝난다고 알린다
   const filled = done || clock.secs >= RETRO_SECONDS;
   const leave = useLeave({
@@ -184,7 +208,7 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
     if (ok) router.replace({ pathname: '/session/done', params: { earned: out.earned ? '1' : '0' } });
   };
 
-  const composer = (secondary: boolean) => (
+  const composer = (
     <Composer
       value={text}
       onChange={(v) => {
@@ -193,16 +217,16 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
       }}
       onSend={() => void send()}
       busy={waiting}
-      failed={failed === 'send'}
-      error={error}
-      secondary={secondary}
+      error={failed === 'send' ? (error ?? t.failed) : null}
+      placeholder={t.inputPlaceholder}
+      onInputStart={reveal.finish}
     />
   );
   // 시간이 찼어도 답을 기다리는 질문이 남았거나 쓰던 문장이 있으면 입력창을 남긴다. 완료하기가 주 버튼이다
   const keepInput = filled && !done && (retroAwaitsAnswer(messages) || !!text.trim() || failed === 'send');
   const footer = filled ? (
     <>
-      {keepInput ? composer(true) : null}
+      {keepInput ? composer : null}
       <Body muted>{t.retroFilled}</Body>
       <ErrorLine message={failed === 'finish' ? error : null} />
       <Button title={t.finish} busy={waiting} onPress={() => void finish()} />
@@ -213,7 +237,7 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
       <Button title={t.reload} busy={waiting} onPress={() => void open()} />
     </>
   ) : (
-    composer(false)
+    composer
   );
 
   const header = (
@@ -222,7 +246,9 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
       remaining={RETRO_SECONDS - clock.secs}
       ratio={clock.secs / RETRO_SECONDS}
       paused={!clock.running && !filled}
+      idle={clock.idle}
       onClose={done || blocked ? undefined : leave.ask}
+      onMore={!blocked && menu.latest ? menu.more : undefined}
     />
   );
   if (blocked) return <StopView theme="white" header={header} title={t.limitTitle} body={t.limitBody} />;
@@ -243,13 +269,26 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
         <>
           <IdleModal visible={clock.idle} onContinue={clock.dismissIdle} />
           {leave.sheet()}
+          {menu.sheets}
         </>
       }
       follow
+      count={lines.length}
+      mineLast={lines.at(-1)?.kind === 'me'}
+      revealing={reveal.revealing}
+      onTouch={reveal.finish}
     >
       <Body muted>{t.retroSub}</Body>
-      <Transcript lines={linesOf(messages, 'retro')} partnerName={t.coach} coachSpeaks waiting={waiting && failed === null} onReport={report.open} />
-      {report.sheet}
+      <Transcript
+        lines={lines}
+        partnerName={t.coach}
+        coachSpeaks
+        waiting={waiting && failed === null}
+        note={t.uncounted}
+        target={reveal.target}
+        isNew={reveal.isNew}
+        onLine={onLine}
+      />
     </LearnShell>
   );
 }

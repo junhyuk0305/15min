@@ -62,8 +62,9 @@ export function DeleteAccountButton({ inverse }: { inverse?: boolean }) {
 /**
  * 강제 화면(반성문, 영구 정지 안내) 헤더 오른쪽 "⋯". 계정 삭제하기, 이용약관, 개인정보처리방침을 고르는 시트를 연다(갭분석 F13).
  * 계정 삭제는 위 확인 시트를 거친다. 시트 두 개가 한꺼번에 떠 있지 않게 고르기 시트가 닫힌 뒤에 연다.
+ * report가 있으면 맨 위에 "신고하기"(반성문의 가장 최근 코치 답, UXP 3절 "신고 위치"). 이유 시트는 report 쪽이 이 시트가 닫힌 뒤 연다.
  */
-export function AccountMenu() {
+export function AccountMenu({ report }: { report?: () => void } = {}) {
   const [menu, setMenu] = useState(false);
   const [del, setDel] = useState(false);
   const close = () => setMenu(false);
@@ -78,6 +79,17 @@ export function AccountMenu() {
         visible={menu}
         onClose={close}
         actions={[
+          ...(report
+            ? [
+                {
+                  label: copy.report.menu,
+                  onPress: () => {
+                    close();
+                    report();
+                  },
+                },
+              ]
+            : []),
           {
             label: t.deleteAccount,
             danger: true,

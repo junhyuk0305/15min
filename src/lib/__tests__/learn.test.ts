@@ -28,15 +28,38 @@ import {
 import { copy } from '../copy';
 import type { Message } from '../model';
 
-const open: ClockGates = { appActive: true, focused: true, waiting: false, offline: false, failed: false, overlay: false, blocked: false };
+const open: ClockGates = { appActive: true, focused: true, waiting: false, revealing: false, offline: false, failed: false, overlay: false, blocked: false };
 const start: ClockState = { secs: 0, quietMs: 0, idle: false };
 
 // 시계 멈춤 조건 (기획서 11.2, MP 7.3)
 
 test('시계: 모든 조건이 맞을 때만 돈다', () => {
   assert.equal(clockRunning(open), true);
-  for (const k of ['waiting', 'offline', 'failed', 'overlay', 'blocked'] as const) assert.equal(clockRunning({ ...open, [k]: true }), false, k);
+  for (const k of ['waiting', 'revealing', 'offline', 'failed', 'overlay', 'blocked'] as const) assert.equal(clockRunning({ ...open, [k]: true }), false, k);
   for (const k of ['appActive', 'focused'] as const) assert.equal(clockRunning({ ...open, [k]: false }), false, k);
+});
+
+test('글자 표시 중에는 시계가 멈추고 시간도 딴짓 판정도 늘지 않는다 (UXP 3절)', () => {
+  const running = clockRunning({ ...open, revealing: true });
+  assert.equal(running, false);
+  const s: ClockState = { secs: 40, quietMs: 0, idle: false };
+  assert.deepEqual(tick(s, 600, running).state, s);
+});
+
+test('딴짓 2분은 글자 표시가 끝난 뒤부터 센다', () => {
+  // 응답이 오면 touch로 0이 되고(request의 finally), 표시하는 1.5초 동안은 멈춰 있다
+  let s = touch({ secs: 100, quietMs: 90_000, idle: false });
+  for (let i = 0; i < 2; i++) s = tick(s, 600, clockRunning({ ...open, revealing: true })).state;
+  assert.deepEqual(s, { secs: 100, quietMs: 0, idle: false });
+  // 표시가 끝난 뒤 119초까지는 팝업이 없고 120초째에 뜬다
+  let idleAt = -1;
+  for (let i = 0; i < 125; i++) {
+    const r = tick(s, 600, clockRunning(open));
+    s = r.state;
+    if (r.becameIdle) idleAt = i;
+  }
+  assert.equal(idleAt, 119);
+  assert.equal(s.secs, 219);
 });
 
 test('시계: 1초씩 세고 5초마다, 끝에서 저장한다', () => {

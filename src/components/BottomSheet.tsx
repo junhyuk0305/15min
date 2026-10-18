@@ -27,7 +27,7 @@ export function BottomSheet({
   onClose,
   children,
   dismissible = true,
-  theme = 'ivory',
+  theme: themeProp,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -37,6 +37,9 @@ export function BottomSheet({
 }) {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
+  // theme을 주지 않으면 시트를 연 화면의 바탕을 따른다(학습 B는 다크)
+  const outer = useSurface().theme;
+  const theme = themeProp ?? outer;
   const p = PALETTES[theme];
   const [mounted, setMounted] = useState(visible);
   // 열리면 바로 그린다(렌더 중 상태 맞추기). 닫힘은 움직임이 끝난 뒤 내린다

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { LineMenu } from '@/components/LineMenu';
 import type { ApiError } from '@/lib/api';
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: ApiError };
@@ -19,4 +20,8 @@ export type PanelProps = {
   touch: () => void;
   /** 연결이 끊겼나. 돌아오면 불러오기를 다시 한다 */
   offline: boolean;
+  /** 글자 단위 표시 중인지 알린다. 그동안 시계를 멈춘다(UXP 3절) */
+  setRevealing: (revealing: boolean) => void;
+  /** 줄 길게 누르기 시트(open)와 헤더 "⋯"가 신고할 가장 최근 줄(setLatest). 시트가 떠 있으면 시계가 멈춘다 */
+  menu: Pick<LineMenu, 'open' | 'setLatest'>;
 };

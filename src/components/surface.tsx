@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { PALETTES, type Palette, type ThemeName } from '@/lib/theme';
 
 /** 지금 그리는 바탕. Screen이 정하고 안쪽 부품이 읽는다 */
@@ -11,8 +11,10 @@ export type Surface = {
 
 const Ctx = createContext<Surface>({ theme: 'ivory', p: PALETTES.ivory, red: false });
 
+/** 값은 바탕이 바뀔 때만 새로 만든다. 학습 화면은 1초마다 다시 그려져 매번 새 값이면 채팅 줄 200개가 모두 다시 그려진다(UXP 6.3) */
 export function SurfaceProvider({ theme = 'ivory', red = false, children }: { theme?: ThemeName; red?: boolean; children: ReactNode }) {
-  return <Ctx.Provider value={{ theme, p: PALETTES[theme], red }}>{children}</Ctx.Provider>;
+  const value = useMemo(() => ({ theme, p: PALETTES[theme], red }), [theme, red]);
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export function useSurface(): Surface {

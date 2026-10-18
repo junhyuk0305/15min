@@ -1,12 +1,17 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { chatGap, type ChatSpeaker } from '@/components/ChatLine';
 import { useSurface } from '@/components/surface';
+import { DUR, EASE } from '@/lib/motion';
+import { useRevealCount } from '@/lib/useReveal';
 import { B, F, R, S, T } from '@/lib/theme';
 
 /**
  * 코치 주석. 채팅 안(inline)에서는 가운데에 위아래 괘선을 긋는다.
  * modal이면 코치 모달 본문으로 쓴다: 카드 바탕, 1.5 테두리. 보기와 버튼은 children으로 넣는다.
+ * reveal이면 첫 문장(lead, 없으면 description)을 어절 단위로 보이고, 표현 카드(표현, 뜻, 설명, 단어)는 표시가 끝난 뒤 200ms 페이드인한다(갭분석 C2).
+ * 코치 모달에는 쓰지 않는다.
  */
 export function CoachNote({
   kicker,
@@ -18,6 +23,7 @@ export function CoachNote({
   children,
   modal,
   prev,
+  reveal,
 }: {
   /** 맨 위 작은 머리글. 예: 코치, 코치 퀴즈 */
   kicker: string;
@@ -34,24 +40,45 @@ export function CoachNote({
   modal?: boolean;
   /** 채팅 안에서 앞 줄의 화자 */
   prev?: ChatSpeaker | null;
+  /** 글자 단위로 보이는 중이다 */
+  reveal?: boolean;
 }) {
   const { p } = useSurface();
+  const head = lead ?? description ?? '';
+  const n = useRevealCount(head, !!reveal);
+  const fade = useSharedValue(reveal ? 0 : 1);
+  useEffect(() => {
+    fade.value = reveal ? 0 : withTiming(1, { duration: DUR.base, easing: EASE });
+  }, [reveal, fade]);
+  const cardStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
+  // 표현 카드. 첫 문장 뒤에 페이드인한다
+  const card = !!expression || !!meaning || (!!lead && !!description) || !!words?.length;
+  const headText = (style: object) => (
+    <Text accessibilityLabel={reveal ? head : undefined} style={[style, { color: lead ? p.ink : p.sub }]}>
+      {head.slice(0, n)}
+      <Text style={n < head.length ? { color: 'transparent' } : undefined}>{head.slice(n)}</Text>
+    </Text>
+  );
   const box = modal
     ? [s.modal, { backgroundColor: p.card, borderColor: p.ink }]
     : [s.inline, { borderColor: p.ink, marginTop: chatGap(prev, 'coach') }];
   return (
     <View style={box} accessibilityRole={modal ? undefined : 'summary'}>
       <Text style={[modal ? T.label : s.kicker, { color: p.sub }]}>{kicker}</Text>
-      {lead ? <Text style={[modal ? T.body : s.lead, { color: p.ink }]}>{lead}</Text> : null}
-      {expression ? <Text style={[modal ? s.exModal : s.ex, { color: p.ink }]}>{expression}</Text> : null}
-      {meaning ? <Text style={[modal ? T.body : s.mean, { color: p.ink }]}>{meaning}</Text> : null}
-      {description ? <Text style={[modal ? T.small : s.desc, { color: p.sub }]}>{description}</Text> : null}
-      {words?.map((w) => (
-        <View key={w.word} style={[s.word, { borderTopColor: p.line }]}>
-          <Text style={[s.wordKey, { color: p.ink }]}>{w.word}</Text>
-          <Text style={[T.small, { color: p.sub, flexShrink: 1, textAlign: 'right' }]}>{w.meaning}</Text>
-        </View>
-      ))}
+      {lead ? headText(modal ? T.body : s.lead) : description ? headText(modal ? T.small : s.desc) : null}
+      {card ? (
+        <Animated.View style={[{ gap: modal ? S.sm : S.xs }, cardStyle]}>
+          {expression ? <Text style={[modal ? s.exModal : s.ex, { color: p.ink }]}>{expression}</Text> : null}
+          {meaning ? <Text style={[modal ? T.body : s.mean, { color: p.ink }]}>{meaning}</Text> : null}
+          {lead && description ? <Text style={[modal ? T.small : s.desc, { color: p.sub }]}>{description}</Text> : null}
+          {words?.map((w) => (
+            <View key={w.word} style={[s.word, { borderTopColor: p.line }]}>
+              <Text style={[s.wordKey, { color: p.ink }]}>{w.word}</Text>
+              <Text style={[T.small, { color: p.sub, flexShrink: 1, textAlign: 'right' }]}>{w.meaning}</Text>
+            </View>
+          ))}
+        </Animated.View>
+      ) : null}
       {children}
     </View>
   );

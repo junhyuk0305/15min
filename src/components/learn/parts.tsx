@@ -1,20 +1,15 @@
 import { router, useNavigation } from 'expo-router';
 import { usePreventRemove, type NavigationAction } from 'expo-router/react-navigation';
-import { useCallback, useRef, useState, type ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useRef, type ReactNode } from 'react';
+import { Modal, StyleSheet, Text, View } from 'react-native';
 import { ConfirmSheet } from '@/components/BottomSheet';
 import { CoachNote } from '@/components/CoachNote';
-import { ErrorLine } from '@/components/ErrorLine';
 import { LearnShell } from '@/components/learn/LearnShell';
 import { useSurface } from '@/components/surface';
-import { TextButton } from '@/components/TextButton';
-import { Body, Button, H1, Label } from '@/components/ui';
+import { Body, Button, H1 } from '@/components/ui';
 import { copy } from '@/lib/copy';
 import { phaseName, type CoachModalView, type ModalEntry, type Overlay } from '@/lib/learn';
-import { reportError } from '@/lib/report';
 import { fmtDuration, type Phase } from '@/lib/rules';
-import { useRuntime } from '@/lib/runtime';
-import { useApp } from '@/lib/store';
 import { B, F, PALETTES, R, S, T, type ThemeName } from '@/lib/theme';
 
 const t = copy.learn;
@@ -94,22 +89,6 @@ export function CoachModal({
   );
 }
 
-/** 상대와 코치 줄 옆의 작은 글자 버튼 '신고'. 보이는 크기는 작고 hitSlop을 더해 44pt다(MP 7.5-7) */
-export function ReportButton({ onPress }: { onPress: () => void }) {
-  const { p } = useSurface();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={copy.report.label}
-      onPress={onPress}
-      hitSlop={S.sm}
-      style={({ pressed }) => [{ minWidth: 28, minHeight: 28, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.5 : 1 }]}
-    >
-      <Text style={[T.small, { color: p.sub, textDecorationLine: 'underline' }]}>{copy.report.action}</Text>
-    </Pressable>
-  );
-}
-
 /** 학습을 이어 갈 수 없어 멈춘 화면(한도 초과, 04:00 경계). 학습과 회고가 같이 쓴다. 주 버튼은 홈으로 가기 */
 export function StopView({ theme, header, title, body }: { theme: ThemeName; header?: ReactNode; title: string; body: string }) {
   return (
@@ -182,125 +161,9 @@ export function useLeave({
   return { ask, sheet };
 }
 
-/**
- * 신고 흐름. open(id)로 이유 고르기를 열고, 고르면 report_message를 보낸다.
- * 열고 닫기는 활동으로 센다(onActivity).
- */
-export function useReport(onActivity: () => void) {
-  const [target, setTarget] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const close = () => {
-    onActivity();
-    setTarget(null);
-    setError(null);
-  };
-  const choose = async (reason: string) => {
-    if (!target || busy) return;
-    onActivity();
-    setBusy(true);
-    try {
-      await useApp.getState().reportMessage(target, reason);
-      useRuntime.getState().setNotice(copy.report.done);
-      setTarget(null);
-      setError(null);
-    } catch (e) {
-      reportError(e, 'report');
-      setError(copy.error.generic);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const sheet = (
-    <Modal transparent visible={target !== null} animationType="fade" onRequestClose={close}>
-      <View style={[s.dim, s.center]}>
-        <ReportCard busy={busy} error={error} onChoose={(r) => void choose(r)} onCancel={close} />
-      </View>
-    </Modal>
-  );
-  return {
-    open: (id: string) => {
-      onActivity();
-      setTarget(id);
-    },
-    sheet,
-  };
-}
-
-function ReportCard({ busy, error, onChoose, onCancel }: { busy: boolean; error: string | null; onChoose: (r: string) => void; onCancel: () => void }) {
-  const { p } = useSurface();
-  return (
-    <View style={[s.card, { backgroundColor: p.card, borderColor: p.ink }]}>
-      <Label>{copy.report.label}</Label>
-      {copy.report.reasons.map((r) => (
-        <Button key={r} title={r} kind="secondary" disabled={busy} onPress={() => onChoose(r)} />
-      ))}
-      <ErrorLine message={error} />
-      <TextButton title={copy.report.cancel} onPress={onCancel} busy={busy} />
-    </View>
-  );
-}
-
-/**
- * 영어 입력과 보내기. 실패하면 문장을 남긴 채 실패 안내와 다시 보내기를 보인다(MP 7.3).
- * 글자 수 제한은 없다(결정안 3). 빈 문장만 막고, 막힌 이유를 입력창 위에 한 줄 보인다(MP 7.5-5).
- * error는 실패 안내 문장. 없으면 공통 문장. secondary면 보내기를 테두리 버튼으로 낮춘다(아래에 주 버튼이 따로 있을 때).
- */
-export function Composer({
-  value,
-  onChange,
-  onSend,
-  busy,
-  failed,
-  error,
-  secondary,
-  placeholder = t.inputPlaceholder,
-  sendTitle = t.send,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  onSend: () => void;
-  busy: boolean;
-  failed: boolean;
-  error?: string | null;
-  secondary?: boolean;
-  placeholder?: string;
-  sendTitle?: string;
-}) {
-  const { p } = useSurface();
-  const empty = !value.trim();
-  return (
-    <>
-      <ErrorLine message={failed ? (error ?? t.failed) : null} />
-      {empty && !failed && !busy ? <Text style={[T.small, { color: p.sub }]}>{t.emptyAnswer}</Text> : null}
-      <View style={{ flexDirection: 'row', gap: S.sm, alignItems: 'stretch' }}>
-        <TextInput
-          value={value}
-          onChangeText={onChange}
-          placeholder={placeholder}
-          placeholderTextColor={p.sub}
-          accessibilityLabel={placeholder}
-          multiline
-          editable={!busy}
-          style={[s.input, T.body, { borderColor: p.ink, backgroundColor: p.card, color: p.ink }]}
-        />
-        <Button
-          title={failed ? t.resend : sendTitle}
-          kind={secondary ? 'secondary' : 'primary'}
-          onPress={onSend}
-          busy={busy}
-          disabled={empty}
-          style={{ minWidth: failed ? 112 : 84, alignSelf: 'flex-end' }}
-        />
-      </View>
-    </>
-  );
-}
-
 const s = StyleSheet.create({
   dim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', padding: S.lg },
   center: { alignItems: 'center', justifyContent: 'center' },
   card: { width: '100%', maxWidth: 412, borderRadius: R.xl, borderWidth: B.base, padding: S.md, gap: S.sm },
-  input: { flex: 1, minHeight: 56, maxHeight: 140, borderWidth: B.base, borderRadius: R.md, paddingHorizontal: 14, paddingVertical: 12, textAlignVertical: 'top' },
 });
 

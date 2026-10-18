@@ -32,6 +32,7 @@ export function Composer({
   blocked,
   placeholder,
   onInputStart,
+  maxLength,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -45,6 +46,7 @@ export function Composer({
   blocked?: boolean;
   placeholder?: string;
   onInputStart?: () => void;
+  maxLength?: number;
 }) {
   const { p, alert } = useInk();
   // 카운터 자리
@@ -80,6 +82,7 @@ export function Composer({
           placeholderTextColor={p.sub}
           accessibilityLabel={placeholder}
           multiline
+          maxLength={maxLength}
           editable={!busy}
           // 네이티브는 minHeight와 maxHeight 사이에서 저절로 늘어난다. 웹 textarea는 scrollHeight(안쪽 여백 포함)로 높이를 맞춘다
           onContentSizeChange={web ? (e) => setH(Math.min(MAX_H + extra, Math.max(MIN_H + extra, Math.ceil(e.nativeEvent.contentSize.height)))) : undefined}
@@ -94,7 +97,8 @@ export function Composer({
               paddingBottom: PAD_V + extra,
               textAlignVertical: 'top',
             },
-            web && { height: value ? h : MIN_H + extra },
+            // 웹 브라우저의 네모난 포커스 테두리가 둥근 입력창 안에 겹쳐 보인다. 바깥 둥근 테두리가 입력 자리를 보여 준다
+            web && { height: value ? h : MIN_H + extra, outlineColor: 'transparent' },
           ]}
         />
         {min !== undefined ? (

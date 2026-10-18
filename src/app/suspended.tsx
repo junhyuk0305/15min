@@ -1,17 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { AccountMenu } from '@/components/AccountLinks';
-import { ChatLine } from '@/components/ChatLine';
+import { Composer } from '@/components/Composer';
 import { Header } from '@/components/Header';
+import { LearnShell } from '@/components/learn/LearnShell';
+import { Transcript } from '@/components/learn/Transcript';
+import { useLineMenu } from '@/components/LineMenu';
 import { TextButton } from '@/components/TextButton';
-import { Body, Button, H1, Screen, styles, useNow } from '@/components/ui';
+import { Body, H1, useNow } from '@/components/ui';
 import { toApiError } from '@/lib/api';
 import { copy, errorText } from '@/lib/copy';
-import { uuidv4, type ReflectionMessage } from '@/lib/model';
+import type { Line } from '@/lib/learn';
+import { uuidv4 } from '@/lib/model';
 import { APP_TIME_ZONE, canSend, fmtClock, localParts } from '@/lib/rules';
 import { reflectionWindow } from '@/lib/selectors';
 import { useApp } from '@/lib/store';
 import { useBlockBack } from '@/lib/useBlockBack';
+import { useReveal } from '@/lib/useReveal';
 import { C, S, T } from '@/lib/theme';
 
 const t = copy.suspended;
@@ -21,40 +26,10 @@ function fmtWhen(ms: number, tz: string) {
   return t.date(p.month, p.day, fmtClock(p.hour * 60 + p.minute));
 }
 
-/** 코치 답 옆 신고 (명세 7절). 이유는 짧은 보기에서 고른다 */
-function Report({ id }: { id: string }) {
-  const reportMessage = useApp((s) => s.reportMessage);
-  const [open, setOpen] = useState(false);
-  const [state, setState] = useState<'idle' | 'busy' | 'done'>('idle');
-  const [error, setError] = useState<string | null>(null);
-  if (state === 'done') return <Text style={[T.small, { color: C.sub }]}>{copy.report.done}</Text>;
-  if (!open) return <TextButton title={copy.report.action} tone="sub" accessibilityLabel={copy.report.label} onPress={() => setOpen(true)} style={{ alignSelf: 'flex-start' }} />;
-  const send = async (reason: string) => {
-    setState('busy');
-    setError(null);
-    try {
-      await reportMessage(id, reason);
-      setState('done');
-    } catch (e) {
-      const err = toApiError(e);
-      setError(errorText(err.kind, err.code));
-      setState('idle');
-    }
-  };
-  return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: S.xs, alignItems: 'center' }}>
-      {copy.report.reasons.map((r) => (
-        <TextButton key={r} title={r} onPress={() => void send(r)} busy={state === 'busy'} />
-      ))}
-      <TextButton title={copy.report.cancel} tone="sub" onPress={() => setOpen(false)} />
-      {error ? <Text style={[T.small, { color: C.redText }]}>{error}</Text> : null}
-    </View>
-  );
-}
-
 /**
  * 이용 정지 중 화면. 반성문 채팅은 포기한 목표의 원래 시작 시각부터 원래 학습 분 동안만 열린다.
  * 그 밖에는 다음에 열리는 시각을 보인다. 나가는 길 대신 헤더에 이유 한 줄을 두고, 계정 삭제와 약관은 헤더 "⋯"에 둔다(갭분석 F13).
+ * 새 코치 답은 맨 아래로 내려 입력창에 가리지 않게 한다(F13). 글자 단위로 보이고, 길게 누르거나 헤더 "⋯"로 신고한다(UXP 3절).
  */
 export default function Suspended() {
   useBlockBack();
@@ -70,6 +45,20 @@ export default function Suspended() {
   const [error, setError] = useState<string | null>(null);
   // 실패한 문장. 같은 문장을 다시 보내면 같은 id로 보내 서버가 한 번만 저장한다
   const pending = useRef<{ id: string; text: string } | null>(null);
+  const lines = useMemo<Line[]>(
+    () =>
+      reflections.map((m) =>
+        m.role === 'user'
+          ? { key: m.id, kind: 'me', text: m.text, id: m.id, pending: !!m.pending, reportable: false }
+          : { key: m.id, kind: 'coach', text: m.text, id: m.id, modal: null, reportable: true },
+      ),
+    [reflections],
+  );
+  const reveal = useReveal(lines.map((l) => ({ id: l.id, text: l.text, ai: l.kind !== 'me' })));
+  const menu = useLineMenu();
+  const { open: openMenu, toReasons } = menu;
+  const targetOf = useCallback((l: Line) => ({ id: l.id, text: l.text, send: (r: string) => useApp.getState().reportMessage(l.id, r) }), []);
+  const latest = lines.findLast((l) => l.kind !== 'me');
 
   // 반성문 시간대는 서버 프로필 값(suspended_start_minutes, suspended_target_minutes)을 쓴다.
   // 그 값이 없는 옛 응답일 때만 이 기기의 목표 캐시로 대신한다
@@ -130,34 +119,29 @@ export default function Suspended() {
   // 창이 열린 시각(또는 시각을 몰라 서버에 묻는 중)인데 아직 대화를 받지 못했다
   const asking = !open && chat !== 'closed' && (win ? win.open : chat === 'unknown');
   const footer = open ? (
-    <>
-      <TextInput
-        value={text}
-        onChangeText={setText}
-        placeholder={t.placeholder}
-        placeholderTextColor={C.sub}
-        accessibilityLabel={t.placeholder}
-        multiline
-        style={[styles.input, T.bodySerif, { borderColor: C.ink, backgroundColor: C.card, color: C.ink, minHeight: 80, maxHeight: 160, textAlignVertical: 'top' }]}
-      />
-      <Button title={t.send} onPress={() => void send()} busy={busy} disabled={!canSend(text)} />
-    </>
+    <Composer
+      value={text}
+      onChange={setText}
+      onSend={() => void send()}
+      busy={busy}
+      blocked={!canSend(text)}
+      placeholder={t.placeholder}
+      onInputStart={reveal.finish}
+    />
   ) : null;
 
-  const speakerOf = (m: ReflectionMessage): 'me' | 'partner' => (m.role === 'user' ? 'me' : 'partner');
-  const lines = reflections.map((m, i) => {
-    const speaker = speakerOf(m);
-    const prev = i > 0 ? speakerOf(reflections[i - 1]) : null;
-    return (
-      <View key={m.id} style={{ gap: S.xs }}>
-        <ChatLine speaker={speaker} text={m.text} who={m.role === 'user' ? t.me : t.coach} prev={prev} />
-        {m.role === 'coach' ? <Report id={m.id} /> : null}
-      </View>
-    );
-  });
-
   return (
-    <Screen header={<Header title={t.header} left="none" reason={t.locked} right={<AccountMenu />} />} footer={footer}>
+    <LearnShell
+      theme="ivory"
+      header={<Header title={t.header} left="none" reason={t.locked} right={<AccountMenu report={open && latest ? () => toReasons(targetOf(latest)) : undefined} />} />}
+      footer={footer}
+      overlay={menu.sheets}
+      follow={open}
+      count={lines.length}
+      mineLast={lines.at(-1)?.kind === 'me'}
+      revealing={reveal.revealing}
+      onTouch={reveal.finish}
+    >
       <H1>{t.title}</H1>
       {profile?.suspendedUntil ? <Body>{t.until(fmtWhen(profile.suspendedUntil, tz))}</Body> : null}
       <Body muted>{t.body}</Body>
@@ -165,7 +149,15 @@ export default function Suspended() {
         <>
           <Text style={[T.h2, { color: C.redText }]}>{t.open}</Text>
           {win ? <Body muted>{t.closesAt(fmtWhen(win.closesAt, tz))}</Body> : null}
-          <View>{lines}</View>
+          <Transcript
+            lines={lines}
+            partnerName={t.coach}
+            coachSpeaks
+            waiting={busy}
+            target={reveal.target}
+            isNew={reveal.isNew}
+            onLine={(l) => openMenu(targetOf(l))}
+          />
         </>
       ) : asking ? (
         error ? null : (
@@ -189,6 +181,6 @@ export default function Suspended() {
             void load();
           }}
         /> : null}
-    </Screen>
+    </LearnShell>
   );
 }
