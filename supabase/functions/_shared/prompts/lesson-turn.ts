@@ -118,7 +118,13 @@ what the learner wants to do: ${asData(s.task, 300)}
 </scene>`;
 }
 
-function episodeBlock(subs: string[], cursor: number): string {
+// 하위 상황은 DB에서 3~8개지만 프롬프트에도 8개까지만 넣는다.
+const MAX_SUBS = 8;
+// 변형 에피소드를 만들 때 되짚는 지난 에피소드 수. 학습일이 쌓여도 입력이 커지지 않게 한다.
+const MAX_PREVIOUS_EPISODES = 5;
+
+function episodeBlock(all: string[], cursor: number): string {
+  const subs = all.slice(0, MAX_SUBS);
   const list = subs.map((s, i) => `${i + 1}. ${asData(s, 60)}`).join('\n');
   const cur = subs[cursor] ?? subs.at(-1) ?? '';
   const next = cursor + 1 < subs.length ? subs[cursor + 1] : 'none (this is the last sub-situation)';
@@ -168,6 +174,10 @@ export function buildOpeningInput(c: OpeningContext): string {
 export type VariantContext = { situation: Situation; previous: string[][]; nextIndex: number };
 
 export function buildVariantInput(c: VariantContext): string {
-  const prev = c.previous.map((subs, i) => `episode ${i + 1}: ${subs.map((s) => asData(s, 60)).join(', ')}`).join('\n');
+  const first = Math.max(0, c.previous.length - MAX_PREVIOUS_EPISODES);
+  const prev = c.previous
+    .slice(first)
+    .map((subs, i) => `episode ${first + i + 1}: ${subs.slice(0, MAX_SUBS).map((s) => asData(s, 60)).join(', ')}`)
+    .join('\n');
   return `${sceneBlock(c.situation)}\n\n<earlier_episodes>\n${prev}\n</earlier_episodes>\n\nWrite episode ${c.nextIndex + 1}.`;
 }

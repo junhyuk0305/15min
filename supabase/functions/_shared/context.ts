@@ -4,7 +4,7 @@ import { HttpError } from './errors.ts';
 import { type Ai, createAi } from './gemini.ts';
 import type { Ctx } from './server.ts';
 import type { DayRow, GoalRow, MessageRow, Profile } from './types.ts';
-import { assertWithinLimit, learningDay, usageRecorder } from './usage.ts';
+import { learningDay, usageMeter } from './usage.ts';
 import { isUuid } from './uuid.ts';
 
 export const MAX_TEXT = 2000;
@@ -65,17 +65,16 @@ export async function loadSession(ctx: Ctx, goalId: string, dayKey: string): Pro
   return { profile, goal, day, today };
 }
 
-/** 상한 검사 뒤 사용량을 기록하는 모델 호출기를 만든다. */
-export async function aiFor(ctx: Ctx, profile: Profile, fn: string): Promise<Ai> {
+/** 모델 호출기를 만든다. 호출마다(재시도 포함) 상한을 세고 사용량을 기록한다. 상한 종류는 요청의 fn으로 정한다. */
+export function aiFor(ctx: Ctx, profile: Profile): Promise<Ai> {
   const day = learningDay(ctx.now(), profile.timezone);
-  await assertWithinLimit(ctx.repo, ctx.config, ctx.userId, day, fn);
-  return createAi({
+  return Promise.resolve(createAi({
     config: ctx.config,
     transport: ctx.transport,
-    record: usageRecorder(ctx.repo, ctx.userId, day),
+    meter: usageMeter(ctx.repo, ctx.config, ctx.userId, day),
     observe: ctx.observe,
     now: ctx.now,
-  });
+  }));
 }
 
 /** 저장된 사용자 메시지가 다른 사용자, 다른 자리의 것이면 거부한다(남의 id 재사용 방지). */

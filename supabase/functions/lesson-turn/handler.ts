@@ -10,7 +10,7 @@ import type { Ctx } from '../_shared/server.ts';
 import { hasHangul, itemAppearsIn, normalizeBase } from '../_shared/text.ts';
 import { type EpisodeRow, type ItemEventRow, type ItemRow, type Message, type MessageRow, toMessage } from '../_shared/types.ts';
 import { replyId, uuidv5 } from '../_shared/uuid.ts';
-import { FN, runOpening, runTurn, runVariant } from './core.ts';
+import { runOpening, runTurn, runVariant } from './core.ts';
 
 export type EpisodeState = { index: number; cursor: number; total: number; finished: boolean };
 export type LessonResponse = { messages: Message[]; modal: CoachModal | null; episode: EpisodeState };
@@ -63,7 +63,7 @@ export async function handle(ctx: Ctx, body: Record<string, unknown>): Promise<L
   const msg = messageField(body);
   const s = await loadSession(ctx, goalId, dayKey);
   let ai: Ai | null = null;
-  const getAi = async () => (ai ??= await aiFor(ctx, s.profile, FN));
+  const getAi = async () => (ai ??= await aiFor(ctx, s.profile));
   return msg ? await turn(ctx, s, msg, getAi) : await start(ctx, s, getAi);
 }
 
@@ -152,7 +152,7 @@ async function turn(ctx: Ctx, s: Session, msg: { id: string; text: string }, get
     meta: {},
     created_at: tUser,
   };
-  if (!existingUser) await ctx.repo.insertMessages([userRow]);
+  // 사용자 글은 답과 함께 저장한다. 상한이나 모델 실패로 끝나면 아무것도 남지 않고, 같은 id로 다시 보낼 수 있다.
 
   const todayRows = await ctx.repo.listMessages({ userId: ctx.userId, goalId: s.goal.id, phases: ['B'], day: s.today });
   const before = todayRows.filter((m) => m.id !== msg.id && m.created_at <= userRow.created_at);
@@ -223,7 +223,7 @@ async function turn(ctx: Ctx, s: Session, msg: { id: string; text: string }, get
       created_at: tPartner2,
     });
   }
-  await ctx.repo.insertMessages(rows);
+  await ctx.repo.insertMessages([userRow, ...rows]);
 
   if (finished) {
     await ctx.repo.updateEpisode(s.goal.id, ep.index, { cursor, finished_at: new Date(ctx.now()).toISOString() });

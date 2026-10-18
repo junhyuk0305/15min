@@ -42,6 +42,7 @@ const config: Config = {
   models: { main: Deno.env.get('AI_MODEL_MAIN') || DEFAULT_MODEL_MAIN, light: Deno.env.get('AI_MODEL_LIGHT') || DEFAULT_MODEL_LIGHT },
   dailyLimit: 1_000_000,
   goalSetupLimit: 1_000_000,
+  globalDailyLimit: 1_000_000,
 };
 
 // ---------- 평가를 못 돌리는 경우 ----------
@@ -76,9 +77,9 @@ const counted: Transport = async (r) => {
     throw e;
   }
 };
-const noRecord = () => Promise.resolve();
-const ai = createAi({ config, transport: counted, record: noRecord, observe: (e) => attempts.push(e) });
-const judgeAi = createAi({ config, transport: base, record: noRecord });
+const noMeter = { reserve: () => Promise.resolve(0), finish: () => Promise.resolve() };
+const ai = createAi({ config, transport: counted, meter: noMeter, observe: (e) => attempts.push(e) });
+const judgeAi = createAi({ config, transport: base, meter: noMeter });
 
 type Latency = { fn: string; ms: number };
 const latencies: Latency[] = [];

@@ -1,7 +1,7 @@
 // 운영 DB 접근: service role 클라이언트로 Repo를 구현한다. index.ts(prod.ts)에서만 불러온다.
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { HttpError } from './errors.ts';
-import type { MessageQuery, Repo } from './repo.ts';
+import type { MessageQuery, Repo, ReserveResult, UsageReservation } from './repo.ts';
 import type {
   DayRow,
   EpisodeRow,
@@ -58,14 +58,6 @@ export class SupabaseRepo implements Repo {
 
   async getGoal(goalId: string) {
     return must<GoalRow | null>(await this.db.from('goals').select('*').eq('id', goalId).maybeSingle(), 'goal');
-  }
-
-  async lastGoalCreatedAt(userId: string) {
-    const rows = must<{ created_at: string }[]>(
-      await this.db.from('goals').select('created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(1),
-      'last goal',
-    );
-    return rows[0]?.created_at ?? null;
   }
 
   async getDay(goalId: string, day: string) {
@@ -135,18 +127,25 @@ export class SupabaseRepo implements Repo {
     must(await this.db.from('item_events').upsert(rows, { onConflict: 'id', ignoreDuplicates: true }), 'insert item events');
   }
 
-  async countUsage(q: { userId: string; day?: string; fn?: string; since?: string | null }) {
-    let query = this.db.from('ai_usage').select('id', { count: 'exact', head: true }).eq('user_id', q.userId);
-    if (q.day) query = query.eq('day', q.day);
-    if (q.fn) query = query.eq('fn', q.fn);
-    if (q.since) query = query.gt('created_at', q.since);
-    const r = await query;
-    must(r, 'count usage');
-    return r.count ?? 0;
+  async reserveUsage(q: UsageReservation) {
+    // service_role만 실행할 수 있는 공개 래퍼(마이그레이션 20261018000900). 사용자별 advisory lock 안에서 센다.
+    return must<ReserveResult>(
+      await this.db.rpc('reserve_ai_call', {
+        p_user: q.userId,
+        p_day: q.day,
+        p_fn: q.fn,
+        p_prompt_version: q.prompt_version,
+        p_model: q.model,
+        p_daily_limit: q.limits.daily,
+        p_goal_setup_limit: q.limits.goalSetup,
+        p_global_limit: q.limits.global,
+      }),
+      'reserve usage',
+    );
   }
 
-  async insertUsage(row: UsageRow) {
-    must(await this.db.from('ai_usage').insert(row), 'insert usage');
+  async finishUsage(id: number, patch: Pick<UsageRow, 'input_tokens' | 'output_tokens' | 'latency_ms' | 'ok'>) {
+    must(await this.db.from('ai_usage').update(patch).eq('id', id), 'finish usage');
   }
 
   async listReflections(userId: string, day: string) {

@@ -24,11 +24,22 @@ export type MessageQuery = {
   limit?: number;
 };
 
+export type UsageReservation = {
+  userId: string;
+  /** 사용자 시간대 기준 하루 키 */
+  day: string;
+  fn: string;
+  prompt_version: string;
+  model: string;
+  limits: { daily: number; goalSetup: number; global: number };
+};
+
+export type ReserveResult = { ok: true; id: number } | { ok: false; limit: 'daily' | 'goal-setup' | 'global' };
+
 export interface Repo {
   userIdFromToken(token: string): Promise<string | null>;
   getProfile(userId: string): Promise<Profile | null>;
   getGoal(goalId: string): Promise<GoalRow | null>;
-  lastGoalCreatedAt(userId: string): Promise<string | null>;
   getDay(goalId: string, day: string): Promise<DayRow | null>;
   listDays(goalId: string): Promise<DayRow[]>;
 
@@ -49,8 +60,9 @@ export interface Repo {
   /** 같은 id가 이미 있으면 건너뛴다. */
   insertItemEvents(rows: ItemEventRow[]): Promise<void>;
 
-  countUsage(q: { userId: string; day?: string; fn?: string; since?: string | null }): Promise<number>;
-  insertUsage(row: UsageRow): Promise<void>;
+  /** 상한(하루, 마지막 목표 생성 이후 목표 설정, 전체 하루)을 원자적으로 세고 ai_usage 한 줄(ok=false)을 잡는다. */
+  reserveUsage(q: UsageReservation): Promise<ReserveResult>;
+  finishUsage(id: number, patch: Pick<UsageRow, 'input_tokens' | 'output_tokens' | 'latency_ms' | 'ok'>): Promise<void>;
 
   listReflections(userId: string, day: string): Promise<ReflectionRow[]>;
   insertReflections(rows: ReflectionRow[]): Promise<void>;

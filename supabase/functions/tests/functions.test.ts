@@ -8,11 +8,11 @@ import { handle as reflection } from '../reflection/handler.ts';
 import { handle as retro } from '../retro/handler.ts';
 import { gradeAnswer, handle as reviewQuiz } from '../review-quiz/handler.ts';
 import { RETRO_Q1, RETRO_Q2 } from '../_shared/copy.ts';
-import { fakeTransport, type Transport } from '../_shared/gemini.ts';
+import { fakeTransport, type Transport, TransportError } from '../_shared/gemini.ts';
 import type { TurnContext, TurnOutput } from '../_shared/prompts/lesson-turn.ts';
 import type { ItemRow, UsageRow } from '../_shared/types.ts';
 import { replyId } from '../_shared/uuid.ts';
-import { call, counting, day, deps, GOAL, goal, NOW, OTHER_TOKEN, profile, seed, TODAY, USER } from './helpers.ts';
+import { call, config, counting, day, deps, GOAL, goal, NOW, OTHER, OTHER_TOKEN, profile, seed, TODAY, USER } from './helpers.ts';
 
 const MSG = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const MSG2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -65,6 +65,42 @@ Deno.test('상한: 하루 150회를 넘으면 429 limit, 모델을 부르지 않
   assert.equal(c.calls.length, 0);
   const ok = await call(lessonTurn, deps(seed({ ai_usage: usageRows(149) })), turnBody('Hi there.'));
   assert.equal(ok.status, 200);
+});
+
+Deno.test('상한: 상한에 걸린 턴은 사용자 글도 남기지 않는다', async () => {
+  const repo = seed({ ai_usage: usageRows(150) });
+  assert.equal((await call(lessonTurn, deps(repo), turnBody('Hi there.'))).status, 429);
+  assert.equal(repo.t.messages.length, 0);
+});
+
+Deno.test('상한: 동시 요청 60개가 와도 목표 설정은 30회까지만 모델을 부른다', async () => {
+  const repo = seed();
+  const c = counting();
+  const d = deps(repo, c.transport);
+  const results = await Promise.all(Array.from({ length: 60 }, () => call(goalSetup, d, { messages: [] })));
+  assert.equal(results.filter((r) => r.status === 200).length, 30);
+  assert.equal(results.filter((r) => r.status === 429).length, 30);
+  assert.equal(c.calls.length, 30);
+  assert.equal(repo.t.ai_usage.length, 30);
+  assert.ok(repo.t.ai_usage.every((u) => u.ok), '잡은 줄은 호출 뒤 ok로 바뀐다');
+});
+
+Deno.test('상한: 모든 사용자를 합친 하루 상한', async () => {
+  const others = usageRows(3, { user_id: OTHER });
+  const d = { ...deps(seed({ ai_usage: others })), config: { ...config, globalDailyLimit: 3 } };
+  assert.deepEqual((await call(lessonTurn, d, turnBody('Hi there.'))).body, { error: 'limit' });
+  const d2 = { ...deps(seed({ ai_usage: others })), config: { ...config, globalDailyLimit: 4 } };
+  assert.equal((await call(lessonTurn, d2, turnBody('Hi there.'))).status, 200);
+});
+
+Deno.test('상한: 네트워크 재시도도 한 번으로 센다', async () => {
+  let n = 0;
+  const flaky: Transport = (r) => (++n === 1 ? Promise.reject(new TransportError('retryable', 'reset')) : fakeTransport(r));
+  const repo = seed({ ai_usage: usageRows(148) });
+  const r = await call(lessonTurn, deps(repo, flaky), turnBody('Hi there.'));
+  assert.equal(r.status, 200);
+  assert.equal(repo.t.ai_usage.length, 150);
+  assert.deepEqual(repo.t.ai_usage.slice(-2).map((u) => u.ok), [false, true]);
 });
 
 Deno.test('상한: 목표 설정은 마지막 목표 생성 이후 30회', async () => {
@@ -245,7 +281,19 @@ Deno.test('상대 대사: 두 번 다 한국어면 502 ai_failed, 응답을 저�
   const r = await call(lessonTurn, deps(repo, t), turnBody('Hello.'));
   assert.equal(r.status, 502);
   assert.deepEqual(r.body, { error: 'ai_failed' });
-  assert.equal(repo.t.messages.filter((m) => m.role !== 'user').length, 0, '사용자 문장은 남고 응답은 없음');
+  assert.equal(repo.t.messages.length, 0, '사용자 글도 응답도 남지 않는다');
+});
+
+Deno.test('lesson-turn: 모델 실패 뒤 같은 message.id로 다시 보내면 처음처럼 처리한다', async () => {
+  const repo = seed();
+  const down: Transport = () => Promise.reject(new TransportError('fatal', 'http 400'));
+  assert.equal((await call(lessonTurn, deps(repo, down), turnBody('I want order menu.'))).status, 502);
+  assert.equal(repo.t.messages.length, 0);
+  const r = await call(lessonTurn, deps(repo), turnBody('I want order menu.'));
+  assert.equal(r.status, 200);
+  assert.equal(r.body.messages[0].id, MSG);
+  assert.equal(r.body.messages[0].role, 'user');
+  assert.equal(repo.t.messages.filter((m) => m.role === 'user').length, 1);
 });
 
 Deno.test('not_english: 모델 안내가 비면 서버 문장으로 채운다', () => {
@@ -271,6 +319,15 @@ Deno.test('goal-setup: 질문 순서대로 채우고 이름을 받아들이면 d
   assert.deepEqual(Object.keys(r.body.fields).sort(), ['goal_name', 'my_role', 'partner', 'place', 'reason', 'task']);
   assert.ok(r.body.subsituations.length >= 5);
   assert.equal((await call(goalSetup, d, { messages: [{ role: 'bot', text: 'x' }] })).status, 400);
+});
+
+Deno.test('goal-setup: create_goal 길이 상한을 넘는 항목은 다시 요청한다', async () => {
+  const { checkGoalSetup } = await import('../goal-setup/handler.ts');
+  const fields = { reason: '호주 카페에서 주문을 못 해서 창피했던 기억이 있습니다.', place: '카페', my_role: '손님', partner: '바리스타', task: '주문', goal_name: '가'.repeat(61) };
+  const subs = ['입장', '인사', '요청하기', '질문하기', '마무리'];
+  assert.ok(checkGoalSetup({ reply: '이 목표로 정했습니다.', fields, done: true, subsituations: subs }).some((e) => e.includes('goal_name')));
+  assert.ok(checkGoalSetup({ reply: '장소는 어디입니까?', fields: { ...fields, goal_name: null as unknown as string, place: '가'.repeat(101) }, done: false, subsituations: [] }).some((e) => e.includes('place')));
+  assert.deepEqual(checkGoalSetup({ reply: '이 목표로 정했습니다.', fields: { ...fields, goal_name: '가'.repeat(60) }, done: true, subsituations: subs }), []);
 });
 
 // ---------- review-quiz ----------
@@ -326,10 +383,58 @@ Deno.test('review-quiz: 도움 받은 정답은 1칸으로, 두 번째 시도는
   const base = { goal_id: GOAL, day: TODAY, phase: 'A', action: 'grade', question_id: q.body.question.id };
   const first = await call(reviewQuiz, d, { ...base, answer: 'rather', aided: false });
   assert.equal(first.body.correct, false);
+  assert.equal(first.body.answer_en, '', '첫 오답은 정답을 감춘다');
+  assert.equal(first.body.modal, null, '단어 회상은 설명 카드에 정답이 있어 감춘다');
+  assert.ok(!first.body.feedback.includes('instead'));
+  assert.ok(!first.body.feedback.includes('다음 문항'));
   const second = await call(reviewQuiz, d, { ...base, answer: 'instead', aided: false });
   assert.equal(second.body.correct, true);
   assert.deepEqual(repo.t.item_events.map((e) => [e.correct, e.aided]), [[false, false], [true, true]]);
   assert.deepEqual([repo.t.items[0].srs_step, repo.t.items[0].next_due_day], [0, '2026-10-21']);
+});
+
+Deno.test('review-quiz: 두 번째 오답에서 정답을 보인다. 한국어 첫 답은 영어로 다시 받는다', async () => {
+  const repo = seed({ items: [pastItem()] });
+  const d = deps(repo);
+  const q = await call(reviewQuiz, d, { goal_id: GOAL, day: TODAY, phase: 'A', action: 'next' });
+  const base = { goal_id: GOAL, day: TODAY, phase: 'A', action: 'grade', question_id: q.body.question.id };
+  const first = await call(reviewQuiz, d, { ...base, answer: '대신', aided: false });
+  assert.deepEqual([first.body.correct, first.body.answer_en], [false, '']);
+  assert.ok(first.body.feedback.includes('영어로 다시'));
+  const again = await call(reviewQuiz, d, { ...base, answer: '대신', aided: false });
+  assert.deepEqual(again.body, first.body, '같은 답 재요청은 같은 결과');
+  const second = await call(reviewQuiz, d, { ...base, answer: 'rather', aided: false });
+  assert.deepEqual([second.body.correct, second.body.answer_en], [false, 'instead'], '정답은 answer_en으로 보인다');
+  assert.equal(second.body.modal.en, 'instead');
+  assert.deepEqual(repo.t.item_events.map((e) => [e.correct, e.aided]), [[false, false], [false, true]]);
+});
+
+Deno.test('review-quiz: skip은 정답을 보이고 틀림으로 센다. 다시 보내도 한 번만', async () => {
+  const repo = seed({ items: [pastItem({ srs_step: 2, unaided_streak: 1 })] });
+  const d = deps(repo);
+  const q = await call(reviewQuiz, d, { goal_id: GOAL, day: TODAY, phase: 'A', action: 'next' });
+  const body = { goal_id: GOAL, day: TODAY, phase: 'A', action: 'skip', question_id: q.body.question.id };
+  const s1 = await call(reviewQuiz, d, body);
+  assert.equal(s1.status, 200);
+  assert.deepEqual([s1.body.correct, s1.body.answer_en], [false, 'instead']);
+  assert.ok(s1.body.feedback.includes('instead'));
+  const s2 = await call(reviewQuiz, d, body);
+  assert.deepEqual(s2.body, s1.body);
+  assert.deepEqual(repo.t.item_events.map((e) => [e.correct, e.aided]), [[false, false]]);
+  assert.deepEqual([repo.t.items[0].srs_step, repo.t.items[0].unaided_streak], [0, 0], '틀림으로 SRS 처음 칸');
+  const after = await call(reviewQuiz, d, { goal_id: GOAL, day: TODAY, phase: 'A', action: 'grade', question_id: q.body.question.id, answer: 'instead', aided: false });
+  assert.deepEqual(after.body, s1.body, '정답을 본 뒤에는 다시 채점하지 않는다');
+});
+
+Deno.test('review-quiz: 첫 오답 뒤 skip은 정답을 보이고 기록을 더 남기지 않는다', async () => {
+  const repo = seed({ items: [pastItem()] });
+  const d = deps(repo);
+  const q = await call(reviewQuiz, d, { goal_id: GOAL, day: TODAY, phase: 'A', action: 'next' });
+  const qid = q.body.question.id;
+  await call(reviewQuiz, d, { goal_id: GOAL, day: TODAY, phase: 'A', action: 'grade', question_id: qid, answer: 'rather', aided: false });
+  const s = await call(reviewQuiz, d, { goal_id: GOAL, day: TODAY, phase: 'A', action: 'skip', question_id: qid });
+  assert.equal(s.body.answer_en, 'instead');
+  assert.equal(repo.t.item_events.length, 1);
 });
 
 Deno.test('review-quiz: 도움 없이 2회 연속이면 상황 적용만 낸다', async () => {
@@ -359,6 +464,30 @@ Deno.test('retro: 질문 1 → 반응 + 질문 2 → 후속 질문, 1번 답의 
   assert.equal(repo.t.messages.find((m) => m.id === MSG2)!.meta.retro_q, 2);
   assert.equal(repo.t.item_events.filter((e) => e.kind === 'used' && e.phase === 'retro').length, 1);
   assert.equal(repo.t.items[0].state, 'used');
+});
+
+Deno.test('retro: closing이면 2번 답 뒤 질문 없이 마무리한다. 1번 답 뒤 고정 질문 2는 그대로', async () => {
+  const repo = seed({ days: [day({ phase: 'retro', retro_started_at: '2026-10-20T10:59:00Z', active_seconds: 900 })] });
+  const d = deps(repo);
+  await call(retro, d, { goal_id: GOAL, day: TODAY });
+  const r1 = await call(retro, d, { goal_id: GOAL, day: TODAY, closing: true, message: { id: MSG, text: 'Could I have tea instead?' } });
+  assert.equal(r1.body.messages[2].text, RETRO_Q2);
+  const r2 = await call(retro, deps(repo, fakeTransport, NOW + 60_000), { goal_id: GOAL, day: TODAY, closing: true, message: { id: MSG2, text: 'It was a long day.' } });
+  assert.equal(r2.body.messages.length, 2);
+  assert.ok(!r2.body.messages[1].text.includes('?'));
+  assert.equal(repo.t.messages.find((m) => m.id === r2.body.messages[1].id)!.meta.retro_stage, 'closing');
+  assert.equal((await call(retro, d, { goal_id: GOAL, day: TODAY, closing: 'yes' })).status, 400);
+});
+
+Deno.test('retro: 모델 실패한 답은 남지 않아 다음 답이 다시 1번 답이 된다', async () => {
+  const repo = seed({ days: [day({ phase: 'retro', retro_started_at: '2026-10-20T10:59:00Z', active_seconds: 900 })] });
+  await call(retro, deps(repo), { goal_id: GOAL, day: TODAY });
+  const down: Transport = () => Promise.reject(new TransportError('timeout', 'slow'));
+  assert.equal((await call(retro, deps(repo, down), { goal_id: GOAL, day: TODAY, message: { id: MSG, text: 'I said instead.' } })).status, 504);
+  assert.equal(repo.t.messages.filter((m) => m.role === 'user').length, 0);
+  const r = await call(retro, deps(repo), { goal_id: GOAL, day: TODAY, message: { id: MSG2, text: 'I said instead.' } });
+  assert.equal(r.body.messages[2].text, RETRO_Q2, '다시 1번 답으로 받아 질문 2를 묻는다');
+  assert.equal(repo.t.messages.find((m) => m.id === MSG2)!.meta.retro_q, 1);
 });
 
 Deno.test('retro: 회고를 시작하지 않았으면 403 closed', async () => {
@@ -399,6 +528,16 @@ Deno.test('reflection: 재가입으로 이어 붙은 정지(목표 행 없음)�
   const r = await call(reflection, deps(repo), {});
   assert.equal(r.status, 200);
   assert.equal(r.body.messages.length, 1);
+});
+
+Deno.test('reflection: 모델 실패한 글은 남지 않는다', async () => {
+  const repo = suspendedRepo();
+  await call(reflection, deps(repo), {});
+  const down: Transport = () => Promise.reject(new TransportError('fatal', 'http 400'));
+  assert.equal((await call(reflection, deps(repo, down), { message: { id: MSG, text: '그냥 바빴습니다.' } })).status, 502);
+  assert.equal(repo.t.reflections.filter((r) => r.role === 'user').length, 0);
+  const ok = await call(reflection, deps(repo), { message: { id: MSG, text: '그냥 바빴습니다.' } });
+  assert.deepEqual(ok.body.messages.map((m: { role: string }) => m.role), ['user', 'coach']);
 });
 
 Deno.test('reflection: 같은 메시지 재요청은 한 번만 답한다', async () => {

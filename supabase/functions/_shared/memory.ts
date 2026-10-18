@@ -1,5 +1,5 @@
 // 메모리 Repo. 단위 테스트와 평가(evals)에서 DB 없이 함수 흐름을 돌린다. 운영 코드는 쓰지 않는다.
-import type { MessageQuery, Repo } from './repo.ts';
+import type { MessageQuery, Repo, ReserveResult, UsageReservation } from './repo.ts';
 import type {
   DayRow,
   EpisodeRow,
@@ -56,10 +56,6 @@ export class MemoryRepo implements Repo {
   }
   getGoal(goalId: string) {
     return Promise.resolve(this.t.goals.find((g) => g.id === goalId) ?? null);
-  }
-  lastGoalCreatedAt(userId: string) {
-    const rows = this.t.goals.filter((g) => g.user_id === userId).map((g) => g.created_at).sort();
-    return Promise.resolve(rows.at(-1) ?? null);
   }
   getDay(goalId: string, day: string) {
     return Promise.resolve(this.t.days.find((d) => d.goal_id === goalId && d.day === day) ?? null);
@@ -118,18 +114,35 @@ export class MemoryRepo implements Repo {
     for (const r of rows) if (!this.t.item_events.some((e) => e.id === r.id)) this.t.item_events.push(structuredClone(r));
     return Promise.resolve();
   }
-  countUsage(q: { userId: string; day?: string; fn?: string; since?: string | null }) {
-    const n = this.t.ai_usage.filter(
-      (u) =>
-        u.user_id === q.userId &&
-        (q.day ? u.day === q.day : true) &&
-        (q.fn ? u.fn === q.fn : true) &&
-        (q.since ? (u.created_at ?? '') > q.since : true),
-    ).length;
-    return Promise.resolve(n);
+  /** DB 함수 reserve_ai_call과 같은 규칙. 동기 코드라 동시 호출도 하나씩 센다. */
+  reserveUsage(q: UsageReservation): Promise<ReserveResult> {
+    const mine = this.t.ai_usage.filter((u) => u.user_id === q.userId);
+    if (mine.filter((u) => u.day === q.day).length >= q.limits.daily) return Promise.resolve({ ok: false, limit: 'daily' });
+    if (q.fn === 'goal-setup') {
+      const since = this.t.goals.filter((g) => g.user_id === q.userId).map((g) => g.created_at).sort().at(-1) ?? null;
+      const n = mine.filter((u) => u.fn === 'goal-setup' && (since === null || (u.created_at ?? '') > since)).length;
+      if (n >= q.limits.goalSetup) return Promise.resolve({ ok: false, limit: 'goal-setup' });
+    }
+    if (this.t.ai_usage.filter((u) => u.day === q.day).length >= q.limits.global) return Promise.resolve({ ok: false, limit: 'global' });
+    const id = this.t.ai_usage.reduce((m, u) => Math.max(m, u.id ?? 0), 0) + 1;
+    this.t.ai_usage.push({
+      id,
+      user_id: q.userId,
+      day: q.day,
+      fn: q.fn,
+      prompt_version: q.prompt_version,
+      model: q.model,
+      input_tokens: 0,
+      output_tokens: 0,
+      latency_ms: 0,
+      ok: false,
+      created_at: new Date().toISOString(),
+    });
+    return Promise.resolve({ ok: true, id });
   }
-  insertUsage(row: UsageRow) {
-    this.t.ai_usage.push({ created_at: new Date().toISOString(), ...row });
+  finishUsage(id: number, patch: Pick<UsageRow, 'input_tokens' | 'output_tokens' | 'latency_ms' | 'ok'>) {
+    const u = this.t.ai_usage.find((x) => x.id === id);
+    if (u) Object.assign(u, patch);
     return Promise.resolve();
   }
   listReflections(userId: string, day: string) {

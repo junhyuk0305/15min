@@ -9,7 +9,6 @@
 import { AI_TIMEOUT_MS, type Config, THINKING, type Tier } from './config.ts';
 import { HttpError } from './errors.ts';
 import { fakeResponse } from './fake.ts';
-import type { UsageRow } from './types.ts';
 import { type JsonSchema, validateSchema } from './validate.ts';
 
 export const INTERACTIONS_URL = 'https://generativelanguage.googleapis.com/v1beta/interactions';
@@ -130,11 +129,21 @@ export type Ai = {
   generate<T>(req: ModelRequest<T>): Promise<T>;
 };
 
+export type UsageMeta = { fn: string; prompt_version: string; model: string };
+export type UsageResult = { input_tokens: number; output_tokens: number; latency_ms: number; ok: boolean };
+
+/** 모델 호출 한 번마다(재시도, 재요청 포함) 상한을 확인하고 ai_usage 한 줄을 잡는다. */
+export type Meter = {
+  /** 호출 직전. 상한을 넘었으면 HttpError('limit')를 던진다. 잡은 줄의 id를 돌려준다. */
+  reserve(meta: UsageMeta): Promise<number>;
+  /** 잡은 줄에 결과를 적는다. */
+  finish(id: number, result: UsageResult): Promise<void>;
+};
+
 export type AiDeps = {
   config: Config;
   transport: Transport;
-  /** 모델 호출마다 ai_usage 한 줄. user_id, day는 호출한 쪽이 채운다. */
-  record: (row: Omit<UsageRow, 'user_id' | 'day'>) => Promise<void>;
+  meter: Meter;
   observe?: (e: AttemptEvent) => void;
   now?: () => number;
 };
@@ -150,26 +159,28 @@ export function transportFor(config: Config): Transport {
 
 export function createAi(d: AiDeps): Ai {
   const now = d.now ?? Date.now;
-  const safeRecord = async (row: Omit<UsageRow, 'user_id' | 'day'>) => {
+  const safeFinish = async (id: number, result: UsageResult) => {
     try {
-      await d.record(row);
+      await d.meter.finish(id, result);
     } catch (e) {
-      // 기록 실패로 이미 받은 답을 버리지 않는다. 서버 로그에 남긴다.
+      // 기록 실패로 이미 받은 답을 버리지 않는다. 잡은 줄은 ok=false로 남아 상한에 들어간다. 서버 로그에 남긴다.
       console.error('usage record failed', e instanceof Error ? e.message : String(e));
     }
   };
 
-  async function callOnce(tr: TransportRequest, fn: string, version: string): Promise<{ res: TransportResult; latencyMs: number }> {
+  async function callOnce(tr: TransportRequest, fn: string, version: string): Promise<{ res: TransportResult; latencyMs: number; usageId: number }> {
     let lastErr: TransportError | null = null;
     for (let i = 0; i < 2; i++) {
+      // 상한은 호출마다 원자적으로 센다(동시 요청, 재시도 포함). 넘었으면 여기서 limit.
+      const usageId = await d.meter.reserve({ fn, prompt_version: version, model: tr.model });
       const t0 = now();
       try {
         const res = await d.transport(tr);
-        return { res, latencyMs: now() - t0 };
+        return { res, latencyMs: now() - t0, usageId };
       } catch (e) {
         const err = e instanceof TransportError ? e : new TransportError('retryable', String(e));
         console.error('model call failed', fn, err.kind, err.message.slice(0, 200));
-        await safeRecord({ fn, prompt_version: version, model: tr.model, input_tokens: 0, output_tokens: 0, latency_ms: now() - t0, ok: false });
+        await safeFinish(usageId, { input_tokens: 0, output_tokens: 0, latency_ms: now() - t0, ok: false });
         if (err.kind === 'timeout') throw new HttpError('timeout');
         if (err.kind === 'fatal') throw new HttpError('ai_failed', 'model http error');
         lastErr = err;
@@ -193,7 +204,7 @@ export function createAi(d: AiDeps): Ai {
           promptId: req.promptId,
           context: req.context,
         };
-        const { res, latencyMs } = await callOnce(tr, req.fn, req.promptVersion);
+        const { res, latencyMs, usageId } = await callOnce(tr, req.fn, req.promptVersion);
         const errors: string[] = [];
         let value: unknown = undefined;
         let schemaOk = false;
@@ -211,15 +222,7 @@ export function createAi(d: AiDeps): Ai {
         }
         if (schemaOk && req.check) errors.push(...req.check(value as T));
         const ok = errors.length === 0;
-        await safeRecord({
-          fn: req.fn,
-          prompt_version: req.promptVersion,
-          model,
-          input_tokens: res.inputTokens,
-          output_tokens: res.outputTokens,
-          latency_ms: latencyMs,
-          ok,
-        });
+        await safeFinish(usageId, { input_tokens: res.inputTokens, output_tokens: res.outputTokens, latency_ms: latencyMs, ok });
         d.observe?.({ fn: req.fn, promptId: req.promptId, model, attempt, schemaOk, ok, errors, latencyMs, raw: text });
         if (ok) return value as T;
         console.error('model output rejected', req.fn, req.promptId, attempt, errors.slice(0, 5).join('; '));

@@ -37,6 +37,8 @@ export function parseMessages(body: Record<string, unknown>): ChatLine[] {
 }
 
 const REQUIRED: (keyof GoalFields)[] = ['reason', 'place', 'my_role', 'partner', 'task', 'goal_name'];
+/** create_goal의 길이 상한과 같다(마이그레이션 20261018000800). 넘는 값으로는 목표를 만들 수 없다. */
+export const FIELD_MAX: Record<keyof GoalFields, number> = { reason: 1000, place: 100, my_role: 100, partner: 100, task: 100, goal_name: 60 };
 
 export function missingFields(f: GoalFields): (keyof GoalFields)[] {
   return REQUIRED.filter((k) => !f[k]?.trim() || (k === 'reason' && charCount(f.reason ?? '') < MIN_NOTE_CHARS));
@@ -46,6 +48,10 @@ export function checkGoalSetup(r: GoalSetupOutput): string[] {
   const e: string[] = [];
   if (!r.reply.trim() || !hasHangul(r.reply)) e.push('reply는 한국어 문장입니다');
   for (const p of toneProblems(r.reply)) e.push(`reply 말투: ${p}`);
+  for (const k of REQUIRED) {
+    const v = r.fields[k]?.trim();
+    if (v && charCount(v) > FIELD_MAX[k]) e.push(`${k}는 ${FIELD_MAX[k]}자 이하입니다`);
+  }
   if (r.done) {
     const miss = missingFields(r.fields);
     if (miss.length) e.push(`done인데 비었거나 짧은 항목: ${miss.join(', ')}`);
@@ -84,6 +90,6 @@ export async function handle(ctx: Ctx, body: Record<string, unknown>): Promise<G
   const messages = parseMessages(body);
   const profile = await loadProfile(ctx);
   assertActiveAccount(profile, ctx.now());
-  const ai = await aiFor(ctx, profile, FN);
+  const ai = await aiFor(ctx, profile);
   return runGoalSetup(ai, { messages });
 }

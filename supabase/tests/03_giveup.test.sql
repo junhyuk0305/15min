@@ -17,7 +17,7 @@ $$;
 create function pg_temp.mk_goal(p_uid uuid, p_now timestamptz) returns uuid language sql as $$
   select (app_private.create_goal(
     p_uid, '카페 주문', '출장 가서 카페에서 혼자 주문하고 싶어서 시작합니다', 14, '{0,1,2,3,4,5,6}', 1320, 10,
-    '{"place":"카페","my_role":"손님","partner":"바리스타","task":"주문"}', '["인사","주문"]', p_now)).id
+    '{"place":"카페","my_role":"손님","partner":"바리스타","task":"주문"}', '["인사","주문","결제"]', p_now)).id
 $$;
 
 create function pg_temp.do_day(p_uid uuid, p_goal uuid, p_at timestamptz) returns jsonb language plpgsql as $$

@@ -2,9 +2,9 @@
 import assert from 'node:assert/strict';
 import { loadConfig } from '../_shared/config.ts';
 import { HttpError } from '../_shared/errors.ts';
-import { createAi, extractText, geminiTransport, type Transport, TransportError } from '../_shared/gemini.ts';
+import { createAi, extractText, geminiTransport, type Meter, type Transport, TransportError } from '../_shared/gemini.ts';
 import { SCHEMA as GOAL_SCHEMA } from '../_shared/prompts/goal-setup.ts';
-import { TURN_SCHEMA } from '../_shared/prompts/lesson-turn.ts';
+import { buildOpeningInput, buildVariantInput, TURN_SCHEMA } from '../_shared/prompts/lesson-turn.ts';
 import { GRADE_SCHEMA, QUESTION_SCHEMA } from '../_shared/prompts/review-quiz.ts';
 import { forbiddenJudgment, hasHangul, itemAppearsIn, leaksFullAnswer, normalizeAnswer, sameQuestion, toneProblems } from '../_shared/text.ts';
 import type { UsageRow } from '../_shared/types.ts';
@@ -88,8 +88,33 @@ Deno.test('설정: 기본 모델과 상한, 원격에서 AI_FAKE 거부', () => 
   assert.equal(c.models.light, 'gemini-3.5-flash-lite');
   assert.equal(c.dailyLimit, 150);
   assert.equal(c.goalSetupLimit, 30);
+  assert.equal(c.globalDailyLimit, 20_000);
+  assert.equal(loadConfig(env({ AI_GLOBAL_DAILY_LIMIT: '500' })).globalDailyLimit, 500);
   assert.equal(loadConfig(env({ AI_FAKE: '1', SUPABASE_URL: 'http://kong:8000' })).fake, true);
+  assert.equal(loadConfig(env({ AI_FAKE: '1', SUPABASE_URL: 'http://127.0.0.1:54621/' })).fake, true);
   assert.throws(() => loadConfig(env({ AI_FAKE: '1', SUPABASE_URL: 'https://abc.supabase.co' })), HttpError);
+});
+
+Deno.test('설정: AI_FAKE 로컬 판정은 호스트 이름 전체를 본다. URL이 없으면 원격으로 본다', () => {
+  const env = (o: Record<string, string>) => ({ get: (k: string) => o[k] });
+  for (const url of ['https://localhost.evil.example', 'http://kong.attacker.io', 'http://127.0.0.1.nip.io', 'http://localhost:80evil']) {
+    assert.throws(() => loadConfig(env({ AI_FAKE: '1', SUPABASE_URL: url })), HttpError, url);
+  }
+  assert.throws(() => loadConfig(env({ AI_FAKE: '1' })), HttpError);
+});
+
+Deno.test('프롬프트: 하위 상황은 8개까지, 지난 에피소드는 최근 5개만 넣는다', () => {
+  const situation = { place: '카페', my_role: '손님', partner: '바리스타', task: '주문' };
+  const subs = Array.from({ length: 12 }, (_, i) => `상황${i + 1}`);
+  const opening = buildOpeningInput({ situation, subsituations: subs, cursor: 0, resume: [] });
+  assert.ok(opening.includes('8. 상황8'));
+  assert.ok(!opening.includes('상황9'));
+  const previous = Array.from({ length: 9 }, (_, i) => [`에피소드${i + 1}`, ...subs]);
+  const variant = buildVariantInput({ situation, previous, nextIndex: 9 });
+  assert.ok(!variant.includes('에피소드4,'));
+  assert.ok(variant.includes('episode 5: 에피소드5'));
+  assert.ok(variant.includes('episode 9: 에피소드9'));
+  assert.ok(!variant.includes('상황9'));
 });
 
 const req = { model: 'm', tier: 'main' as const, system: 's', input: 'i', schema: GRADE_SCHEMA, maxOutputTokens: 100, promptId: 'p', context: null };
@@ -126,8 +151,22 @@ Deno.test('Gemini 전송: 5xx는 재시도 대상, 4xx는 아님, 20초 초과�
   await assert.rejects(geminiTransport('k', hang, 20)(req), (e) => e instanceof TransportError && e.kind === 'timeout');
 });
 
-function aiWith(transport: Transport, usage: Omit<UsageRow, 'user_id' | 'day'>[]) {
-  return createAi({ config: { ...config, fake: false, apiKey: 'k' }, transport, record: (r) => Promise.resolve(void usage.push(r)) });
+type Usage = Omit<UsageRow, 'user_id' | 'day'>;
+
+/** 잡은 줄을 usage에 쌓는 계량기. limitAfter번째 이후 자리는 limit으로 거부한다. */
+function meterInto(usage: Usage[], limitAfter = Infinity): Meter {
+  return {
+    reserve: (m) => {
+      if (usage.length >= limitAfter) return Promise.reject(new HttpError('limit', 'test'));
+      usage.push({ ...m, input_tokens: 0, output_tokens: 0, latency_ms: 0, ok: false });
+      return Promise.resolve(usage.length - 1);
+    },
+    finish: (id, r) => Promise.resolve(void Object.assign(usage[id], r)),
+  };
+}
+
+function aiWith(transport: Transport, usage: Usage[], limitAfter = Infinity) {
+  return createAi({ config: { ...config, fake: false, apiKey: 'k' }, transport, meter: meterInto(usage, limitAfter) });
 }
 
 const gradeReq = (check?: (v: { correct: boolean; feedback: string }) => string[]) => ({
@@ -143,7 +182,7 @@ const gradeReq = (check?: (v: { correct: boolean; feedback: string }) => string[
 });
 
 Deno.test('createAi: 네트워크 오류 1회는 재시도해서 성공하고, 호출마다 사용량을 남긴다', async () => {
-  const usage: Omit<UsageRow, 'user_id' | 'day'>[] = [];
+  const usage: Usage[] = [];
   let n = 0;
   const t: Transport = () => {
     n++;
@@ -159,7 +198,7 @@ Deno.test('createAi: 네트워크 오류 1회는 재시도해서 성공하고, �
 });
 
 Deno.test('createAi: 빈 출력과 깨진 JSON은 성공이 아니다. 1회 재요청 뒤 ai_failed', async () => {
-  const usage: Omit<UsageRow, 'user_id' | 'day'>[] = [];
+  const usage: Usage[] = [];
   const outs = ['', '{not json'];
   const t: Transport = () => Promise.resolve({ text: outs.shift() ?? '', inputTokens: 0, outputTokens: 0 });
   await assert.rejects(aiWith(t, usage).generate(gradeReq()), (e) => e instanceof HttpError && e.code === 'ai_failed');
@@ -177,6 +216,29 @@ Deno.test('createAi: 내용 검사 실패면 문제를 적어 1회 재요청한�
   const v = await aiWith(t, []).generate(gradeReq((x) => toneProblems(x.feedback)));
   assert.equal(v.feedback, '맞았습니다.');
   assert.ok(inputs[1].includes('rejected_previous_output'));
+});
+
+Deno.test('createAi: 재시도와 재요청도 호출 직전마다 상한을 센다', async () => {
+  // 네트워크 재시도: 첫 호출만 자리가 있고 두 번째 자리는 limit
+  let n = 0;
+  const flaky: Transport = () => {
+    n++;
+    return Promise.reject(new TransportError('retryable', 'reset'));
+  };
+  const usage: Usage[] = [];
+  await assert.rejects(aiWith(flaky, usage, 1).generate(gradeReq()), (e) => e instanceof HttpError && e.code === 'limit');
+  assert.equal(n, 1, '자리가 없으면 모델을 부르지 않는다');
+  assert.deepEqual(usage.map((u) => u.ok), [false]);
+  // 내용 검사 재요청: 두 번째 요청 전에 limit
+  let m = 0;
+  const bad: Transport = () => {
+    m++;
+    return Promise.resolve({ text: '{"correct":true,"feedback":"맞았어요."}', inputTokens: 3, outputTokens: 4 });
+  };
+  const usage2: Usage[] = [];
+  await assert.rejects(aiWith(bad, usage2, 1).generate(gradeReq((x) => toneProblems(x.feedback))), (e) => e instanceof HttpError && e.code === 'limit');
+  assert.equal(m, 1);
+  assert.deepEqual([usage2[0].ok, usage2[0].input_tokens, usage2[0].output_tokens], [false, 3, 4], '잡은 줄에 결과를 적는다');
 });
 
 Deno.test('createAi: timeout은 재시도하지 않고 504 timeout', async () => {

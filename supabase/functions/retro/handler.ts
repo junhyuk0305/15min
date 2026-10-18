@@ -1,5 +1,6 @@
-// POST {goal_id, day, message?: {id, text}} → {messages} (명세 4절 retro)
+// POST {goal_id, day, message?: {id, text}, closing?: boolean} → {messages} (명세 4절 retro)
 // 첫 호출: 고정 질문 1. 1번 답 뒤: 짧은 반응 + 고정 질문 2. 2번 답 뒤: 시간이 남는 동안 짧은 후속 질문.
+// closing: true(앱이 회고 시간이 거의 끝났다고 알림)면 2번 답 뒤부터는 질문 없이 짧은 마무리 한 줄. 고정 질문 순서는 그대로다.
 // 고정 질문은 서버 상수라 순서가 코드로 지켜진다. 1번 답에 들어간 항목은 used로 기록한다.
 import { aiFor, assertOwnMessage, dayField, loadSession, messageField, type Session, stamps, uuidField } from '../_shared/context.ts';
 import { RETRO_Q1, RETRO_Q2 } from '../_shared/copy.ts';
@@ -20,7 +21,7 @@ export function checkRetro(r: RetroOutput, c: RetroContext): string[] {
   if (!t) e.push('reply가 비었습니다');
   if (hasHangul(t)) e.push('reply에 한국어가 있습니다. 영어만 씁니다');
   if (charCount(t) > MAX_REPLY_CHARS) e.push('reply가 너무 깁니다');
-  if (c.stage === 'reaction' && t.includes('?')) e.push('reaction에는 질문을 넣지 않습니다');
+  if (c.stage !== 'follow_up' && t.includes('?')) e.push(`${c.stage}에는 질문을 넣지 않습니다`);
   if (c.stage === 'follow_up') {
     if (!t.endsWith('?')) e.push('follow_up은 질문 하나로 끝납니다');
     const asked = c.conversation.filter((l) => l.role === 'coach').map((l) => l.text);
@@ -47,6 +48,8 @@ export async function handle(ctx: Ctx, body: Record<string, unknown>): Promise<{
   const goalId = uuidField(body, 'goal_id');
   const dayKey = dayField(body);
   const msg = messageField(body);
+  if (body.closing !== undefined && typeof body.closing !== 'boolean') throw new HttpError('invalid', 'closing');
+  const closing = body.closing === true;
   const s = await loadSession(ctx, goalId, dayKey);
   if (!s.day.retro_started_at) throw new HttpError('closed', 'retro not started');
   const q = { userId: ctx.userId, goalId: s.goal.id, phases: ['retro' as const], day: s.today };
@@ -72,19 +75,19 @@ export async function handle(ctx: Ctx, body: Record<string, unknown>): Promise<{
   if (!prior.some((m) => m.id === q1Id)) throw new HttpError('invalid', 'retro not opened');
   const answerNo = prior.filter((m) => m.role === 'user').length + 1;
   const [tU, tR, tQ] = stamps(ctx.now(), 3);
+  // 사용자 글은 답과 함께 저장한다. 상한이나 모델 실패로 끝나면 남지 않아 답 번호(answerNo)가 밀리지 않는다.
   const userRow: MessageRow = existing ?? { ...base, id: msg.id, role: 'user', text: msg.text, meta: { retro_q: Math.min(answerNo, 3) }, created_at: tU };
-  if (!existing) await ctx.repo.insertMessages([userRow]);
 
   const items = await ctx.repo.listItems(s.goal.id);
   const conversation = [...prior, userRow].map((m) => ({ role: m.role === 'user' ? ('learner' as const) : ('coach' as const), text: m.text }));
   const todayItems = items.filter((i) => i.first_day === s.today).map((i) => i.base);
-  const ai = await aiFor(ctx, s.profile, FN);
-  const stage = answerNo === 1 ? 'reaction' : 'follow_up';
+  const ai = await aiFor(ctx, s.profile);
+  const stage = answerNo === 1 ? 'reaction' : closing ? 'closing' : 'follow_up';
   const out = await runRetro(ai, { stage, conversation, todayItems });
 
   const rows: MessageRow[] = [{ ...base, id: ids.reply, role: 'coach', text: out.reply.trim(), meta: { retro_stage: stage }, created_at: tR }];
   if (answerNo === 1) rows.push({ ...base, id: ids.q2, role: 'coach', text: RETRO_Q2, meta: { retro_q: 2 }, created_at: tQ });
-  await ctx.repo.insertMessages(rows);
+  await ctx.repo.insertMessages([userRow, ...rows]);
 
   if (answerNo === 1) await recordUsed(ctx, s, items, msg);
   const stored = await ctx.repo.getMessages([msg.id, ...rows.map((r) => r.id)]);

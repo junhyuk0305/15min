@@ -1,5 +1,7 @@
 // POST {goal_id, day, phase: 'A'|'C', action: 'next'} → {question}
 // POST {goal_id, day, phase, action: 'grade', question_id, answer, aided} → {correct, feedback, answer_en, modal}
+// POST {goal_id, day, phase, action: 'skip', question_id} → 같은 모양. 답하지 않고 정답을 본다(틀림으로 센다).
+// 첫 오답은 정답을 감추고(answer_en '', 상황 적용 문항만 설명 카드) 한 번 더 받는다. 두 번째 오답이나 skip이면 정답을 보인다.
 // 문항과 채점은 messages에 meta로 남긴다. 다시 열면 채점 안 된 마지막 문항을 그대로 돌려준다.
 import { aiFor, dayField, loadSession, MAX_TEXT, type Session, stamps, uuidField } from '../_shared/context.ts';
 import { QUIZ_COPY } from '../_shared/copy.ts';
@@ -67,11 +69,15 @@ export async function handle(ctx: Ctx, body: Record<string, unknown>): Promise<{
     if (!answer || answer.length > MAX_TEXT) throw new HttpError('invalid', 'answer');
     return grade(ctx, s, phase, questionId, answer, body.aided === true);
   }
+  if (body.action === 'skip') return grade(ctx, s, phase, uuidField(body, 'question_id'), null, false);
   throw new HttpError('invalid', 'action');
 }
 
 const quizOf = (m: MessageRow) => m.meta?.quiz as QuizMeta | undefined;
-const gradeOf = (m: MessageRow) => m.meta?.quiz_grade as { question_id: string; attempt: number; correct: boolean; answer_en: string; modal: ModalInfo } | undefined;
+type GradeMeta = { question_id: string; attempt: number; correct: boolean; answer_en: string; modal: ModalInfo; revealed?: boolean; skipped?: boolean };
+const gradeOf = (m: MessageRow) => m.meta?.quiz_grade as GradeMeta | undefined;
+/** 정답을 보인 채점인지. revealed가 없는 옛 기록은 늘 정답을 보였다. */
+const revealedOf = (g: GradeMeta) => g.correct || (g.revealed ?? true);
 
 function toQuestion(m: MessageRow): Question {
   const q = quizOf(m)!;
@@ -156,7 +162,7 @@ export async function gradeAnswer(
     // 뜻 선택의 정답은 영어 항목이 아니라 고를 수 있었던 한국어 뜻이다
     return { correct, feedback: correct ? QUIZ_COPY.correct : QUIZ_COPY.wrong(right ?? q.answer_en) };
   }
-  if (hasHangul(answer)) return { correct: false, feedback: QUIZ_COPY.koreanAnswer };
+  if (hasHangul(answer)) return { correct: false, feedback: QUIZ_COPY.koreanAnswer(q.answer_en) };
   if (q.type === 'word_recall' && normalizeAnswer(answer) === normalizeAnswer(q.answer_en)) return verdict(true);
   const c: GradeContext = { type: q.type, item: q.item, prompt: q.prompt, modelAnswer: q.answer_en, answer };
   return (await getAi()).generate<GradeOutput>({
@@ -194,7 +200,7 @@ async function next(ctx: Ctx, s: Session, phase: 'A' | 'C'): Promise<Question> {
   else if (type === 'expression_recall' && item) prompt = QUIZ_COPY.expressionRecall(item.ko ?? '');
   else {
     const qtype = type === 'meaning_choice' && item ? 'meaning_choice' : 'situation';
-    const ai = await aiFor(ctx, s.profile, FN);
+    const ai = await aiFor(ctx, s.profile);
     const recentQuestions = questions.slice(-3).map((m) => m.text);
     const situation = s.goal.situation;
     if (!situation) throw new HttpError('invalid', 'goal has no situation');
@@ -218,7 +224,8 @@ async function next(ctx: Ctx, s: Session, phase: 'A' | 'C'): Promise<Question> {
   return toQuestion(stored);
 }
 
-async function grade(ctx: Ctx, s: Session, phase: 'A' | 'C', questionId: string, answer: string, aidedIn: boolean): Promise<GradeResponse> {
+/** answer가 null이면 skip(정답 보기). */
+async function grade(ctx: Ctx, s: Session, phase: 'A' | 'C', questionId: string, answer: string | null, aidedIn: boolean): Promise<GradeResponse> {
   const [qm] = await ctx.repo.getMessages([questionId]);
   const q = qm && quizOf(qm);
   if (!qm || !q || qm.user_id !== ctx.userId || qm.goal_id !== s.goal.id || qm.day !== s.today || qm.phase !== phase) {
@@ -228,10 +235,12 @@ async function grade(ctx: Ctx, s: Session, phase: 'A' | 'C', questionId: string,
   const grades = msgs.filter((m) => gradeOf(m)?.question_id === questionId);
   const answers = msgs.filter((m) => (m.meta?.quiz_answer as { question_id?: string } | undefined)?.question_id === questionId);
   const lastGrade = grades.at(-1);
-  // 같은 답으로 다시 오면 재시도다. 두 번 시도한 문항은 마지막 채점을 돌려준다(결정안 12: 첫 시도 뒤 모달을 보고 한 번 더).
-  if (lastGrade && (answers.at(-1)?.text === answer || grades.length >= 2)) {
+  // 같은 답으로 다시 오면 재요청이다. 정답을 보였거나 두 번 시도한 문항은 마지막 채점을 돌려준다(결정안 12: 첫 오답 뒤 한 번 더).
+  if (lastGrade) {
     const g = gradeOf(lastGrade)!;
-    return { correct: g.correct, feedback: lastGrade.text, answer_en: g.answer_en, modal: g.modal };
+    if (revealedOf(g) || grades.length >= 2 || (answer !== null && answers.at(-1)?.text === answer)) {
+      return { correct: g.correct, feedback: lastGrade.text, answer_en: g.answer_en, modal: g.modal };
+    }
   }
   const attempt = grades.length + 1;
   const aided = attempt > 1 ? true : aidedIn;
@@ -239,29 +248,35 @@ async function grade(ctx: Ctx, s: Session, phase: 'A' | 'C', questionId: string,
   const items = q.item_id ? await ctx.repo.listItems(s.goal.id) : [];
   const item = q.item_id ? items.find((i) => i.id === q.item_id) ?? null : null;
   let ai: Ai | null = null;
-  const getAi = async () => (ai ??= await aiFor(ctx, s.profile, FN));
-  const result = await gradeAnswer(
-    getAi,
-    { type: q.type, choices: q.choices, answer_index: q.answer_index, answer_en: q.answer_en, prompt: qm.text, item: item ? quizItem(item) : null },
-    answer,
-  );
-  const modal: ModalInfo = item ? { kind: item.kind, en: item.base, ko: item.ko ?? '', note: item.note ?? '' } : null;
+  const getAi = async () => (ai ??= await aiFor(ctx, s.profile));
+  const quiz = { type: q.type, choices: q.choices, answer_index: q.answer_index, answer_en: q.answer_en, prompt: qm.text, item: item ? quizItem(item) : null };
+  const result = answer === null
+    ? { correct: false, feedback: QUIZ_COPY.wrong(q.type === 'meaning_choice' ? (q.choices?.[q.answer_index ?? -1] ?? q.answer_en) : q.answer_en) }
+    : await gradeAnswer(getAi, quiz, answer);
+  const fullModal: ModalInfo = item ? { kind: item.kind, en: item.base, ko: item.ko ?? '', note: item.note ?? '' } : null;
+  const revealed = result.correct || answer === null || attempt >= 2;
+  // 첫 오답: 정답과 채점 설명(정답이 들어 있을 수 있다)을 감춘다. 상황 적용 문항의 설명 카드는 빈칸 틀이라 힌트로 준다.
+  const hint = q.type === 'situation' ? fullModal : null;
+  const shown = revealed
+    ? { feedback: result.feedback, answer_en: q.answer_en, modal: fullModal }
+    : {
+      feedback: answer !== null && q.type !== 'meaning_choice' && hasHangul(answer) ? QUIZ_COPY.koreanRetry : QUIZ_COPY.retry(!!hint),
+      answer_en: '',
+      modal: hint,
+    };
 
   const [tA, tG] = stamps(ctx.now(), 2);
   const base = { user_id: ctx.userId, goal_id: s.goal.id, day: s.today, phase };
-  await ctx.repo.insertMessages([
-    { ...base, id: await uuidv5(`${questionId}:answer:${attempt}`), role: 'user', text: answer, meta: { quiz_answer: { question_id: questionId, attempt, aided } }, created_at: tA },
-    {
-      ...base,
-      id: await uuidv5(`${questionId}:grade:${attempt}`),
-      role: 'coach',
-      text: result.feedback,
-      meta: { quiz_grade: { question_id: questionId, attempt, correct: result.correct, answer_en: q.answer_en, modal } },
-      created_at: tG,
-    },
-  ]);
+  const rows: MessageRow[] = [];
+  if (answer !== null) {
+    rows.push({ ...base, id: await uuidv5(`${questionId}:answer:${attempt}`), role: 'user', text: answer, meta: { quiz_answer: { question_id: questionId, attempt, aided } }, created_at: tA });
+  }
+  const gradeMeta: GradeMeta = { question_id: questionId, attempt, correct: result.correct, answer_en: shown.answer_en, modal: shown.modal, revealed, ...(answer === null ? { skipped: true } : {}) };
+  rows.push({ ...base, id: await uuidv5(`${questionId}:grade:${attempt}`), role: 'coach', text: shown.feedback, meta: { quiz_grade: gradeMeta }, created_at: tG });
+  await ctx.repo.insertMessages(rows);
 
-  if (item && !q.level_check) {
+  // 첫 오답 뒤 skip은 이미 기록한 첫 시도 말고 새 기록을 남기지 않는다.
+  if (item && !q.level_check && (answer !== null || attempt === 1)) {
     await ctx.repo.insertItemEvents([
       {
         id: await uuidv5(`${questionId}:quiz:${attempt}`),
@@ -286,5 +301,5 @@ async function grade(ctx: Ctx, s: Session, phase: 'A' | 'C', questionId: string,
       });
     }
   }
-  return { correct: result.correct, feedback: result.feedback, answer_en: q.answer_en, modal };
+  return { correct: result.correct, ...shown };
 }

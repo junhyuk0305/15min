@@ -115,6 +115,7 @@ export type ReflectionRow = {
 };
 
 export type UsageRow = {
+  id?: number;
   user_id: string;
   day: string;
   fn: string;

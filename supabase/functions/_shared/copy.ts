@@ -12,10 +12,14 @@ export const QUIZ_COPY = {
   situationWithItem: (partnerLine: string, ko: string) => `${partnerLine}\n\n'${ko}'에 해당하는 배운 말을 넣어 영어로 답하십시오.`,
   situationLevel: (partnerLine: string) => `${partnerLine}\n\n영어로 답하십시오.`,
   correct: '맞았습니다.',
+  /** 정답 공개(두 번째 오답, 정답 보기) */
   wrong: (answerEn: string) => `정답은 "${answerEn}"입니다.`,
-  koreanAnswer: '영어로 답해야 맞은 것으로 셉니다. 다음 문항은 영어로 써 보십시오.',
+  /** 첫 오답. 정답을 보이지 않고 한 번 더 받는다. 설명 카드(모달)를 같이 줄 때만 "설명을 보거나" */
+  retry: (withHint: boolean) => (withHint ? '틀렸습니다. 설명을 보거나 다시 답해 보십시오.' : '틀렸습니다. 다시 답해 보십시오.'),
+  koreanRetry: '영어로 답해야 맞은 것으로 셉니다. 영어로 다시 답해 보십시오.',
+  koreanAnswer: (answerEn: string) => `영어로 답해야 맞은 것으로 셉니다. 정답은 "${answerEn}"입니다.`,
 };
 
 // 회고 고정 질문(결정안 17). 영어. 순서대로 묻는다.
-export const RETRO_Q1 = 'Pick one expression you learned today and use it in one sentence about something that happened today.';
+export const RETRO_Q1 = 'Use one new expression from today in a sentence.';
 export const RETRO_Q2 = 'How was your day today?';

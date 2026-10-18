@@ -24,7 +24,7 @@ create function pg_temp.mk(
   p_situation jsonb default '{"place":"카페","my_role":"손님","partner":"바리스타","task":"주문"}'
 ) returns public.goals language sql as $$
   select app_private.create_goal('00000000-0000-4000-8000-0000000000a9', '카페 주문', p_reason, p_period, p_weekdays,
-    p_start, p_target, p_situation, '["인사","주문"]', pg_temp.kst('2026-03-02 22:00'))
+    p_start, p_target, p_situation, '["인사","주문","결제"]', pg_temp.kst('2026-03-02 22:00'))
 $$;
 
 select pg_temp.new_user('00000000-0000-4000-8000-0000000000a9', 'goal@test.local');

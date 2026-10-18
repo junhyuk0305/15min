@@ -71,7 +71,7 @@ export async function handle(ctx: Ctx, body: Record<string, unknown>): Promise<{
   const rows = await ctx.repo.listReflections(ctx.userId, day);
   const openId = await uuidv5(`${ctx.userId}:${day}:reflection:open`);
   let ai: Ai | null = null;
-  const getAi = async () => (ai ??= await aiFor(ctx, profile, FN));
+  const getAi = async () => (ai ??= await aiFor(ctx, profile));
 
   const context = async (conversation: ReflectionContext['conversation']): Promise<ReflectionContext> => {
     const days = goal ? await ctx.repo.listDays(goal.id) : [];
@@ -105,12 +105,12 @@ export async function handle(ctx: Ctx, body: Record<string, unknown>): Promise<{
   if (mine && mine.role !== 'user') throw new HttpError('invalid', 'message id reused');
 
   const [tU, tC] = stamps(ctx.now(), 2);
+  // 사용자 글은 답과 함께 저장한다. 상한이나 모델 실패로 끝나면 남지 않는다.
   const userRow: ReflectionRow = mine ?? { id: msg.id, user_id: ctx.userId, day, role: 'user', text: msg.text, created_at: tU };
-  if (!mine) await ctx.repo.insertReflections([userRow]);
   const conversation = [...rows.filter((r) => r.id !== msg.id), userRow].slice(-20).map((r) => ({ role: r.role, text: r.text }));
   const out = await runReflection(await getAi(), await context(conversation));
   const coachRow: ReflectionRow = { id: coachId, user_id: ctx.userId, day, role: 'coach', text: out.reply.trim(), created_at: tC };
-  await ctx.repo.insertReflections([coachRow]);
+  await ctx.repo.insertReflections([userRow, coachRow]);
   const after = await ctx.repo.listReflections(ctx.userId, day);
   return { messages: [userRow.id, coachId].map((id) => after.find((r) => r.id === id)).filter((r): r is ReflectionRow => !!r).map(toMsg) };
 }

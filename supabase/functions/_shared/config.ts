@@ -12,6 +12,8 @@ export const THINKING = { main: 'low', light: 'minimal' } as const;
 export const AI_TIMEOUT_MS = 20_000;
 export const DEFAULT_DAILY_LIMIT = 150;
 export const DEFAULT_GOAL_SETUP_LIMIT = 30;
+/** 모든 사용자를 합친 하루 AI 호출 상한. 비용 안전판. */
+export const DEFAULT_GLOBAL_DAILY_LIMIT = 20_000;
 
 export type Tier = 'main' | 'light';
 
@@ -21,6 +23,7 @@ export type Config = {
   models: Record<Tier, string>;
   dailyLimit: number;
   goalSetupLimit: number;
+  globalDailyLimit: number;
 };
 
 type Env = { get(name: string): string | undefined };
@@ -30,10 +33,10 @@ function int(v: string | undefined, d: number): number {
   return Number.isInteger(n) && n > 0 ? n : d;
 }
 
-/** 로컬 Supabase(CLI)에서 도는지. AI_FAKE는 여기서만 허용한다. */
+/** 로컬 Supabase(CLI)에서 도는지. AI_FAKE는 여기서만 허용한다. URL이 없으면 로컬로 보지 않는다. */
 function isLocal(url: string | undefined): boolean {
-  if (!url) return true;
-  return /^https?:\/\/(127\.0\.0\.1|localhost|kong|host\.docker\.internal)(:\d+)?/.test(url);
+  if (!url) return false;
+  return /^https?:\/\/(127\.0\.0\.1|localhost|kong|host\.docker\.internal)(:\d+)?(\/|$)/.test(url);
 }
 
 export function loadConfig(env: Env = Deno.env): Config {
@@ -52,5 +55,6 @@ export function loadConfig(env: Env = Deno.env): Config {
     },
     dailyLimit: int(env.get('AI_DAILY_LIMIT'), DEFAULT_DAILY_LIMIT),
     goalSetupLimit: int(env.get('AI_GOAL_SETUP_LIMIT'), DEFAULT_GOAL_SETUP_LIMIT),
+    globalDailyLimit: int(env.get('AI_GLOBAL_DAILY_LIMIT'), DEFAULT_GLOBAL_DAILY_LIMIT),
   };
 }

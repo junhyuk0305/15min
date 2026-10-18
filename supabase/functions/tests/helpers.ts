@@ -20,6 +20,7 @@ export const config: Config = {
   models: { main: 'test-main', light: 'test-light' },
   dailyLimit: 150,
   goalSetupLimit: 30,
+  globalDailyLimit: 20_000,
 };
 
 export function profile(p: Partial<Profile> = {}): Profile {

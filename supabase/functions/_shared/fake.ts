@@ -134,6 +134,7 @@ const FOLLOW_UPS = [
 
 function retro(c: RetroContext) {
   if (c.stage === 'reaction') return { reply: 'Thanks for sharing that with me.' };
+  if (c.stage === 'closing') return { reply: 'Great work today. See you next time.' };
   const asked = c.conversation.filter((l) => l.role === 'coach').map((l) => l.text);
   const q = FOLLOW_UPS.find((f) => !asked.some((a) => sameQuestion(f, a))) ?? FOLLOW_UPS[0];
   return { reply: q };

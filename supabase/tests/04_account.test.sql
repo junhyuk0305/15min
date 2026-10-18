@@ -1,7 +1,7 @@
 -- 계정: 가입 동의 검사, 탈퇴 기록 승계, 탈퇴 데이터 삭제, 신고, 보관 기간 삭제, 시간대 예약
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(32);
+select plan(33);
 
 create function pg_temp.kst(p text) returns timestamptz language sql as $$
   select p::timestamp at time zone 'Asia/Seoul'
@@ -35,7 +35,8 @@ select is((pg_temp.p('00000000-0000-4000-8000-0000000000f1')).terms_version, 'v1
 select isnt((pg_temp.p('00000000-0000-4000-8000-0000000000f1')).age_confirmed_at, null, 'age_confirmed_at 기록');
 select isnt((pg_temp.p('00000000-0000-4000-8000-0000000000f1')).ai_consent_at, null, 'ai_consent_at 기록');
 select is((pg_temp.p('00000000-0000-4000-8000-0000000000f1')).email_hash,
-  encode(extensions.digest('ny@test.local', 'sha256'), 'hex'), 'email_hash = sha256(lower(trim(email)))');
+  encode(extensions.hmac('ny@test.local', (select value from app_private.config where key = 'email_hash_pepper'), 'sha256'), 'hex'),
+  'email_hash = HMAC-SHA256(정규화한 이메일, pepper)');
 select pg_temp.new_user('00000000-0000-4000-8000-0000000000f2', 'badtz@test.local',
   '{"age_confirmed": true, "ai_consent": true, "timezone": "Mars/Olympus"}');
 select is((pg_temp.p('00000000-0000-4000-8000-0000000000f2')).timezone, 'Asia/Seoul', '잘못된 시간대는 Asia/Seoul');
@@ -82,7 +83,7 @@ select throws_ok($$select app_private.report_message('00000000-0000-4000-8000-00
 
 -- 탈퇴
 select app_private.delete_user_data('00000000-0000-4000-8000-0000000000f3');
-select is((select giveup_confirmed_count from public.deleted_accounts where email_hash = encode(extensions.digest('again@test.local', 'sha256'), 'hex')),
+select is((select giveup_confirmed_count from public.deleted_accounts where email_hash = app_private.email_hash('again@test.local')),
   2, '탈퇴 기록에 포기 횟수 보관');
 select is(
   (select count(*) from public.profiles where user_id = '00000000-0000-4000-8000-0000000000f3')
@@ -105,7 +106,7 @@ select ok((pg_temp.p('00000000-0000-4000-8000-0000000000f5')).suspended_until > 
 select is((pg_temp.p('00000000-0000-4000-8000-0000000000f5')).banned, false, '2회는 영구 정지 아님');
 
 -- 3회 확정 계정은 재가입해도 영구 정지
-insert into public.deleted_accounts (email_hash, giveup_confirmed_count) values (encode(extensions.digest('three@test.local', 'sha256'), 'hex'), 3);
+insert into public.deleted_accounts (email_hash, giveup_confirmed_count) values (app_private.email_hash('three@test.local'), 3);
 select pg_temp.new_user('00000000-0000-4000-8000-0000000000f6', 'Three@test.local');
 select is((pg_temp.p('00000000-0000-4000-8000-0000000000f6')).banned, true, '3회 확정 계정은 재가입해도 banned');
 
@@ -127,7 +128,9 @@ select is((app_private.set_timezone('00000000-0000-4000-8000-0000000000f7', 'Ame
   '2026-03-03'::date, '시간대 변경은 내일부터 예약');
 select is((pg_temp.p('00000000-0000-4000-8000-0000000000f7')).timezone, 'Asia/Seoul', '오늘은 옛 시간대 유지');
 select app_private.settle_user('00000000-0000-4000-8000-0000000000f7', pg_temp.kst('2026-03-03 05:00'));
-select is((pg_temp.p('00000000-0000-4000-8000-0000000000f7')).timezone, 'America/New_York', '그날이 되면 적용');
+select is((pg_temp.p('00000000-0000-4000-8000-0000000000f7')).timezone, 'Asia/Seoul', '새 시간대(뉴욕)가 아직 그날이 아니면 옛 시간대 유지');
+select app_private.settle_user('00000000-0000-4000-8000-0000000000f7', pg_temp.kst('2026-03-03 19:00'));
+select is((pg_temp.p('00000000-0000-4000-8000-0000000000f7')).timezone, 'America/New_York', '두 시간대 모두 그날이 되면 적용');
 select throws_ok($$select app_private.set_timezone('00000000-0000-4000-8000-0000000000f7', 'Not/AZone', now())$$, 'P0001', 'invalid', '잘못된 시간대 거부');
 
 select * from finish();
