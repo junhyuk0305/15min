@@ -49,9 +49,26 @@
 - 운영 Supabase와 EAS 환경변수가 없어 지금 빌드는 서버에 붙지 않는다.
 - 받아들인 위험 3건(기기 캐시 평문, 재가입으로 개인 AI 상한 초기화, 퀴즈 정답이 meta에 있음)은 결정로그에 있다.
 
+## 로컬에서 직접 확인하는 법
+
+운영 서버가 없으므로 이 PC 안에서만 돌려 본다. AI는 고정 응답이다.
+
+1. Docker Desktop을 켠다.
+2. `npx supabase start`로 로컬 DB와 인증 서버를 띄운다. 포트는 546xx다. 다른 프로젝트가 543xx를 쓰고 있다.
+3. `AI_FAKE=1` 한 줄만 든 env 파일을 만든다. `npx supabase functions serve --env-file <그 파일>`로 AI 함수를 고정 응답 모드로 띄운다. 이렇게 띄우지 않으면 AI 호출이 "GEMINI_API_KEY missing"으로 실패한다.
+4. `npx expo start --web --port 8081`을 실행하고 http://localhost:8081을 연다. 앱은 `.env.local`(git 무시됨)에서 로컬 주소를 읽는다.
+5. 로그인:
+   - 데모 계정 `review@graego.app` / `local-review-only`. 비밀번호 로그인은 이 계정에만 열린다.
+   - 새 이메일로 가입하면 인증 코드가 실제 메일함으로 가지 않는다. 로컬 메일함 http://127.0.0.1:54624 에 잡힌다.
+6. 새 계정은 목표를 만든 다음 날부터 학습이 열린다. 오늘 학습 화면을 보려면 데모 계정을 쓴다.
+   - 데모 계정 기록을 처음 상태로 되돌리려면 그 목표의 days와 messages 행을 지운다.
+   - 그다음 goals.first_day를 오늘(서울 시각에서 4시간을 뺀 날짜)로 바꾼다.
+7. 표는 Supabase Studio http://127.0.0.1:54623 에서 본다. 테스트 중 에이전트가 만든 가짜 계정이 수십 개 들어 있다.
+
 ## 다음 작업
 
 `docs/HANDOFF.md`의 0절(결정 필요)과 1절 순서를 따른다. 출시 차단 항목은 4절에 있다.
+2~4번(Supabase 프로젝트, Gemini 키, 약관 확정)이 끝나면 운영 배포와 다시 빌드를 이어서 한다. 휴대폰에서 직접 보려면 개발용 앱 빌드(`eas build --profile development`)가 따로 필요하다.
 
 ## 참고 파일
 
