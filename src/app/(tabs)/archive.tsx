@@ -1,9 +1,11 @@
 import { router } from 'expo-router';
 import { Text, View } from 'react-native';
-import { Body, Card, H1, Label, Screen, useNow } from '@/components/ui';
+import { StatusBanner } from '@/components/StatusBanner';
+import { Body, Card, H1, Screen, useNow } from '@/components/ui';
 import { copy } from '@/lib/copy';
-import { addDays, dayKeyOf, isStudyDay } from '@/lib/rules';
-import { activeGoalOf, deviceTz, findBot, keyOf, useApp, visibleRecords } from '@/lib/store';
+import { dayKeyId } from '@/lib/model';
+import { addDays, isStudyDay } from '@/lib/rules';
+import { deviceTz, goalDaysOf, todayKeyOf, useApp } from '@/lib/store';
 import { C, S, T } from '@/lib/theme';
 
 const t = copy.archive;
@@ -12,16 +14,17 @@ const t = copy.archive;
 function Calendar() {
   const now = useNow(60_000);
   const state = useApp();
-  const goal = activeGoalOf(state);
+  const goal = state.goal;
   if (!goal) return null;
-  const today = dayKeyOf(now, deviceTz);
+  const today = todayKeyOf(state, now, deviceTz);
+  const statusOf = new Map(goalDaysOf(state).map((d) => [d.day, d.status]));
   const first = goal.firstDay;
   const days = Array.from({ length: 35 }, (_, i) => addDays(today, i - 34));
   return (
     <View style={{ gap: S.sm }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
         {days.map((d) => {
-          const st = state.records[keyOf(goal.id, d)]?.status;
+          const st = statusOf.get(d);
           const before = d < first;
           const missed = st === 'failed' || (!before && d < today && st === undefined && isStudyDay(d, goal.weekdays));
           const bg = st === 'done' ? C.ink : missed ? C.red : 'transparent';
@@ -55,25 +58,25 @@ function Calendar() {
 
 export default function Archive() {
   const state = useApp();
-  const cards = visibleRecords(state)
+  const cards = state.days
     .filter((r) => r.status === 'done')
     .sort((a, b) => (a.day < b.day ? 1 : -1));
   const goalName = (id: string) => state.goals.find((g) => g.id === id)?.name ?? '';
 
   return (
     <Screen>
+      <StatusBanner />
       <H1>{t.title}</H1>
       <Calendar />
       {cards.length === 0 ? <Body muted>{t.empty}</Body> : null}
       {cards.map((r) => (
-        <Card key={keyOf(r.goalId, r.day)} onPress={() => router.push(`/archive/${encodeURIComponent(keyOf(r.goalId, r.day))}`)}>
+        <Card key={dayKeyId(r.goalId, r.day)} onPress={() => router.push(`/archive/${encodeURIComponent(dayKeyId(r.goalId, r.day))}`)}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <Text style={T.h2}>{r.day.replace(/-/g, '.')}</Text>
             <Text style={T.h2}>{t.minutes(Math.floor(r.activeSeconds / 60))}</Text>
           </View>
-          <Label>{`${findBot(state.customBots, r.botId).name}   ${t.chars(r.chars)}`}</Label>
           <Text style={[T.small, { color: C.sub }]} numberOfLines={1}>
-            {r.reason}
+            {r.todayReason ?? ''}
           </Text>
           {state.goals.find((g) => g.id === r.goalId)?.status === 'achieved' ? (
             <Text style={[T.small, { color: C.sub }]}>{`${t.achieved}: ${goalName(r.goalId)}`}</Text>

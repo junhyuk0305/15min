@@ -1,17 +1,21 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
+import { ErrorLine } from '@/components/ErrorLine';
 import { Body, Button, H1, Label, Screen } from '@/components/ui';
 import { copy } from '@/lib/copy';
-import { canAchieve, dayKeyOf, daysBetween, totalMinutes } from '@/lib/rules';
-import { activeGoalOf, deviceTz, nowMs, recordsOf, useApp, type AppGoal } from '@/lib/store';
+import type { AppGoal } from '@/lib/model';
+import { canAchieve, daysBetween, totalMinutes } from '@/lib/rules';
+import { goalDaysOf, todayKey, useApp } from '@/lib/store';
+import { useAction } from '@/lib/useAction';
 import { S, T } from '@/lib/theme';
 
 const t = copy.achieve;
 
 export default function Achieve() {
   const state = useApp();
-  const goal = activeGoalOf(state);
+  const goal = state.goal;
+  const declareAction = useAction();
   // 선언 뒤에는 활성 목표가 사라지므로 달성 화면에 보일 값을 붙잡아 둔다
   const [done, setDone] = useState<{ goal: AppGoal; days: number; total: number } | null>(null);
 
@@ -28,7 +32,7 @@ export default function Achieve() {
     );
   }
 
-  const today = dayKeyOf(nowMs(), deviceTz);
+  const today = todayKey(state);
   if (!goal || !canAchieve(goal, today)) {
     return (
       <Screen footer={<Button title={t.cancel} kind="secondary" onPress={() => router.back()} />}>
@@ -38,18 +42,19 @@ export default function Achieve() {
   }
 
   const days = daysBetween(goal.firstDay, today);
-  const total = totalMinutes(recordsOf(state, goal.id));
+  const total = totalMinutes(goalDaysOf(state));
 
-  const declare = () => {
-    setDone({ goal, days: goal.periodDays, total });
-    state.achieve();
+  const declare = async () => {
+    const achieved = await declareAction.run(state.declareAchievement);
+    if (achieved) setDone({ goal: achieved, days: goal.periodDays, total });
   };
 
   return (
     <Screen
       footer={
         <>
-          <Button title={t.declare} onPress={declare} />
+          <ErrorLine message={declareAction.message} />
+          <Button title={t.declare} busy={declareAction.busy} onPress={() => void declare()} />
           <Button title={t.cancel} kind="secondary" onPress={() => router.back()} />
         </>
       }

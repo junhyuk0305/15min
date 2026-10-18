@@ -1,13 +1,14 @@
 import { router } from 'expo-router';
-import { Pressable, ScrollView, Text, View } from 'react-native';
-import { Big, Body, Button, Gauge, Label, Screen, useNow } from '@/components/ui';
+import { Pressable, Text, View } from 'react-native';
+import { ErrorLine } from '@/components/ErrorLine';
+import { StatusBanner } from '@/components/StatusBanner';
+import { Big, Body, Button, Gauge, H1, Label, Screen, useNow } from '@/components/ui';
 import { copy } from '@/lib/copy';
 import { openSystemSettings } from '@/lib/notify';
 import {
   achieveDay,
   canAchieve,
   cycleOf,
-  dayKeyOf,
   daysBetween,
   daysToNextCoupon,
   fmtClock,
@@ -18,8 +19,10 @@ import {
   streakOf,
   totalMinutes,
 } from '@/lib/rules';
+import { LEARN_PATH } from '@/lib/route';
 import { useRuntime } from '@/lib/runtime';
-import { activeGoalOf, allBots, deviceTz, keyOf, recordsOf, useApp } from '@/lib/store';
+import { deviceTz, goalDaysOf, todayKeyOf, todayRowOf, tzOf, useApp } from '@/lib/store';
+import { useAction } from '@/lib/useAction';
 import { C, S, T } from '@/lib/theme';
 
 const h = copy.home;
@@ -35,20 +38,30 @@ export default function Home() {
   const now = useNow();
   const state = useApp();
   const permission = useRuntime((s) => s.permission);
-  const goal = activeGoalOf(state);
-  if (!goal) return <Screen>{null}</Screen>;
+  const withdraw = useAction();
+  const goal = state.goal;
+  if (!goal) {
+    // 목표 없음: 목표 정하기 하나 (route.ts가 정지, 영구 정지는 먼저 다른 화면으로 보낸다)
+    return (
+      <Screen footer={<Button title={copy.status.newGoal} onPress={() => router.push('/goal/new')} />}>
+        <StatusBanner />
+        <H1>{copy.status.noGoalTitle}</H1>
+        <Body muted>{copy.status.noGoalBody}</Body>
+      </Screen>
+    );
+  }
 
-  const today = dayKeyOf(now, deviceTz);
-  const rec = state.records[keyOf(goal.id, today)];
-  const mine = recordsOf(state, goal.id);
+  const tz = tzOf(state);
+  const today = todayKeyOf(state, now, deviceTz);
+  const rec = todayRowOf(state, now, deviceTz);
+  const mine = goalDaysOf(state);
   const total = totalMinutes(mine);
   const s = settingsFor(goal, today);
   const streak = streakOf(mine, goal.firstDay, today, s.weekdays);
-  const st = homeState(goal, rec, now, deviceTz);
-  const c = cycleOf(today, s.startMinutes, s.targetMinutes, deviceTz);
+  const st = homeState(goal, rec, now, tz);
+  const c = cycleOf(today, s.startMinutes, s.targetMinutes, tz);
   const red = st === 'nag' || st === 'resume' || st === 'giveup';
   const ms = nextMilestone(total);
-  const bots = allBots(state.customBots);
 
   const start = () => router.push('/session/reason');
 
@@ -116,7 +129,7 @@ export default function Home() {
           <Body inverse>{h.resumeBody}</Body>
         </>
       );
-      primary = <Button title={h.resume} kind="inverse" onPress={() => router.push('/session/chat')} />;
+      primary = <Button title={h.resume} kind="inverse" onPress={() => router.push(LEARN_PATH)} />;
       break;
     }
     case 'done':
@@ -148,7 +161,12 @@ export default function Home() {
           </View>
         </>
       );
-      primary = <Button title={h.withdraw} kind="inverse" onPress={() => state.withdrawGiveup()} />;
+      primary = (
+        <>
+          <ErrorLine message={withdraw.message} />
+          <Button title={h.withdraw} kind="inverse" busy={withdraw.busy} onPress={() => void withdraw.run(state.withdrawGiveup)} />
+        </>
+      );
       break;
   }
 
@@ -157,6 +175,7 @@ export default function Home() {
 
   return (
     <Screen danger={red} footer={primary}>
+      <StatusBanner />
       {permission === 'denied' ? (
         <Pressable onPress={openSystemSettings} style={{ backgroundColor: C.red, borderRadius: 12, padding: S.md }}>
           <Text style={[T.small, { color: C.redInk }]}>{h.notifOff}</Text>
@@ -191,37 +210,6 @@ export default function Home() {
         )}
       </View>
 
-      {st !== 'giveup' ? (
-        <View style={{ gap: S.xs }}>
-          <Text style={[T.label, { color: sub }]}>{h.botTitle}</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: S.sm }}>
-            {bots.map((b) => {
-              const on = b.id === goal.botId;
-              return (
-                <Pressable
-                  key={b.id}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: on }}
-                  onPress={() => state.setTodayBot(b.id)}
-                  style={{
-                    width: 150,
-                    minHeight: 72,
-                    padding: S.md,
-                    borderRadius: 14,
-                    borderWidth: 2,
-                    borderColor: ink,
-                    backgroundColor: on ? ink : 'transparent',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <Text style={[T.small, { color: on ? (red ? C.red : C.card) : ink }]}>{b.name}</Text>
-                  <Text style={[T.label, { color: on ? (red ? C.red : C.card) : sub }]}>{copy.bots.minChars(b.minChars)}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-      ) : null}
     </Screen>
   );
 }

@@ -17,6 +17,7 @@ export const PERIOD_MAX = 90;
 export const PERIOD_DEFAULT = 14;
 export const MIN_WEEKDAYS = 5; // 학습 요일 주 5일 이상. 요일은 0=일 ~ 6=토
 export const MIN_NOTE_CHARS = 20; // 처음 이유, 오늘의 이유
+export const MIN_AGE = 18; // 가입 연령. Gemini API 추가 약관(18세 미만 서비스 금지)
 
 export const PHASE_A_RATIO = 0.2; // A 20%, B 60%, C 20%
 export const PHASE_B_END_RATIO = 0.8;

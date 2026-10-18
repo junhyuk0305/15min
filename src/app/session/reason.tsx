@@ -1,47 +1,49 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { View } from 'react-native';
+import { ErrorLine } from '@/components/ErrorLine';
 import { Body, Button, Card, Field, H1, Label, Screen } from '@/components/ui';
 import { copy } from '@/lib/copy';
-import { addDays, dayKeyOf, MIN_NOTE_CHARS, noteValid } from '@/lib/rules';
-import { activeGoalOf, deviceTz, keyOf, nowMs, useApp } from '@/lib/store';
+import { LEARN_PATH } from '@/lib/route';
+import { MIN_NOTE_CHARS, noteValid } from '@/lib/rules';
+import { goalDaysOf, todayKey, useApp } from '@/lib/store';
+import { useAction } from '@/lib/useAction';
 import { S } from '@/lib/theme';
 
 const t = copy.session;
 
 export default function Reason() {
   const state = useApp();
-  const goal = activeGoalOf(state);
-  const today = dayKeyOf(nowMs(), deviceTz);
-  const rec = goal ? state.records[keyOf(goal.id, today)] : undefined;
+  const goal = state.goal;
+  const today = todayKey(state);
   const [text, setText] = useState('');
-
-  // 오늘 이유를 이미 썼으면 채팅으로, 이미 끝난 날이면 홈으로
-  useEffect(() => {
-    if (!goal || goal.giveupRequestedAt !== null || today < goal.firstDay || (rec && rec.status !== 'progress')) router.replace('/');
-    else if (rec?.reason) router.replace('/session/chat');
-  }, [goal, rec, today]);
-
+  const start = useAction();
+  // 오늘 이유를 이미 썼거나 끝난 날이면 route.ts가 학습 화면이나 홈으로 보낸다
   if (!goal) return null;
 
   // 가장 최근에 쓴 이유 (어제가 비었으면 그 전)
-  let previous: string | undefined;
-  for (let d = addDays(today, -1), i = 0; i < 60; d = addDays(d, -1), i++) {
-    const r = state.records[keyOf(goal.id, d)];
-    if (r?.reason) {
-      previous = r.reason;
-      break;
-    }
-  }
+  const previous = goalDaysOf(state)
+    .filter((d) => d.day < today && d.todayReason)
+    .sort((a, b) => (a.day < b.day ? 1 : -1))[0]?.todayReason ?? undefined;
   const same = previous !== undefined && text.trim() === previous.trim();
 
-  const begin = () => {
-    state.startDay(text);
-    router.replace('/session/chat');
+  const begin = async () => {
+    const ok = await start.run(async () => {
+      await state.startDay(text);
+      return true;
+    });
+    if (ok) router.replace(LEARN_PATH);
   };
 
   return (
-    <Screen footer={<Button title={t.begin} onPress={begin} disabled={!noteValid(text, previous)} />}>
+    <Screen
+      footer={
+        <>
+          <ErrorLine message={start.message} />
+          <Button title={t.begin} onPress={() => void begin()} busy={start.busy} disabled={!noteValid(text, previous)} />
+        </>
+      }
+    >
       <H1>{t.reasonTitle}</H1>
       <Body muted>{t.reasonSub}</Body>
       <Card>

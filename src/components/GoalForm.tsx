@@ -1,15 +1,54 @@
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { View } from 'react-native';
 import { copy } from '@/lib/copy';
-import { MIN_NOTE_CHARS, TARGET_MAX, TARGET_MIN, fmtClock } from '@/lib/rules';
-import { allBots, useApp } from '@/lib/store';
-import { C, S, T } from '@/lib/theme';
-import { Field, Label, Stepper } from './ui';
+import type { GoalInput } from '@/lib/model';
+import { MIN_NOTE_CHARS, PERIOD_DEFAULT, TARGET_MAX, TARGET_MIN, fmtClock } from '@/lib/rules';
+import { S } from '@/lib/theme';
+import { Field, Stepper } from './ui';
 
-export type GoalDraft = { name: string; reason: string; startMinutes: number; targetMinutes: number; botId: string };
+// 목표 설정 채팅(goal-setup)이 생기기 전까지 쓰는 임시 입력. 상황 네 칸은 create_goal이 요구한다.
+export type GoalDraft = {
+  name: string;
+  reason: string;
+  startMinutes: number;
+  targetMinutes: number;
+  place: string;
+  myRole: string;
+  partner: string;
+  task: string;
+};
 
-export const EMPTY_DRAFT: GoalDraft = { name: '', reason: '', startMinutes: 22 * 60, targetMinutes: 15, botId: 'email' };
+export const EMPTY_DRAFT: GoalDraft = { name: '', reason: '', startMinutes: 22 * 60, targetMinutes: 15, place: '', myRole: '', partner: '', task: '' };
+
+// [가정] 요일 위젯이 생기기 전까지 7일 모두 학습 요일
+const ALL_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
+
+export function draftToInput(d: GoalDraft): GoalInput {
+  return {
+    name: d.name,
+    reason: d.reason,
+    periodDays: PERIOD_DEFAULT,
+    weekdays: ALL_WEEKDAYS,
+    startMinutes: d.startMinutes,
+    targetMinutes: d.targetMinutes,
+    situation: { place: d.place, myRole: d.myRole, partner: d.partner, task: d.task },
+    subsituations: [],
+  };
+}
 
 export const goalPartValid = (d: GoalDraft) => d.name.trim().length > 0 && d.reason.trim().length >= MIN_NOTE_CHARS;
+export const situationValid = (d: GoalDraft) => [d.place, d.myRole, d.partner, d.task].every((v) => v.trim().length > 0);
+
+export function SituationFields({ draft, onChange }: { draft: GoalDraft; onChange: (d: GoalDraft) => void }) {
+  const f = copy.goalForm;
+  return (
+    <View style={{ gap: S.md }}>
+      <Field label={f.placeLabel} value={draft.place} onChange={(place) => onChange({ ...draft, place })} placeholder={f.placePlaceholder} />
+      <Field label={f.myRoleLabel} value={draft.myRole} onChange={(myRole) => onChange({ ...draft, myRole })} placeholder={f.myRolePlaceholder} />
+      <Field label={f.partnerLabel} value={draft.partner} onChange={(partner) => onChange({ ...draft, partner })} placeholder={f.partnerPlaceholder} />
+      <Field label={f.taskLabel} value={draft.task} onChange={(task) => onChange({ ...draft, task })} placeholder={f.taskPlaceholder} />
+    </View>
+  );
+}
 
 const wrapDay = (m: number) => (m + 1440) % 1440;
 
@@ -61,39 +100,6 @@ export function ScheduleFields({
         onMinus={() => onChange({ startMinutes, targetMinutes: Math.max(TARGET_MIN, targetMinutes - 1) })}
         onPlus={() => onChange({ startMinutes, targetMinutes: Math.min(TARGET_MAX, targetMinutes + 1) })}
       />
-    </View>
-  );
-}
-
-export function BotPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
-  const custom = useApp((s) => s.customBots);
-  return (
-    <View style={{ gap: S.xs }}>
-      <Label>{copy.goalForm.botLabel}</Label>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: S.sm }}>
-        {allBots(custom).map((b) => {
-          const on = b.id === value;
-          return (
-            <Pressable
-              key={b.id}
-              accessibilityRole="button"
-              accessibilityState={{ selected: on }}
-              onPress={() => onChange(b.id)}
-              style={{
-                paddingHorizontal: S.md,
-                minHeight: 48,
-                justifyContent: 'center',
-                borderRadius: 12,
-                borderWidth: 2,
-                borderColor: C.ink,
-                backgroundColor: on ? C.ink : 'transparent',
-              }}
-            >
-              <Text style={[T.small, { color: on ? C.card : C.ink }]}>{b.name}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
     </View>
   );
 }

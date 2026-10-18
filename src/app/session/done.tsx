@@ -2,8 +2,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Text, View } from 'react-native';
 import { Body, Button, Label, Screen } from '@/components/ui';
 import { copy } from '@/lib/copy';
-import { dayKeyOf, settingsFor, streakOf, totalMinutes } from '@/lib/rules';
-import { activeGoalOf, deviceTz, keyOf, nowMs, recordsOf, useApp } from '@/lib/store';
+import { settingsFor, streakOf, totalMinutes } from '@/lib/rules';
+import { goalDaysOf, todayKey, todayRow, useApp } from '@/lib/store';
 import { S, T } from '@/lib/theme';
 
 const t = copy.session;
@@ -11,12 +11,12 @@ const t = copy.session;
 export default function Done() {
   const { earned } = useLocalSearchParams<{ earned?: string }>();
   const state = useApp();
-  const goal = activeGoalOf(state);
+  const goal = state.goal;
   if (!goal) return null;
-  const today = dayKeyOf(nowMs(), deviceTz);
-  const rec = state.records[keyOf(goal.id, today)];
+  const today = todayKey(state);
+  const rec = todayRow(state);
   const minutes = Math.floor((rec?.activeSeconds ?? 0) / 60);
-  const mine = recordsOf(state, goal.id);
+  const mine = goalDaysOf(state);
   const total = totalMinutes(mine);
   const streak = streakOf(mine, goal.firstDay, today, settingsFor(goal, today).weekdays);
 

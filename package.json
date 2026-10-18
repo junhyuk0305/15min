@@ -3,20 +3,30 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@expo-google-fonts/noto-sans-kr": "^0.4.4",
+    "@expo-google-fonts/noto-serif-kr": "^0.4.4",
     "@expo/metro-runtime": "~57.0.16",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@sentry/react-native": "~7.11.0",
+    "@supabase/supabase-js": "^2.118.0",
+    "aes-js": "^3.1.2",
     "expo": "~57.0.30",
     "expo-constants": "~57.0.21",
     "expo-dev-client": "~57.0.20",
+    "expo-font": "~57.0.4",
     "expo-haptics": "~57.0.3",
     "expo-linking": "~57.0.13",
     "expo-notifications": "~57.0.23",
     "expo-router": "~57.0.28",
+    "expo-secure-store": "~57.0.4",
+    "expo-splash-screen": "~57.0.10",
     "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
     "react-native-gesture-handler": "~2.32.0",
+    "react-native-get-random-values": "~1.11.0",
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
@@ -25,6 +35,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@types/aes-js": "^3.1.4",
     "@types/node": "^26.6.5",
     "@types/react": "~19.2.2",
     "deno": "^2.9.6",
@@ -46,7 +57,8 @@
     "test:db": "supabase test db",
     "test:functions": "deno test -A supabase/functions",
     "eval": "deno run -A evals/run.ts",
-    "sync:rules": "tsx scripts/sync-rules.ts"
+    "sync:rules": "tsx scripts/sync-rules.ts",
+    "sync:legal": "tsx scripts/sync-legal.ts"
   },
   "private": true
 }

@@ -1,35 +1,34 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { BotPicker, EMPTY_DRAFT, GoalFields, ScheduleFields, goalPartValid, type GoalDraft } from '@/components/GoalForm';
-import { Body, Button, H1, Label, Screen } from '@/components/ui';
+import { Body, Button, Screen } from '@/components/ui';
 import { copy } from '@/lib/copy';
-import { openSystemSettings, requestPermission } from '@/lib/notify';
+import { requestPermission } from '@/lib/notify';
+import { reportError } from '@/lib/report';
 import { useRuntime } from '@/lib/runtime';
 import { useApp } from '@/lib/store';
 import { C, S, T } from '@/lib/theme';
 
-const STEPS = 7;
+// 4장: 후킹, 문제, 약속, 경고와 알림(명세 5절). 목표는 로그인 뒤 홈에서 정한다.
+const STEPS = 4;
 const o = copy.onboarding;
 
 export default function Onboarding() {
   const [step, setStep] = useState(0);
-  const [draft, setDraft] = useState<GoalDraft>(EMPTY_DRAFT);
-  const [denied, setDenied] = useState(false);
-  const createGoal = useApp((s) => s.createGoal);
+  const finishOnboarding = useApp((s) => s.finishOnboarding);
   const setPermission = useRuntime((s) => s.setPermission);
 
   const next = () => setStep((s) => Math.min(STEPS - 1, s + 1));
 
+  // 알림을 거부해도 넘어간다. 홈이 붉은 배너와 설정 열기를 띄운다(결정로그)
   const agree = async () => {
-    const p = await requestPermission();
-    setPermission(p);
-    if (p !== 'granted') {
-      setDenied(true);
-      return;
+    try {
+      setPermission(await requestPermission());
+    } catch (e) {
+      reportError(e, 'notify');
     }
-    createGoal(draft);
-    router.replace('/');
+    finishOnboarding();
+    router.replace('/auth');
   };
 
   const dots = (
@@ -72,66 +71,21 @@ export default function Onboarding() {
         <Body muted>{o.promiseSub}</Body>
       </View>
     );
-  } else if (step === 3) {
-    content = (
-      <View style={{ gap: S.lg }}>
-        <H1>{o.goalTitle}</H1>
-        <GoalFields draft={draft} onChange={setDraft} />
-      </View>
-    );
-    footer = <Button title={o.next} onPress={next} disabled={!goalPartValid(draft)} />;
-  } else if (step === 4) {
-    content = (
-      <View style={{ gap: S.lg }}>
-        <H1>{o.scheduleTitle}</H1>
-        <ScheduleFields
-          startMinutes={draft.startMinutes}
-          targetMinutes={draft.targetMinutes}
-          onChange={(v) => setDraft({ ...draft, ...v })}
-        />
-        <Body muted>{o.scheduleNote}</Body>
-        <BotPicker value={draft.botId} onChange={(botId) => setDraft({ ...draft, botId })} />
-      </View>
-    );
-  } else if (step === 5) {
-    content = (
-      <View style={{ gap: S.lg }}>
-        <H1>{o.methodTitle}</H1>
-        <View style={{ gap: S.sm }}>
-          <View style={{ alignSelf: 'flex-start', maxWidth: '85%', backgroundColor: C.card, borderRadius: 14, padding: S.md, borderWidth: 1, borderColor: C.line }}>
-            <Body>Task: Your client delayed a payment. Write a polite but firm email.</Body>
-          </View>
-          <View style={{ alignSelf: 'flex-end', maxWidth: '85%', backgroundColor: C.ink, borderRadius: 14, padding: S.md }}>
-            <Text style={[T.body, { color: C.card }]}>Dear Mr. Lee, I am writing to follow up on the invoice dated…</Text>
-          </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-            <Label>86/100</Label>
-          </View>
-        </View>
-        <Body muted>{o.methodSub}</Body>
-      </View>
-    );
   } else {
     content = (
       <View style={{ gap: S.lg }}>
         <Text style={[T.h1, { color: C.redInk, fontSize: 36, lineHeight: 46 }]}>{o.warnTitle}</Text>
         <Text style={[T.h2, { color: C.redInk }]}>{o.warnBody}</Text>
         <Body inverse>{o.warnCoupon}</Body>
-        {denied ? <Body inverse>{o.permissionDenied}</Body> : null}
       </View>
     );
-    footer = (
-      <>
-        <Button title={o.warnAgree} kind="inverse" onPress={agree} />
-        {denied ? <Button title={o.openSettings} kind="inverse" onPress={openSystemSettings} /> : null}
-      </>
-    );
+    footer = <Button title={o.warnAgree} kind="inverse" onPress={() => void agree()} />;
   }
 
   return (
-    <Screen danger={step === 6} footer={footer}>
-      {step < 6 ? dots : null}
-      {step > 0 && step < 6 ? (
+    <Screen danger={step === STEPS - 1} footer={footer}>
+      {step < STEPS - 1 ? dots : null}
+      {step > 0 && step < STEPS - 1 ? (
         <Text accessibilityRole="button" onPress={() => setStep(step - 1)} style={[T.small, { color: C.sub }]}>
           {o.prev}
         </Text>

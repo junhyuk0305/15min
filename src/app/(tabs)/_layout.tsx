@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router/js-tabs';
+import { TabIcon } from '@/components/TabIcon';
 import { copy } from '@/lib/copy';
-import { C } from '@/lib/theme';
+import { C, F } from '@/lib/theme';
 
 export default function TabLayout() {
   return (
@@ -10,14 +11,12 @@ export default function TabLayout() {
         tabBarActiveTintColor: C.ink,
         tabBarInactiveTintColor: C.sub,
         tabBarStyle: { backgroundColor: C.bg, borderTopColor: C.line, height: 60 },
-        tabBarLabelStyle: { fontSize: 14, fontWeight: '800' },
-        tabBarIconStyle: { display: 'none' },
-        tabBarIcon: () => null,
+        tabBarLabelStyle: { fontFamily: F.sansBold, fontSize: 11 },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: copy.tabs.home }} />
-      <Tabs.Screen name="archive" options={{ title: copy.tabs.archive }} />
-      <Tabs.Screen name="settings" options={{ title: copy.tabs.settings }} />
+      <Tabs.Screen name="index" options={{ title: copy.tabs.home, tabBarIcon: ({ color }) => <TabIcon name="home" color={String(color)} /> }} />
+      <Tabs.Screen name="archive" options={{ title: copy.tabs.archive, tabBarIcon: ({ color }) => <TabIcon name="archive" color={String(color)} /> }} />
+      <Tabs.Screen name="settings" options={{ title: copy.tabs.settings, tabBarIcon: ({ color }) => <TabIcon name="settings" color={String(color)} /> }} />
     </Tabs>
   );
 }
