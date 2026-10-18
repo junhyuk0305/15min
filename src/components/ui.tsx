@@ -12,13 +12,48 @@ import {
   View,
   type ViewStyle,
 } from 'react-native';
+import Animated, { FadeIn, interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Glyph } from '@/components/Glyph';
 import { PrimaryFooter } from '@/components/PrimaryFooter';
 import { SurfaceProvider, useInk, useSurface } from '@/components/surface';
 import { TextButton } from '@/components/TextButton';
 import { copy } from '@/lib/copy';
+import { tap } from '@/lib/haptics';
+import { DUR, EASE } from '@/lib/motion';
 import { nowMs } from '@/lib/store';
 import { B, C, HIT, PALETTES, R, S, T, type ThemeName } from '@/lib/theme';
+import { useReducedMotion } from '@/lib/useReducedMotion';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+/**
+ * 눌림 움직임(갭분석 F1). 누르는 동안 0에서 1로 간다. 들어감 100ms, 나옴 150ms.
+ * scale이면 크기 0.97 + 불투명도 0.9. 줄인 움직임이면 크기는 그대로 두고 불투명도만 바꾼다.
+ * base는 평소 불투명도(처리 중 흐림 등).
+ */
+function usePress(base = 1, scale = true) {
+  const reduced = useReducedMotion();
+  const v = useSharedValue(0);
+  const shrink = scale && !reduced;
+  const style = useAnimatedStyle(
+    () => ({
+      opacity: base * (1 - 0.1 * v.value),
+      transform: [{ scale: shrink ? 1 - 0.03 * v.value : 1 }],
+    }),
+    [base, shrink],
+  );
+  return {
+    v,
+    style,
+    onPressIn: () => {
+      v.value = withTiming(1, { duration: DUR.pressIn, easing: EASE });
+    },
+    onPressOut: () => {
+      v.value = withTiming(0, { duration: DUR.pressOut, easing: EASE });
+    },
+  };
+}
 
 /** 1초마다 갱신되는 현재 시각. now를 주면 그 함수로 읽는다(개발용 시간 이동) */
 export function useNow(intervalMs = 1000, now: () => number = nowMs): number {
@@ -117,19 +152,20 @@ export function Button({
   disabled?: boolean;
   /** 처리 중. 비활성으로 바꾸고 진행 표시를 한다 (MP 7.5-6) */
   busy?: boolean;
-  /** 비활성일 때 버튼 바로 위에 보이는 이유 (MP 7.5-5) */
+  /** 비활성일 때 버튼 바로 위에 보이는 빨강 이유 (MP 7.5-5, 3절 빨강 안내). 조건을 못 채운 이유에만 쓴다. 빈 입력 안내는 넘기지 않는다 */
   disabledReason?: string | null;
   accessibilityLabel?: string;
   style?: ViewStyle;
 }) {
-  const { p, inv } = useInk();
+  const { p, inv, alert } = useInk();
+  const off = !!disabled || !!busy;
+  // 비활성은 회색. 빨강 바탕 위에서는 원래 모양을 흐리게 한다.
+  const grey = !!disabled && !busy && !(kind === 'inverse' || inv);
+  const press = usePress(off && !grey ? 0.55 : 1);
   if (kind === 'text') {
     return <TextButton title={title} onPress={onPress} disabled={disabled} busy={busy} accessibilityLabel={accessibilityLabel} style={style} />;
   }
-  const off = !!disabled || !!busy;
   const small = kind === 'secondary';
-  // 비활성은 회색. 빨강 바탕 위에서는 원래 모양을 흐리게 한다.
-  const grey = !!disabled && !busy && !(kind === 'inverse' || inv);
   const outline = inv ? p.onRed : p.ink;
   const look =
     kind === 'primary'
@@ -144,29 +180,39 @@ export function Button({
   const border = grey ? p.disabled : look.border;
 
   const btn = (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled: off, busy: !!busy }}
       disabled={off}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.btn,
-        small && { minHeight: 50 },
-        { backgroundColor: bg, borderColor: border, opacity: off && !grey ? 0.55 : pressed ? 0.8 : 1 },
-        !disabledReason && style,
-      ]}
+      onPress={() => {
+        if (kind === 'primary') tap();
+        onPress();
+      }}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      style={[styles.btn, small && { minHeight: 50 }, { backgroundColor: bg, borderColor: border }, !disabledReason && style, press.style]}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: S.sm }}>
         {busy ? <ActivityIndicator size="small" color={fg} /> : null}
         <Text style={[small ? T.buttonSm : T.button, { color: fg, textAlign: 'center', flexShrink: 1 }]}>{title}</Text>
       </View>
-    </Pressable>
+    </AnimatedPressable>
   );
   if (!disabledReason) return btn;
   return (
     <View style={[{ gap: S.xs }, style]}>
-      {disabled && !busy ? <Text style={[T.small, { color: inv ? p.onRed : p.sub, textAlign: 'center' }]}>{disabledReason}</Text> : null}
+      {disabled && !busy ? (
+        // 문장이 바뀌면 key가 바뀌어 120ms 페이드로 다시 나타난다
+        <Animated.Text
+          key={disabledReason}
+          entering={FadeIn.duration(DUR.fast)}
+          accessibilityLiveRegion="polite"
+          style={[T.small, { color: alert, textAlign: 'center' }]}
+        >
+          {disabledReason}
+        </Animated.Text>
+      ) : null}
       {btn}
     </View>
   );
@@ -206,7 +252,8 @@ export function Field({
       {label ? (
         <View style={styles.rowBetween}>
           <Label>{label}</Label>
-          {min ? <Text style={[T.small, { color: n >= min ? p.ink : alert }]}>{`${n}/${min}`}</Text> : null}
+          {/* 비었으면 회색, 쓰기 시작했는데 모자라면 빨강(3절 빨강 안내) */}
+          {min ? <Text style={[T.small, { color: n === 0 ? sub : n >= min ? p.ink : alert }]}>{`${n}/${min}`}</Text> : null}
         </View>
       ) : null}
       <TextInput
@@ -270,41 +317,91 @@ export function Stepper({
   );
 }
 
+/** 값이 바뀌면 이전 값에서 600ms 동안 채워진다(갭분석 M6). 줄인 움직임이면 바로 바뀐다 */
 export function Gauge({ ratio, inverse }: { ratio: number; inverse?: boolean }) {
   const { p, inv } = useInk(inverse);
   const r = Math.max(0, Math.min(1, ratio));
+  const reduced = useReducedMotion();
+  const v = useSharedValue(r);
+  useEffect(() => {
+    v.value = reduced ? r : withTiming(r, { duration: DUR.gauge, easing: EASE });
+  }, [r, reduced, v]);
+  const fill = useAnimatedStyle(() => ({ width: `${v.value * 100}%` }));
   return (
     <View style={[styles.gauge, { backgroundColor: inv ? 'rgba(255,255,255,0.3)' : p.line }]}>
-      <View style={{ width: `${r * 100}%`, height: '100%', backgroundColor: inv ? p.onRed : p.ink }} />
+      <Animated.View style={[{ height: '100%', backgroundColor: inv ? p.onRed : p.ink }, fill]} />
     </View>
   );
 }
 
 export function Card({ children, onPress }: { children: ReactNode; onPress?: () => void }) {
   const { p } = useSurface();
+  const press = usePress();
   const look = { backgroundColor: p.card, borderColor: p.line };
   if (onPress) {
     return (
-      <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.card, look, { opacity: pressed ? 0.8 : 1 }]}>
+      <AnimatedPressable
+        accessibilityRole="button"
+        onPress={onPress}
+        onPressIn={press.onPressIn}
+        onPressOut={press.onPressOut}
+        style={[styles.card, look, press.style]}
+      >
         {children}
-      </Pressable>
+      </AnimatedPressable>
     );
   }
   return <View style={[styles.card, look]}>{children}</View>;
 }
 
-export function Row({ left, right, onPress, danger }: { left: string; right?: string; onPress?: () => void; danger?: boolean }) {
+/**
+ * 한 줄. right는 오른쪽 글자(여러 줄 허용). 설정 화면식 줄은 아래 선택 prop을 쓴다(갭분석 7.2).
+ * value: 오른쪽 현재 값(회색 한 줄 말줄임). chevron: 오른쪽 화살표 16. pressBg: 눌림을 크기 대신 배경(C.line, 100ms)으로.
+ */
+export function Row({
+  left,
+  right,
+  onPress,
+  danger,
+  value,
+  chevron,
+  pressBg,
+}: {
+  left: string;
+  right?: string;
+  onPress?: () => void;
+  danger?: boolean;
+  value?: string;
+  chevron?: boolean;
+  pressBg?: boolean;
+}) {
   const { p, ink, sub, alert } = useInk();
+  const press = usePress(1, !pressBg);
+  const line = p.line;
+  const pv = press.v;
+  const bg = useAnimatedStyle(() => ({ backgroundColor: interpolateColor(pv.value, [0, 1], [`${line}00`, line]) }), [line]);
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole={onPress ? 'button' : undefined}
       disabled={!onPress}
       onPress={onPress}
-      style={[styles.rowBetween, styles.row, { borderBottomColor: p.line }]}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      style={[styles.rowBetween, styles.row, { borderBottomColor: p.line }, pressBg ? bg : press.style]}
     >
       <Text style={[T.body, { color: danger ? alert : ink, flexShrink: 1 }]}>{left}</Text>
       {right ? <Text style={[T.body, { color: danger ? alert : sub, flexShrink: 1, textAlign: 'right' }]}>{right}</Text> : null}
-    </Pressable>
+      {value || chevron ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: S.xs, flexShrink: 1, maxWidth: '60%' }}>
+          {value ? (
+            <Text numberOfLines={1} style={[T.body, { color: danger ? alert : sub, flexShrink: 1 }]}>
+              {value}
+            </Text>
+          ) : null}
+          {chevron ? <Glyph name="forward" size={16} color={sub} /> : null}
+        </View>
+      ) : null}
+    </AnimatedPressable>
   );
 }
 

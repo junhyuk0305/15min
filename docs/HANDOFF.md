@@ -84,3 +84,9 @@
 |---|---|
 | 한국 시간 | 기기 시간대를 뉴욕 등으로 바꾸고 홈, 목표 정하기 2/3, 목표 관리에 "한국 시간"이 보이는지. 알림이 한국 시각에 맞춰 울리는지(현지 시각으로는 다른 때). release Hermes `Intl.formatToParts`가 Asia/Seoul로 맞는지 |
 | Sentry 시간대 | 해외 시간대 기기에서 Sentry를 켠 빌드로 테스트 오류를 보내고 이벤트 contexts에 `device.timezone`이나 `culture.timezone`이 들어가는지. 들어가면 privacy-labels 47행을 고치거나 beforeSend로 지운다(JS 층에는 채우는 코드가 없고 네이티브 SDK 소스는 node_modules에 없어 미검증) |
+| 햅틱 | 주 버튼 누름의 가벼운 햅틱. 빠르게 연타할 때 눌림 크기와 불투명도 |
+| 시트 | 쿠폰, 신고, 학습 나가기, 확인 시트의 스프링 느낌, 손잡이 끌어 닫기, Android 뒤로로 닫힘, 시트 안 키보드(iOS padding, Android 없음) |
+| 토스트 | 위로 밀어 닫기 |
+| 코치마크 | Android(edge-to-edge, statusBarTranslucent)에서 구멍 위치가 대상과 맞는지 |
+| 입력창 | Composer가 5줄까지 늘어나는지 |
+| 줄인 움직임 | 앱을 켠 채 설정을 바꿨을 때 눌림, 게이지, 스켈레톤, 점 3개, 시트가 페이드로 바뀌는지 |

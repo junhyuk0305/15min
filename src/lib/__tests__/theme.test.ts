@@ -41,6 +41,30 @@ for (const name of Object.keys(PALETTES) as ThemeName[]) {
   }
 }
 
+// 3절 빨강 안내: 조건을 못 채운 이유와 모자란 카운터는 바탕에 맞는 빨강(useInk().alert)으로 보인다.
+// 아이보리, 흰 바탕, 카드, 다크(학습 B) 위에서는 redText, 빨강 바탕 위에서는 onRed.
+const ALERT_ON: [theme: ThemeName, bg: 'bg' | 'card'][] = [
+  ['ivory', 'bg'],
+  ['ivory', 'card'],
+  ['white', 'bg'],
+  ['white', 'card'],
+  ['dark', 'bg'],
+  ['dark', 'card'],
+];
+for (const [theme, bg] of ALERT_ON) {
+  test(`빨강 안내: ${theme} ${bg} 위 redText 대비 4.5 이상`, () => {
+    const p = PALETTES[theme];
+    const r = contrast(p.redText, p[bg]);
+    assert.ok(r >= 4.5, `${p.redText} on ${p[bg]} = ${r.toFixed(2)}`);
+  });
+}
+test('빨강 안내: 빨강 바탕 위 onRed 대비 4.5 이상', () => {
+  for (const name of Object.keys(PALETTES) as ThemeName[]) {
+    const p = PALETTES[name];
+    assert.ok(contrast(p.onRed, p.red) >= 4.5, `${name}: ${p.onRed} on ${p.red}`);
+  }
+});
+
 test('빨강은 세 테마에서 같은 값이다', () => {
   assert.equal(PALETTES.white.red, PALETTES.ivory.red);
   assert.equal(PALETTES.dark.red, PALETTES.ivory.red);
