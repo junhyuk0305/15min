@@ -1,21 +1,11 @@
 import { Pressable, Text, View } from 'react-native';
+import { TimePicker } from '@/components/TimePicker';
 import { Label, Stepper } from '@/components/ui';
 import { copy } from '@/lib/copy';
 import { MIN_WEEKDAYS, TARGET_MAX, TARGET_MIN } from '@/lib/rules';
-import { showsKstLabel } from '@/lib/selectors';
 import { B, C, HIT, R, S, T } from '@/lib/theme';
 import { Chip } from './Chip';
-import {
-  clampPeriod,
-  clampTarget,
-  MINUTE_PRESETS,
-  PERIOD_PRESETS,
-  setMinute,
-  toggleWeekday,
-  WEEKDAY_ORDER,
-  wrapDay,
-  type Plan,
-} from './logic';
+import { clampPeriod, clampTarget, PERIOD_PRESETS, toggleWeekday, WEEKDAY_ORDER, type Plan } from './logic';
 
 const g = copy.goalSetup;
 
@@ -23,10 +13,9 @@ function Note({ children }: { children: string }) {
   return <Text style={[T.small, { color: C.sub }]}>{children}</Text>;
 }
 
-/** 숫자 항목은 채팅 대신 위젯으로 받는다(MP 3절). 기간, 학습 요일, 시작 시각(1분 단위), 하루 학습 분 */
+/** 숫자 항목은 채팅 대신 위젯으로 받는다(MP 3절). 기간, 학습 요일, 시작 시각(1분 단위, TimePicker), 하루 학습 분 */
 export function PlanFields({ plan, onChange }: { plan: Plan; onChange: (p: Plan) => void }) {
   const set = (patch: Partial<Plan>) => onChange({ ...plan, ...patch });
-  const minute = plan.startMinutes % 60;
   return (
     <View style={{ gap: S.lg }}>
       <View style={{ gap: S.sm }}>
@@ -67,33 +56,7 @@ export function PlanFields({ plan, onChange }: { plan: Plan; onChange: (p: Plan)
         <Note>{g.weekdaysNote(MIN_WEEKDAYS)}</Note>
       </View>
 
-      <View style={{ gap: S.sm }}>
-        <Stepper
-          label={g.hour}
-          display={g.hourValue(Math.floor(plan.startMinutes / 60))}
-          onMinus={() => set({ startMinutes: wrapDay(plan.startMinutes - 60) })}
-          onPlus={() => set({ startMinutes: wrapDay(plan.startMinutes + 60) })}
-        />
-        <Stepper
-          label={g.minute}
-          display={g.minuteValue(minute)}
-          onMinus={() => set({ startMinutes: setMinute(plan.startMinutes, (minute + 59) % 60) })}
-          onPlus={() => set({ startMinutes: setMinute(plan.startMinutes, (minute + 1) % 60) })}
-        />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: S.sm }}>
-          {MINUTE_PRESETS.map((m) => (
-            <Chip
-              key={m}
-              role="radio"
-              label={`:${String(m).padStart(2, '0')}`}
-              accessibilityLabel={`${g.minute} ${m}`}
-              on={minute === m}
-              onPress={() => set({ startMinutes: setMinute(plan.startMinutes, m) })}
-            />
-          ))}
-        </View>
-        {showsKstLabel(new Date().getTimezoneOffset()) ? <Note>{copy.unit.kst}</Note> : null}
-      </View>
+      <TimePicker value={plan.startMinutes} onChange={(startMinutes) => set({ startMinutes })} />
 
       <View style={{ gap: S.sm }}>
         <Stepper

@@ -2,16 +2,17 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { Chip } from '@/components/goal/Chip';
-import { clampTarget, MINUTE_PRESETS, setMinute, toggleWeekday, WEEKDAY_ORDER, weekdaysShort, wrapDay } from '@/components/goal/logic';
+import { clampTarget, toggleWeekday, WEEKDAY_ORDER, weekdaysShort } from '@/components/goal/logic';
+import { ConfirmSheet } from '@/components/BottomSheet';
 import { ErrorLine } from '@/components/ErrorLine';
 import { Header } from '@/components/Header';
 import { TextButton } from '@/components/TextButton';
+import { TimePicker } from '@/components/TimePicker';
 import { showToast } from '@/components/Toast';
 import { Body, Button, Card, Label, Screen, Stepper } from '@/components/ui';
 import { copy } from '@/lib/copy';
 import { success } from '@/lib/haptics';
 import { crossesBoundary, fmtClock } from '@/lib/rules';
-import { showsKstLabel } from '@/lib/selectors';
 import { useApp } from '@/lib/store';
 import { useAction } from '@/lib/useAction';
 import { C, S, T } from '@/lib/theme';
@@ -34,33 +35,29 @@ export default function GoalSettings() {
     targetMinutes: base?.targetMinutes ?? 15,
     weekdays: base?.weekdays ?? [],
   });
-  const [confirmShrink, setConfirmShrink] = useState(false);
+  // 학습 분을 줄일 때 저장을 누르면 뜨는 확인 시트(갭분석 7.3)
+  const [askShrink, setAskShrink] = useState(false);
   if (!goal || !base) return null; // route.ts가 홈으로 보낸다
 
   const pendingGiveup = goal.giveupRequestedAt !== null;
   const changed = v.startMinutes !== base.startMinutes || v.targetMinutes !== base.targetMinutes || !sameDays(v.weekdays, base.weekdays);
   const short = weekdaysShort(v.weekdays);
   const shrinking = v.targetMinutes < base.targetMinutes;
-  const edit = (patch: Partial<Sched>) => {
-    setV({ ...v, ...patch });
-    setConfirmShrink(false);
-  };
+  const edit = (patch: Partial<Sched>) => setV({ ...v, ...patch });
 
   const save = async () => {
-    // 학습 분을 줄이면 긁는 확인을 한 번 거친다 (기획서 5.3)
-    if (shrinking && !confirmShrink) {
-      setConfirmShrink(true);
-      return;
-    }
     const ok = await saveAction.run(async () => {
       await state.changeSchedule(v.startMinutes, v.targetMinutes, v.weekdays);
       return true;
     });
+    // 실패하면 시트를 내려 바닥의 오류 줄이 보이게 한다
+    setAskShrink(false);
     if (!ok) return;
-    setConfirmShrink(false);
     showToast(t.savedToast);
     success();
   };
+  // 학습 분을 줄이면 긁는 확인을 한 번 거친다 (기획서 5.3)
+  const onSave = () => (shrinking ? setAskShrink(true) : void save());
 
   // 빨강 이유는 조건을 못 채웠을 때만 보인다. 바꾼 것이 없거나 포기 대기 중이면 이유 없이 비활성이다(3절 빨강 안내)
   const reason = pendingGiveup
@@ -71,7 +68,6 @@ export default function GoalSettings() {
         ? copy.goalSetup.boundary
         : null;
   const back = () => (router.canGoBack() ? router.back() : router.replace('/settings'));
-  const minute = v.startMinutes % 60;
 
   return (
     <Screen
@@ -80,11 +76,9 @@ export default function GoalSettings() {
         <>
           <ErrorLine message={saveAction.message} />
           {pendingGiveup ? <Text style={[T.small, { color: C.sub, textAlign: 'center' }]}>{t.giveupPending}</Text> : null}
-          {/* 줄이기 확인은 누를 버튼 바로 위에 둔다(작은 화면에서도 보이게) */}
-          {confirmShrink ? <Text style={[T.h2, { color: C.redText }]}>{t.shrink(base.targetMinutes, v.targetMinutes)}</Text> : null}
           <Button
-            title={confirmShrink ? t.shrinkYes : t.save}
-            onPress={() => void save()}
+            title={t.save}
+            onPress={onSave}
             busy={saveAction.busy}
             disabled={pendingGiveup || !changed || !!reason}
             disabledReason={reason}
@@ -102,33 +96,7 @@ export default function GoalSettings() {
         <Text style={[T.small, { color: C.sub, marginTop: S.xs }]}>{t.locked}</Text>
       </Card>
 
-      <View style={{ gap: S.sm }}>
-        <Stepper
-          label={t.hourLabel}
-          display={fmtClock(v.startMinutes).slice(0, 2)}
-          onMinus={() => edit({ startMinutes: wrapDay(v.startMinutes - 60) })}
-          onPlus={() => edit({ startMinutes: wrapDay(v.startMinutes + 60) })}
-        />
-        <Stepper
-          label={t.minuteLabel}
-          display={fmtClock(v.startMinutes).slice(3)}
-          onMinus={() => edit({ startMinutes: wrapDay(v.startMinutes - 1) })}
-          onPlus={() => edit({ startMinutes: wrapDay(v.startMinutes + 1) })}
-        />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: S.sm }}>
-          {MINUTE_PRESETS.map((m) => (
-            <Chip
-              key={m}
-              role="radio"
-              label={`:${String(m).padStart(2, '0')}`}
-              accessibilityLabel={`${t.minuteLabel} ${m}`}
-              on={minute === m}
-              onPress={() => edit({ startMinutes: setMinute(v.startMinutes, m) })}
-            />
-          ))}
-        </View>
-        {showsKstLabel(new Date().getTimezoneOffset()) ? <Text style={[T.small, { color: C.sub }]}>{copy.unit.kst}</Text> : null}
-      </View>
+      <TimePicker value={v.startMinutes} onChange={(startMinutes) => edit({ startMinutes })} />
 
       <Stepper
         label={t.minutesLabel}
@@ -160,6 +128,19 @@ export default function GoalSettings() {
           </Text>
         ) : null}
       </View>
+
+      <ConfirmSheet
+        visible={askShrink}
+        onClose={() => setAskShrink(false)}
+        title={t.shrinkTitle}
+        body={t.shrink(base.targetMinutes, v.targetMinutes)}
+        primary={t.shrinkKeep}
+        onPrimary={() => setAskShrink(false)}
+        secondary={t.shrinkYes}
+        onSecondary={() => void save()}
+        danger
+        busy={saveAction.busy}
+      />
     </Screen>
   );
 }

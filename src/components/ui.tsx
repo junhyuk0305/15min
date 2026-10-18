@@ -361,6 +361,7 @@ export function Card({ children, onPress }: { children: ReactNode; onPress?: () 
 /**
  * 한 줄. right는 오른쪽 글자(여러 줄 허용). 설정 화면식 줄은 아래 선택 prop을 쓴다(갭분석 7.2).
  * value: 오른쪽 현재 값(회색 한 줄 말줄임). chevron: 오른쪽 화살표 16. pressBg: 눌림을 크기 대신 배경(C.line, 100ms)으로.
+ * dot: 값 앞 빨강 점(알림 꺼짐 등). inset: 묶음 카드 안의 줄. 좌우 16, 높이 52, 바닥 선 없음(선은 묶음이 긋는다).
  */
 export function Row({
   left,
@@ -370,6 +371,8 @@ export function Row({
   value,
   chevron,
   pressBg,
+  dot,
+  inset,
 }: {
   left: string;
   right?: string;
@@ -378,6 +381,8 @@ export function Row({
   value?: string;
   chevron?: boolean;
   pressBg?: boolean;
+  dot?: boolean;
+  inset?: boolean;
 }) {
   const { p, ink, sub, alert } = useInk();
   const press = usePress(1, !pressBg);
@@ -391,12 +396,13 @@ export function Row({
       onPress={onPress}
       onPressIn={press.onPressIn}
       onPressOut={press.onPressOut}
-      style={[styles.rowBetween, styles.row, { borderBottomColor: p.line }, pressBg ? bg : press.style]}
+      style={[styles.rowBetween, styles.row, { borderBottomColor: p.line }, inset && styles.rowInset, pressBg ? bg : press.style]}
     >
       <Text style={[T.body, { color: danger ? alert : ink, flexShrink: 1 }]}>{left}</Text>
       {right ? <Text style={[T.body, { color: danger ? alert : sub, flexShrink: 1, textAlign: 'right' }]}>{right}</Text> : null}
-      {value || chevron ? (
+      {value || chevron || dot ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: S.xs, flexShrink: 1, maxWidth: '60%' }}>
+          {dot ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: alert }} /> : null}
           {value ? (
             <Text numberOfLines={1} style={[T.body, { color: danger ? alert : sub, flexShrink: 1 }]}>
               {value}
@@ -437,4 +443,5 @@ export const styles = StyleSheet.create({
   gauge: { height: 6, borderRadius: 3, overflow: 'hidden' },
   card: { backgroundColor: C.card, borderRadius: R.lg, paddingVertical: 12, paddingHorizontal: 14, gap: 3, borderWidth: B.hair, borderColor: C.line },
   row: { minHeight: HIT, paddingVertical: 13, borderBottomWidth: B.hair, borderBottomColor: C.line },
+  rowInset: { minHeight: 52, paddingHorizontal: S.md, borderBottomWidth: 0 },
 });
