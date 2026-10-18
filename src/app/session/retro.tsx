@@ -31,11 +31,13 @@ export default function Retro() {
   const rec = useApp((s) => (s.goal ? s.days.find((d) => d.goalId === s.goal?.id && d.day === day) : undefined));
   const current = useApp((s) => todayKeyOf(s, now, deviceTz));
   const [gone, setGone] = useState(false);
+  // 매 렌더마다 새 함수를 넘기면 이 함수에 걸린 요청 콜백이 5초마다 다시 만들어져 문항과 대화를 다시 불러온다
+  const onGone = useCallback(() => setGone(true), []);
   if (rec && dayEnded(day, current, rec.status, gone ? 'not_found' : null)) {
     return <StopView theme="white" title={t.dayEndedTitle} body={t.dayEndedBody} />;
   }
   if (!rec || (rec.status !== 'progress' && rec.status !== 'done')) return null;
-  return <RetroBody rec={rec} onGone={() => setGone(true)} />;
+  return <RetroBody rec={rec} onGone={onGone} />;
 }
 
 function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
