@@ -1,13 +1,16 @@
 import { router, Stack, useGlobalSearchParams, usePathname, type ErrorBoundaryProps } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, AppState, Platform, Text, View } from 'react-native';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorScreen } from '@/components/ErrorScreen';
+import { showToast, ToastHost } from '@/components/Toast';
 import { copy, errorText } from '@/lib/copy';
 import { useFontsReady } from '@/lib/fonts';
+import { DUR } from '@/lib/motion';
 import { applyPlan, clearAll, getExactAlarm, getPermission, onNotificationTap, setupNotifications } from '@/lib/notify';
 import { tapTarget, type TapData } from '@/lib/notifyTarget';
 import { buildPlan } from '@/lib/plan';
@@ -18,6 +21,7 @@ import { planInputOf, routeInputOf, tapStateOf } from '@/lib/selectors';
 import { nowMs, todayKey, useApp } from '@/lib/store';
 import { configMissing } from '@/lib/supabase';
 import { C, FRAME_MAX, S, T } from '@/lib/theme';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 
 // 인증 확인과 첫 읽기가 끝날 때까지 네이티브 스플래시를 둔다(MP P2-2). 모듈 범위에서 부른다.
 if (Platform.OS !== 'web') {
@@ -182,26 +186,46 @@ function useNotificationTaps(ready: boolean) {
   }, [ready]);
 }
 
-/** 화면 위 한 줄 안내. 4초 뒤 사라진다 */
-function Notice() {
-  const insets = useSafeAreaInsets();
+/** useRuntime.setNotice로 남긴 한 줄 안내를 토스트로 띄운다(갭분석 F4). 띄운 뒤 비운다 */
+function NoticeToToast() {
   const notice = useRuntime((s) => s.notice);
   useEffect(() => {
     if (!notice) return;
-    const id = setTimeout(() => useRuntime.getState().setNotice(null), 4000);
-    return () => clearTimeout(id);
+    showToast(notice);
+    useRuntime.getState().setNotice(null);
   }, [notice]);
-  if (!notice) return null;
-  return (
-    <View
-      accessibilityRole="alert"
-      pointerEvents="none"
-      style={{ position: 'absolute', top: insets.top + S.sm, left: S.lg, right: S.lg, backgroundColor: C.ink, borderRadius: 12, padding: S.md }}
-    >
-      <Text style={[T.small, { color: C.onInk }]}>{notice}</Text>
-    </View>
-  );
+  return null;
 }
+
+/**
+ * 화면 전환 방향(갭분석 N13, M1). 학습 흐름(session/*)은 아래에서 올라오고, 완료에서 홈으로 갈 때는 아래로 내려가며 닫힌다.
+ * 학습 흐름은 router.replace로 이어지므로 새 화면이 push 움직임을 하게 한다(기본은 pop).
+ * 완료 → 홈 replace는 기본 pop이라 나가는 완료 화면의 움직임(아래로)을 쓴다. 그 밖은 플랫폼 기본(오른쪽 push).
+ * 가입 화면에서 연 약관(?modal=1)도 아래에서 올라온다. 쿠폰은 투명 화면이고 시트는 화면 안 BottomSheet가 그린다.
+ * animation, presentation은 iOS, Android에서만 동작한다. 줄인 움직임이면 모두 페이드.
+ */
+function screenOptions(reduced: boolean) {
+  const rise: 'fade' | 'slide_from_bottom' = reduced ? 'fade' : 'slide_from_bottom';
+  return ({ route }: { route: { name: string; params?: object } }) => {
+    const base = { headerShown: false, contentStyle: { backgroundColor: C.bg }, animation: reduced ? 'fade' : 'default' } as const;
+    if (route.name.startsWith('session/')) return { ...base, animation: rise, animationTypeForReplace: 'push' } as const;
+    if (route.name === 'coupon') {
+      return { ...base, presentation: 'transparentModal', animation: 'none', contentStyle: { backgroundColor: 'transparent' } } as const;
+    }
+    if (route.name === 'settings/legal/[doc]' && (route.params as { modal?: string } | undefined)?.modal === '1') return { ...base, animation: rise } as const;
+    return base;
+  };
+}
+
+/** 웹은 Stack 전환 움직임이 없어 새 화면을 짧게 페이드한다(메가프롬프트 4.3). 줄인 움직임이면 Reanimated가 건너뛴다 */
+const webFade =
+  Platform.OS === 'web'
+    ? ({ children }: { children: ReactNode }) => (
+        <Animated.View entering={FadeIn.duration(DUR.fast)} style={{ flex: 1 }}>
+          {children}
+        </Animated.View>
+      )
+    : undefined;
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
@@ -221,6 +245,7 @@ function Frame({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   const hydrated = useHydrated();
+  const reduced = useReducedMotion();
   const fontsReady = useFontsReady();
   const timedOut = useBootstrap(hydrated);
   const booted = useApp((s) => s.booted);
@@ -283,8 +308,9 @@ export default function RootLayout() {
   }
   return (
     <Frame>
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: C.bg } }} />
-      <Notice />
+      <Stack screenOptions={screenOptions(reduced)} screenLayout={webFade} />
+      <NoticeToToast />
+      <ToastHost />
       {__DEV__ ? <DevCrash /> : null}
     </Frame>
   );

@@ -1,14 +1,15 @@
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, type ReactNode } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Glyph } from '@/components/Glyph';
 import { PrimaryFooter } from '@/components/PrimaryFooter';
 import { SurfaceProvider, useSurface } from '@/components/surface';
 import { Gauge } from '@/components/ui';
 import { copy } from '@/lib/copy';
 import { fmtDuration } from '@/lib/rules';
-import { B, PALETTES, S, T, type ThemeName } from '@/lib/theme';
+import { B, HIT, PALETTES, S, T, type ThemeName } from '@/lib/theme';
 
 /**
  * 학습 화면 틀. 위에 시계, 가운데 스크롤, 아래 입력과 주 버튼.
@@ -73,13 +74,17 @@ export function LearnShell({
   );
 }
 
-/** 위 시계. 단계 이름, 그 단계 남은 시간(멈추면 멈춤), 전체 남은 시간, 게이지 */
+/**
+ * 위 시계. 단계 이름, 그 단계 남은 시간(멈추면 멈춤), 전체 남은 시간, 게이지.
+ * onClose가 있으면 왼쪽 위에 X(닫기)를 둔다. 누르면 학습 나가기 시트를 연다(UXP 3절, 갭분석 N8).
+ */
 export function ClockHeader({
   label,
   phaseLeft,
   remaining,
   ratio,
   paused,
+  onClose,
 }: {
   label: string;
   /** 그 단계의 남은 초. 회고처럼 단계가 하나면 생략 */
@@ -88,13 +93,24 @@ export function ClockHeader({
   remaining: number;
   ratio: number;
   paused: boolean;
+  onClose?: () => void;
 }) {
   const { p } = useSurface();
   const right = paused ? copy.learn.paused : phaseLeft !== undefined ? copy.learn.phaseLeft(fmtDuration(phaseLeft * 1000)) : '';
   return (
     <View style={{ paddingHorizontal: S.lg, paddingBottom: 10, gap: 2, borderBottomWidth: B.hair, borderBottomColor: p.ink }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: S.sm }}>
-        <Text style={[T.label, { color: p.sub }]}>{label}</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: S.sm }}>
+        {onClose ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={copy.ux.close}
+            onPress={onClose}
+            style={({ pressed }) => ({ width: HIT, height: HIT, marginLeft: -10, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.5 : 1 })}
+          >
+            <Glyph name="close" color={p.ink} />
+          </Pressable>
+        ) : null}
+        <Text style={[T.label, { flex: 1, color: p.sub }]}>{label}</Text>
         <Text accessibilityLiveRegion="polite" style={[T.label, { color: paused ? p.redText : p.sub }]}>
           {right}
         </Text>

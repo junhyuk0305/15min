@@ -130,6 +130,9 @@ export function phaseRemaining(phase: Phase, secs: number, targetMinutes: number
   return Math.max(0, RETRO_SECONDS - retroSeconds);
 }
 
+/** 학습 나가기 시트의 "남은 N분". 남은 초를 분으로 올림한다. 독촉 알림의 남은 분(plan.ts)처럼 0분이 되면 1분으로 보인다 */
+export const leftMinutes = (seconds: number) => Math.max(1, Math.ceil(seconds / 60));
+
 /** 그 단계가 끝나는 센 시간(초). 시계가 여기서 멈추고 다음 단계 안내가 뜬다 */
 export function phaseEnd(phase: Phase, targetMinutes: number): number {
   const b = phaseBounds(targetMinutes);

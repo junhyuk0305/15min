@@ -18,7 +18,7 @@ export function Frame({ header, children, footer, stick }: { header?: ReactNode;
     <SurfaceProvider theme="ivory">
       <KeyboardAvoidingView behavior={Platform.OS === 'web' ? undefined : 'padding'} style={{ flex: 1, backgroundColor: C.bg }}>
         {header ? (
-          <View style={{ paddingTop: insets.top + S.md, paddingHorizontal: S.lg, paddingBottom: 10, gap: S.xs, borderBottomWidth: 1, borderColor: C.ink }}>
+          <View style={{ paddingTop: insets.top + S.sm, paddingBottom: 10, gap: S.xs, borderBottomWidth: 1, borderColor: C.ink }}>
             {header}
           </View>
         ) : null}

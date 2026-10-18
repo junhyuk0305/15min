@@ -1,39 +1,60 @@
-import { router, Stack } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { Text, View } from 'react-native';
 import { Banner } from '@/components/Banner';
+import { BottomSheet } from '@/components/BottomSheet';
 import { ErrorLine } from '@/components/ErrorLine';
 import { TextButton } from '@/components/TextButton';
 import { Body, Button, Label } from '@/components/ui';
 import { copy } from '@/lib/copy';
+import { DUR } from '@/lib/motion';
 import { daysToNextCoupon, isStudyDay, settingsFor, streakOf } from '@/lib/rules';
 import { goalDaysOf, todayKey, todayRow, useApp } from '@/lib/store';
 import { useAction } from '@/lib/useAction';
-import { C, R, S, T } from '@/lib/theme';
+import { useReducedMotion } from '@/lib/useReducedMotion';
+import { C, S, T } from '@/lib/theme';
 
 const t = copy.coupon;
 
-const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
+const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
-/** C 쿠폰 시트. 홈 위에 아래에서 올라온다. 독촉 중에도 열린다 (화면구성 5절) */
+/**
+ * C 쿠폰 시트. 홈 위에 아래에서 올라온다. 독촉 중에도 열린다 (화면구성 5절, 갭분석 N9).
+ * 라우트는 투명 화면(_layout.tsx)이고 그 안에서 BottomSheet를 그린다. 웹에서도 같은 코드로 아래에서 올라온다.
+ * 닫을 때는 시트가 내려간 뒤 라우트를 닫는다.
+ */
 export default function Coupon() {
-  const insets = useSafeAreaInsets();
   const state = useApp();
   const goal = state.goal;
+  const reduced = useReducedMotion();
+  const [open, setOpen] = useState(true);
   const [used, setUsed] = useState(false);
   const spend = useAction();
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+
+  // BottomSheet의 닫힘 움직임(줄인 움직임이면 페이드) 시간과 같다
+  const leave = (then: () => void) => {
+    if (timer.current) return;
+    setOpen(false);
+    timer.current = setTimeout(then, reduced ? DUR.reduced : DUR.base);
+  };
+  const close = () => leave(back);
 
   let content: React.ReactNode = null;
-  let footer: React.ReactNode = null;
   if (goal && used) {
     content = (
       <>
         <Text style={T.h1}>{t.used}</Text>
         <Body serif>{t.usedShake(goal.coupons)}</Body>
+        <Button title={t.home} onPress={() => leave(() => router.replace('/'))} style={{ marginTop: S.sm }} />
       </>
     );
-    footer = <Button title={t.home} onPress={() => router.replace('/')} />;
   } else if (goal) {
     const today = todayKey(state);
     const rec = todayRow(state);
@@ -68,39 +89,22 @@ export default function Coupon() {
           {`${t.next(daysToNextCoupon(goal))} ${t.streakNow(streakOf(days, goal.firstDay, today, weekdays))}`}
         </Text>
         {closed ? null : <Banner message={t.warn} />}
-      </>
-    );
-    footer = (
-      <>
-        <ErrorLine message={spend.message} />
-        <Button title={t.use} busy={spend.busy} disabled={!!closed} disabledReason={closed} onPress={() => void use()} />
-        <TextButton title={t.close} onPress={close} />
+        <View style={{ gap: S.sm, marginTop: S.sm }}>
+          <ErrorLine message={spend.message} />
+          <Button title={t.use} busy={spend.busy} disabled={!!closed} disabledReason={closed} onPress={() => void use()} />
+          <TextButton title={t.close} tone="sub" onPress={close} disabled={spend.busy} />
+        </View>
       </>
     );
   } else {
     // 목표가 없으면 route.ts가 홈으로 보낸다. 그 사이에도 나가는 길을 둔다
-    footer = <TextButton title={t.close} onPress={close} />;
+    content = <TextButton title={t.close} tone="sub" onPress={close} />;
   }
 
+  // 쓰는 중에는 바탕 누르기, 끌기, 뒤로로 닫지 않는다
   return (
-    <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-      <Stack.Screen options={{ presentation: 'transparentModal', animation: 'fade' }} />
-      <Pressable accessibilityRole="button" accessibilityLabel={t.close} onPress={used ? undefined : close} style={{ flex: 1 }} />
-      <View
-        accessibilityViewIsModal
-        style={{
-          backgroundColor: C.bg,
-          borderTopLeftRadius: R.sheet,
-          borderTopRightRadius: R.sheet,
-          paddingHorizontal: S.lg,
-          paddingTop: S.lg,
-          paddingBottom: insets.bottom + S.md,
-          gap: S.sm,
-        }}
-      >
-        {content}
-        <View style={{ gap: S.sm, marginTop: S.sm }}>{footer}</View>
-      </View>
-    </View>
+    <BottomSheet visible={open} onClose={close} dismissible={!spend.busy}>
+      {content}
+    </BottomSheet>
   );
 }

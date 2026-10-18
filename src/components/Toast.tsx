@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { PanResponder, Text } from 'react-native';
+import { PanResponder, Pressable, Text } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -92,7 +92,10 @@ export function ToastHost() {
         style,
       ]}
     >
-      <Text style={[T.small, { color: C.onInk }]}>{text}</Text>
+      {/* 누르면 닫힌다. 토스트가 헤더 뒤로 버튼 자리를 4초 동안 가리지 않게 */}
+      <Pressable onPress={hideToast}>
+        <Text style={[T.small, { color: C.onInk }]}>{text}</Text>
+      </Pressable>
     </Animated.View>
   );
 }

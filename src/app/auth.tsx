@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Text, TextInput, View, type TextInputProps } from 'react-native';
+import { useEffect, useState } from 'react';
+import { BackHandler, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { Checkbox } from '@/components/Checkbox';
+import { Header } from '@/components/Header';
 import { useInk } from '@/components/surface';
 import { TextButton } from '@/components/TextButton';
 import { Body, Button, H1, Label, Screen, styles, useNow } from '@/components/ui';
@@ -99,14 +100,29 @@ export default function Auth() {
     setInfo(null);
   };
 
-  const legal = (doc: 'terms' | 'privacy') => router.push(`/settings/legal/${doc}`);
+  // 코드, 비밀번호 단계에서 Android 뒤로는 헤더 chevron과 같이 이메일 단계로 간다(갭분석 N5, MP 7.7-2 "앞 화면으로")
+  useEffect(() => {
+    if (step === 'email') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setStep('email');
+      setError(null);
+      setInfo(null);
+      return true;
+    });
+    return () => sub.remove();
+  }, [step]);
+
+  // 가입 화면에서 여는 약관은 아래에서 올라오는 모달로 보고 X로 닫는다(갭분석 N2)
+  const legal = (doc: 'terms' | 'privacy') => router.push(`/settings/legal/${doc}?modal=1`);
 
   let body: React.ReactNode;
   let footer: React.ReactNode;
 
   if (step === 'email') {
     const allAgreed = consent.age && consent.terms && consent.ai;
-    const reason = !email.trim() ? t.needEmail : !EMAIL_RE.test(email.trim()) ? t.badEmail : !allAgreed ? t.needConsent : null;
+    // 빈 입력은 이유 없이 비활성. 쓴 이메일이 틀리거나 동의가 빠졌을 때만 빨강 이유를 보인다(3절 빨강 안내)
+    const typed = email.trim().length > 0;
+    const reason = !typed ? null : !EMAIL_RE.test(email.trim()) ? t.badEmail : !allAgreed ? t.needConsent : null;
     body = (
       <>
         <H1>{t.title}</H1>
@@ -125,14 +141,15 @@ export default function Auth() {
           <Checkbox label={t.required(t.age(MIN_AGE))} checked={consent.age} onChange={(age) => setConsent({ ...consent, age })} />
           <Checkbox label={t.required(t.terms)} checked={consent.terms} onChange={(terms) => setConsent({ ...consent, terms })} />
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: S.sm }}>
-            <TextButton title={t.viewTerms} tone="sub" onPress={() => legal('terms')} />
-            <TextButton title={t.viewPrivacy} tone="sub" onPress={() => legal('privacy')} />
+            <TextButton title={t.viewTerms} tone="sub" link onPress={() => legal('terms')} />
+            <TextButton title={t.viewPrivacy} tone="sub" link onPress={() => legal('privacy')} />
           </View>
           <Checkbox label={t.required(t.ai)} checked={consent.ai} onChange={(ai) => setConsent({ ...consent, ai })} />
           {/* 국외 이전 동의에 알릴 다섯 가지(받는 자, 국가, 항목, 시기와 방법, 목적과 보유 기간). 처리방침 7절과 같다 */}
           <TextButton
             title={showTransfer ? t.hideTransfer : t.viewTransfer}
             tone="sub"
+            link
             onPress={() => setShowTransfer(!showTransfer)}
             style={{ alignSelf: 'flex-end' }}
           />
@@ -149,7 +166,7 @@ export default function Auth() {
         </View>
       </>
     );
-    footer = <Button title={t.sendCode} onPress={submitEmail} busy={busy} disabled={!!reason} disabledReason={reason} />;
+    footer = <Button title={t.sendCode} onPress={submitEmail} busy={busy} disabled={!typed || !!reason} disabledReason={reason} />;
   } else if (step === 'code') {
     const left = CODE_LENGTH - code.length;
     const wait = Math.max(0, Math.ceil((resendAt - now) / 1000));
@@ -167,8 +184,7 @@ export default function Auth() {
           maxLength={CODE_LENGTH}
           autoFocus
         />
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <TextButton title={t.changeEmail} tone="sub" onPress={backToEmail} disabled={busy} />
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
           {wait > 0 ? (
             <Text style={[T.small, { color: C.sub }]}>{t.resendIn(wait)}</Text>
           ) : (
@@ -177,7 +193,10 @@ export default function Auth() {
         </View>
       </>
     );
-    footer = <Button title={t.verify} onPress={verify} busy={busy} disabled={left > 0} disabledReason={left > 0 ? t.codeLeft(left) : null} />;
+    // 빈 코드는 이유 없이 비활성. 쓰기 시작했는데 모자라면 빨강
+    footer = (
+      <Button title={t.verify} onPress={verify} busy={busy} disabled={left > 0} disabledReason={code.length > 0 && left > 0 ? t.codeLeft(left) : null} />
+    );
   } else {
     body = (
       <>
@@ -192,16 +211,13 @@ export default function Auth() {
           autoComplete="password"
           autoFocus
         />
-        <TextButton title={t.changeEmail} tone="sub" onPress={backToEmail} disabled={busy} />
       </>
     );
-    footer = (
-      <Button title={t.verify} onPress={passwordLogin} busy={busy} disabled={!password} disabledReason={!password ? t.needPassword : null} />
-    );
+    footer = <Button title={t.verify} onPress={passwordLogin} busy={busy} disabled={!password} />;
   }
 
   return (
-    <Screen footer={footer}>
+    <Screen footer={footer} header={step === 'email' ? undefined : <Header title={t.header} onLeft={backToEmail} />}>
       {body}
       {error ? <Text accessibilityRole="alert" style={[T.small, { color: C.redText }]}>{error}</Text> : null}
       {info ? <Text style={[T.small, { color: C.sub }]}>{info}</Text> : null}

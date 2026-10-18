@@ -68,30 +68,34 @@ export function useNow(intervalMs = 1000, now: () => number = nowMs): number {
 /**
  * 화면 틀. theme: ivory(기본), white(학습 A, C), dark(학습 B). danger면 빨강 바탕.
  * footer는 바닥에 고정되고 키보드가 올라오면 함께 올라간다 (MP 7.5-1).
+ * header(공통 Header)는 위에 고정되고 본문만 스크롤된다.
  */
 export function Screen({
   children,
   danger,
   scroll = true,
   footer,
+  header,
   theme = 'ivory',
 }: {
   children: ReactNode;
   danger?: boolean;
   scroll?: boolean;
   footer?: ReactNode;
+  header?: ReactNode;
   theme?: ThemeName;
 }) {
   const insets = useSafeAreaInsets();
   const p = PALETTES[theme];
   const bg = danger ? p.red : p.bg;
   const body = (
-    <View style={{ paddingHorizontal: S.lg, paddingTop: insets.top + S.lg, paddingBottom: S.lg, gap: S.md }}>{children}</View>
+    <View style={{ paddingHorizontal: S.lg, paddingTop: header ? S.sm : insets.top + S.lg, paddingBottom: S.lg, gap: S.md }}>{children}</View>
   );
   return (
     <SurfaceProvider theme={theme} red={!!danger}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: bg }}>
         <StatusBar style={danger || theme === 'dark' ? 'light' : 'dark'} />
+        {header ? <View style={{ paddingTop: insets.top }}>{header}</View> : null}
         {scroll ? (
           <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
             {body}

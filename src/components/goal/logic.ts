@@ -4,7 +4,6 @@ import {
   addDays,
   cycleOf,
   dayKeyOf,
-  daysBetween,
   isStudyDay,
   localParts,
   MIN_NOTE_CHARS,
@@ -116,23 +115,22 @@ const pad = (n: number) => String(n).padStart(2, '0');
 
 /**
  * 첫 학습 시작 시각. 첫 도전일은 오늘 하루 키 + 1이고(명세 2절), 그날이 쉬는 요일이면 다음 학습 요일이다.
- * rel은 달력 기준(기기 시간대가 아니라 프로필 시간대)으로 오늘, 내일, 그 밖.
+ * rel, month, date, weekday는 학습일(04:00에 바뀌는 하루 키) 기준이다. 홈의 시작 안내(whenOf)와 같게 읽힌다.
+ * 그래서 04:00 전 새벽에 만들어도 첫 도전일이 하루 키 + 1이면 "내일"이다.
  */
 export function firstStart(now: number, timeZone: string, plan: Pick<Plan, 'weekdays' | 'startMinutes' | 'targetMinutes'>) {
-  let day = addDays(dayKeyOf(now, timeZone), 1);
+  const next = addDays(dayKeyOf(now, timeZone), 1);
+  let day = next;
   for (let i = 0; i < 7 && !isStudyDay(day, plan.weekdays); i++) day = addDays(day, 1);
   const at = cycleOf(day, plan.startMinutes, plan.targetMinutes, timeZone).start;
   const a = localParts(at, timeZone);
-  const n = localParts(now, timeZone);
-  const date = `${a.year}-${pad(a.month)}-${pad(a.day)}`;
-  const diff = daysBetween(`${n.year}-${pad(n.month)}-${pad(n.day)}`, date);
   return {
     day,
     at,
-    rel: diff === 0 ? ('today' as const) : diff === 1 ? ('tomorrow' as const) : ('date' as const),
-    month: a.month,
-    date: a.day,
-    weekday: weekdayOf(date),
+    rel: day === next ? ('tomorrow' as const) : ('date' as const),
+    month: Number(day.slice(5, 7)),
+    date: Number(day.slice(8, 10)),
+    weekday: weekdayOf(day),
     clock: `${pad(a.hour)}:${pad(a.minute)}`,
   };
 }

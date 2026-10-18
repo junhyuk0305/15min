@@ -165,7 +165,6 @@ export function QuizPanel({
             title={retrying ? t.retry : t.submit}
             busy={busy}
             disabled={choice === null}
-            disabledReason={t.pickChoice}
             onPress={() => void submit()}
           />
           {extra}

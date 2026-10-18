@@ -10,7 +10,7 @@ import { Header, HeaderMore } from '@/components/Header';
 import { Skeleton } from '@/components/Skeleton';
 import { SurfaceProvider } from '@/components/surface';
 import { TextButton } from '@/components/TextButton';
-import { showToast, ToastHost } from '@/components/Toast';
+import { showToast } from '@/components/Toast';
 import { TypingDots } from '@/components/TypingDots';
 import { Body, Button, Card, Field, Gauge, Label, Row, Screen } from '@/components/ui';
 import { copy } from '@/lib/copy';
@@ -135,7 +135,6 @@ function GalleryBody() {
           { target: target2, text: copy.status.loading },
         ]}
       />
-      <ToastHost />
     </Screen>
   );
 }

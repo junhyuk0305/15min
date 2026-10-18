@@ -4,6 +4,7 @@ import { ActivityIndicator, Text, View } from 'react-native';
 import { ChatLine, type ChatSpeaker } from '@/components/ChatLine';
 import { CoachNote } from '@/components/CoachNote';
 import { ErrorLine } from '@/components/ErrorLine';
+import { Header } from '@/components/Header';
 import { StatusBanner } from '@/components/StatusBanner';
 import { TextButton } from '@/components/TextButton';
 import { Body, Label, Screen } from '@/components/ui';
@@ -69,10 +70,9 @@ export default function ArchiveDetail() {
     wasFailed.current = loadFailed;
   }, [loadFailed]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const footer = <TextButton title={t.back} onPress={back} />;
   if (!rec || !goal) {
     return (
-      <Screen footer={footer}>
+      <Screen header={<Header title={t.title} onLeft={back} />}>
         <View style={{ flex: 1, justifyContent: 'center', minHeight: 360 }}>
           <Body muted>{t.notFound}</Body>
         </View>
@@ -86,13 +86,20 @@ export default function ArchiveDetail() {
   const [mm, dd] = [Number(rec.day.slice(5, 7)), Number(rec.day.slice(8, 10))];
   const status = loadPhaseOf(phase, load.error !== null);
 
+  // 헤더: 가운데 날짜, 오른쪽 학습 분(갭분석 N3)
+  const header = (
+    <Header
+      title={t.date(mm, dd)}
+      onLeft={back}
+      right={<Text style={[T.small, { color: C.sub, paddingRight: S.sm }]}>{t.minutes(Math.floor(rec.activeSeconds / 60))}</Text>}
+    />
+  );
+
   return (
-    <Screen footer={footer}>
+    <Screen header={header}>
       <StatusBanner />
       <View style={{ gap: S.xs, paddingBottom: S.sm, borderBottomWidth: B.hair, borderBottomColor: C.ink }}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: S.sm }}>
-          <Text style={[T.label, { color: C.sub }]}>{t.date(mm, dd)}</Text>
-          <Text style={[T.label, { color: C.sub }]}>{t.minutes(Math.floor(rec.activeSeconds / 60))}</Text>
           {goal.situation.partner ? <Text style={[T.label, { color: C.sub }]}>{goal.situation.partner}</Text> : null}
           {groups.length > 0 ? <Text style={[T.label, { color: C.sub }]}>{t.chars(chars)}</Text> : null}
         </View>

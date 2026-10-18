@@ -2,8 +2,8 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { ErrorLine } from '@/components/ErrorLine';
+import { Header } from '@/components/Header';
 import { LearnShell } from '@/components/learn/LearnShell';
-import { TextButton } from '@/components/TextButton';
 import { Body, Button, Card, Field, H1, Label } from '@/components/ui';
 import { copy } from '@/lib/copy';
 import { MAX_TODAY_REASON, phaseName, phasePlan } from '@/lib/learn';
@@ -29,8 +29,10 @@ export default function Reason() {
     .filter((d) => d.day < today && d.todayReason)
     .sort((a, b) => (a.day < b.day ? 1 : -1))[0]?.todayReason ?? undefined;
   const same = previous !== undefined && text.trim() === previous.trim();
-  const short = MIN_NOTE_CHARS - text.trim().length;
-  const disabledReason = short > 0 ? t.needChars(short) : same ? t.sameAsYesterday : null;
+  const n = text.trim().length;
+  const short = MIN_NOTE_CHARS - n;
+  // 빈 칸에는 이유를 띄우지 않는다. 쓰기 시작한 뒤 모자랄 때만 빨강으로 보인다(UXP 3절 빨강 안내)
+  const disabledReason = n === 0 ? null : short > 0 ? t.needChars(short) : same ? t.sameAsYesterday : null;
   // 첫날(지난 이유 없음)에는 학습 순서와 단계별 시간을 보인다. 첫날 A는 수준 확인이다
   const plan = previous === undefined ? phasePlan(settingsFor(goal, today).targetMinutes) : null;
 
@@ -45,6 +47,8 @@ export default function Reason() {
   return (
     <LearnShell
       theme="ivory"
+      // 학습 전이라 강제 화면이 아니다. X는 홈으로(갭분석 N7)
+      header={<Header title={t.reasonLabel} left="close" onLeft={() => !start.busy && router.replace('/')} />}
       footer={
         <>
           <ErrorLine message={start.message} />
@@ -55,7 +59,6 @@ export default function Reason() {
             disabled={!noteValid(text, previous)}
             disabledReason={disabledReason}
           />
-          <TextButton title={t.ok} tone="sub" onPress={() => router.replace('/')} disabled={start.busy} />
         </>
       }
     >

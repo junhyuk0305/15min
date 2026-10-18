@@ -104,20 +104,22 @@ test('firstStart: 첫 도전일은 내일. 쉬는 요일이면 다음 학습 요
   assert.equal(b.weekday, 1);
 });
 
-test('firstStart: 04:00 전 새벽에 만들면 하루 키는 어제라서 첫 시작은 달력상 오늘이다', () => {
-  // 10-19 02:00은 하루 키 10-18. 첫 도전일 10-19, 시작 22:00은 달력상 오늘
+test('firstStart: 04:00 전 새벽에 만들면 하루 키가 어제라서 첫 도전일 10-19는 홈처럼 "내일"이다', () => {
+  // 10-19 02:00은 하루 키 10-18. 첫 도전일 10-19. 홈 whenOf도 하루 키 + 1을 내일로 쓴다
   const night = zonedTime('2026-10-19', 2 * 60, TZ);
   const r = firstStart(night, TZ, { weekdays: [0, 1, 2, 3, 4, 5, 6], startMinutes: 22 * 60, targetMinutes: 15 });
   assert.equal(r.day, '2026-10-19');
-  assert.equal(r.rel, 'today');
+  assert.equal(r.rel, 'tomorrow');
+  assert.equal(r.date, 19);
 });
 
-test('firstStart: 시작이 04:00 전이면 달력상 다음 날 그 시각', () => {
+test('firstStart: 시작이 04:00 전이어도 날짜는 학습일 기준이다', () => {
+  // 학습일 10-19의 01:00은 달력상 10-20 01:00이지만 홈처럼 "내일 01:00"으로 쓴다
   const evening = zonedTime('2026-10-18', 20 * 60, TZ);
   const r = firstStart(evening, TZ, { weekdays: [0, 1, 2, 3, 4, 5, 6], startMinutes: 60, targetMinutes: 15 });
   assert.equal(r.day, '2026-10-19');
-  assert.equal(r.rel, 'date'); // 10-20 01:00
-  assert.equal(r.date, 20);
+  assert.equal(r.rel, 'tomorrow');
+  assert.equal(r.date, 19);
   assert.equal(r.clock, '01:00');
 });
 

@@ -30,7 +30,8 @@ import { useApp } from '@/lib/store';
 import { useAction } from '@/lib/useAction';
 import { B, C, HIT, R, S, T } from '@/lib/theme';
 
-// 목표 설정 (MP 3절, 결정안 1, 8). 첫 목표와 달성 뒤 새 목표가 모두 이 화면이다. 닫기 없음, 뒤로 가기 막음.
+// 목표 설정 (MP 3절, 결정안 1, 8). 첫 목표와 달성 뒤 새 목표가 모두 이 화면이다. 닫기 없음, 화면 밖으로 뒤로 가기 막음.
+// 2/3, 3/3은 헤더 chevron과 Android 뒤로가 앞 단계로 간다. 1/3은 강제 화면이라 chevron 대신 이유 한 줄이다(갭분석 N6).
 // 1/3 채팅(goal-setup): 이유 → 장소 → 내 역할 → 상대 → 해결할 일 → 목표 이름.
 // 2/3 위젯: 기간, 학습 요일, 시작 시각, 하루 학습 분. 3/3 확인 카드 → create_goal → 홈.
 // 만들면 route.ts가 /goal/new를 홈으로 보낸다.
@@ -281,17 +282,14 @@ function PlanStage() {
   const reason = short > 0 ? g.weekdaysLeft(short) : crossesBoundary(plan.startMinutes, plan.targetMinutes) ? g.boundary : null;
   return (
     <Frame
-      header={<SetupHeader stage="plan" fields={fields} />}
+      header={<SetupHeader stage="plan" fields={fields} onBack={() => useGoalDraft.getState().setStage('chat')} />}
       footer={
-        <>
-          <Button
-            title={g.toConfirm}
-            disabled={!!reason}
-            disabledReason={reason}
-            onPress={() => useGoalDraft.getState().setStage('confirm')}
-          />
-          <TextButton title={g.toChat} tone="sub" onPress={() => useGoalDraft.getState().setStage('chat')} />
-        </>
+        <Button
+          title={g.toConfirm}
+          disabled={!!reason}
+          disabledReason={reason}
+          onPress={() => useGoalDraft.getState().setStage('confirm')}
+        />
       }
     >
       <Text accessibilityRole="header" style={[T.h2, { color: C.ink }]}>
@@ -316,8 +314,7 @@ function ConfirmStage() {
   const scenes = subs.length ? subs : g.defaultScenes;
   const first = firstStart(now, APP_TIME_ZONE, plan);
   const clock = first.clock;
-  const when =
-    first.rel === 'today' ? g.today(clock) : first.rel === 'tomorrow' ? g.tomorrow(clock) : g.onDate(first.month, first.date, g.weekdayNames[first.weekday], clock);
+  const when = first.rel === 'tomorrow' ? g.tomorrow(clock) : g.onDate(first.month, first.date, g.weekdayNames[first.weekday], clock);
   const days = WEEKDAY_ORDER.filter((w) => plan.weekdays.includes(w))
     .map((w) => g.weekdayNames[w])
     .join(', ');
@@ -332,16 +329,12 @@ function ConfirmStage() {
 
   return (
     <Frame
-      header={<SetupHeader stage="confirm" fields={fields} />}
+      header={<SetupHeader stage="confirm" fields={fields} onBack={() => !create.busy && useGoalDraft.getState().setStage('plan')} />}
       footer={
         <>
           <ErrorLine message={create.message} />
           <Text style={[T.small, { color: C.sub }]}>{g.startsAt(when)}</Text>
           <Button title={g.create} busy={create.busy} disabled={!!blocked} disabledReason={blocked} onPress={start} />
-          <View style={{ flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: S.md }}>
-            <TextButton title={g.toPlanBack} tone="sub" disabled={create.busy} onPress={() => useGoalDraft.getState().setStage('plan')} />
-            <TextButton title={g.toChat} tone="sub" disabled={create.busy} onPress={() => useGoalDraft.getState().setStage('chat')} />
-          </View>
         </>
       }
     >

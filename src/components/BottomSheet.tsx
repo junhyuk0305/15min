@@ -222,6 +222,7 @@ export function ConfirmSheet({
   onSecondary,
   danger,
   busy,
+  theme,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -233,9 +234,10 @@ export function ConfirmSheet({
   onSecondary?: () => void;
   danger?: boolean;
   busy?: boolean;
+  theme?: ThemeName;
 }) {
   return (
-    <BottomSheet visible={visible} onClose={onClose} dismissible={!busy}>
+    <BottomSheet visible={visible} onClose={onClose} dismissible={!busy} theme={theme}>
       <SheetTitle>{title}</SheetTitle>
       {body ? <Body>{body}</Body> : null}
       <Button title={primary} onPress={onPrimary} disabled={busy} style={{ marginTop: S.sm }} />

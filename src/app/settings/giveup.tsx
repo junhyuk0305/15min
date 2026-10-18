@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { BackHandler, Text, View } from 'react-native';
 import { ErrorLine } from '@/components/ErrorLine';
+import { Header } from '@/components/Header';
 import { TextButton } from '@/components/TextButton';
 import { Big, Body, Button, Label, Screen } from '@/components/ui';
 import { copy } from '@/lib/copy';
@@ -22,11 +23,24 @@ export default function Giveup() {
   const goal = state.goal;
   const request = useAction();
   const [confirming, setConfirming] = useState(false);
+  // 2단계에서 Android 뒤로는 헤더 chevron과 같이 1단계로 돌아간다(MP 7.7-2 "앞 화면으로")
+  useEffect(() => {
+    if (!confirming) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setConfirming(false);
+      return true;
+    });
+    return () => sub.remove();
+  }, [confirming]);
   if (!goal) return null; // route.ts가 홈으로 보낸다
 
   if (goal.giveupRequestedAt !== null) {
     return (
-      <Screen danger footer={<Button title={t.home} kind="inverse" onPress={() => router.replace('/')} />}>
+      <Screen
+        danger
+        header={<Header title={t.header} onLeft={keep} />}
+        footer={<Button title={t.home} kind="inverse" onPress={() => router.replace('/')} />}
+      >
         <View style={{ flex: 1, justifyContent: 'center', gap: S.md, minHeight: 360 }}>
           <Text style={[T.h1Serif, { color: C.redInk }]}>{t.pendingTitle}</Text>
           <Body inverse>{t.pendingBody}</Body>
@@ -64,7 +78,7 @@ export default function Giveup() {
 
   if (confirming) {
     return (
-      <Screen danger footer={footer}>
+      <Screen danger header={<Header title={t.header} onLeft={() => setConfirming(false)} />} footer={footer}>
         <View style={{ flex: 1, justifyContent: 'center', gap: S.md, minHeight: 360 }}>
           <Label inverse>{left > 0 ? t.count(nth, left) : t.countLast(nth)}</Label>
           <Text style={[T.h1Serif, { color: C.redInk }]}>{t.confirmTitle}</Text>
@@ -78,7 +92,7 @@ export default function Giveup() {
   }
 
   return (
-    <Screen danger footer={footer}>
+    <Screen danger header={<Header title={t.header} onLeft={keep} />} footer={footer}>
       <Label inverse>{left > 0 ? t.count(nth, left) : t.countLast(nth)}</Label>
       <Text style={[T.h1Serif, { color: C.redInk }]}>{t.title}</Text>
       <View style={{ flexDirection: 'row', gap: S.lg }}>

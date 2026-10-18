@@ -2,7 +2,7 @@ import { router, Stack } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { ErrorLine } from '@/components/ErrorLine';
-import { TextButton } from '@/components/TextButton';
+import { Header } from '@/components/Header';
 import { Body, Button, H1, Label, Row, Screen } from '@/components/ui';
 import { copy } from '@/lib/copy';
 import { achieveDay, canAchieve, daysBetween, totalMinutes } from '@/lib/rules';
@@ -20,7 +20,7 @@ const dateOf = (day: string) => t.date(Number(day.slice(5, 7)), Number(day.slice
 function Celebration({ days, total }: { days: number; total: number }) {
   useBlockBack();
   return (
-    <Screen footer={<Button title={t.next} onPress={() => router.replace('/goal/new')} />}>
+    <Screen header={<Header title={t.doneHeader} left="none" reason={t.locked} />} footer={<Button title={t.next} onPress={() => router.replace('/goal/new')} />}>
       <Stack.Screen options={{ gestureEnabled: false }} />
       <View style={{ flex: 1, justifyContent: 'center', gap: S.md, minHeight: 420 }}>
         <Text style={[T.hero, { fontSize: 64, lineHeight: 72 }]}>{copy.unit.days(days)}</Text>
@@ -47,7 +47,7 @@ export default function Achieve() {
   const today = todayKey(state);
   if (!goal) {
     return (
-      <Screen footer={<Button title={t.home} onPress={() => router.replace('/')} />}>
+      <Screen header={<Header title={t.header} onLeft={back} />} footer={<Button title={t.home} onPress={() => router.replace('/')} />}>
         <View style={{ flex: 1, justifyContent: 'center', minHeight: 360 }}>
           <H1>{t.noGoal}</H1>
         </View>
@@ -56,7 +56,7 @@ export default function Achieve() {
   }
   if (!canAchieve(goal, today)) {
     return (
-      <Screen footer={<Button title={t.cancel} onPress={back} />}>
+      <Screen header={<Header title={t.header} onLeft={back} />}>
         <View style={{ flex: 1, justifyContent: 'center', gap: S.md, minHeight: 360 }}>
           <H1>{t.notYet(daysBetween(today, achieveDay(goal)))}</H1>
           <Body muted>{t.notYetBody}</Body>
@@ -75,11 +75,11 @@ export default function Achieve() {
 
   return (
     <Screen
+      header={<Header title={t.header} onLeft={back} />}
       footer={
         <>
           <ErrorLine message={declareAction.message} />
           <Button title={t.declare} busy={declareAction.busy} onPress={() => void declare()} />
-          <TextButton title={t.cancel} onPress={back} />
         </>
       }
     >

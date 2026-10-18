@@ -4,14 +4,14 @@ import { Banner } from '@/components/Banner';
 import { ErrorLine } from '@/components/ErrorLine';
 import { ClockHeader, LearnShell } from '@/components/learn/LearnShell';
 import { LessonPanel } from '@/components/learn/LessonPanel';
-import { IdleModal, PhaseOverlay, StopView, themeOf } from '@/components/learn/parts';
+import { IdleModal, PhaseOverlay, StopView, themeOf, useLeave } from '@/components/learn/parts';
 import { QuizPanel } from '@/components/learn/QuizPanel';
 import type { PanelProps, Result } from '@/components/learn/types';
 import { useLearnClock, useOnline, useSessionPresence } from '@/components/learn/useLearnClock';
 import { Button, useNow } from '@/components/ui';
 import { toApiError } from '@/lib/api';
 import { copy, errorText } from '@/lib/copy';
-import { dayEnded, OVERLAY_MS, overlayFor, phaseEnd, phaseName, phaseRemaining, saveFailure, savePhase, studiedBefore } from '@/lib/learn';
+import { dayEnded, leftMinutes, OVERLAY_MS, overlayFor, phaseEnd, phaseName, phaseRemaining, saveFailure, savePhase, studiedBefore } from '@/lib/learn';
 import { reportError } from '@/lib/report';
 import { RETRO_PATH } from '@/lib/route';
 import { phaseAt, type DayRow, type Phase } from '@/lib/rules';
@@ -56,6 +56,8 @@ function LearnBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
   const onLevelCheck = useCallback((v: boolean) => setLevelCheck(v), []);
   const [saveStuck, setSaveStuck] = useState(false);
   const saveFails = useRef(0);
+  // 나가기 시트가 떠 있는 동안 시계를 멈춘다(안내 모달). 시계보다 먼저 둔다
+  const [leaveOpen, setLeaveOpen] = useState(false);
 
   const save = useCallback(
     (secs: number) => {
@@ -87,12 +89,13 @@ function LearnBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
     initial: rec.activeSeconds,
     total,
     limit: shown ? phaseEnd(shown, targetMinutes) : 0,
-    gates: { waiting: waiting > 0, offline, failed: failed || saveStuck, overlay: false, blocked },
+    gates: { waiting: waiting > 0, offline, failed: failed || saveStuck, overlay: leaveOpen, blocked },
     save,
   });
   useSessionPresence(() => save(clock.current()));
 
   const { touch, syncTo, current } = clock;
+  const leave = useLeave({ enabled: !blocked, open: leaveOpen, setOpen: setLeaveOpen, body: t.leaveBody(leftMinutes(total - clock.secs)), onActivity: touch });
   const request = useCallback(
     async <T,>(job: () => Promise<T>): Promise<Result<T>> => {
       setWaiting((n) => n + 1);
@@ -174,6 +177,8 @@ function LearnBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
       remaining={total - clock.secs}
       ratio={total ? clock.secs / total : 0}
       paused={!clock.running}
+      // 한도 초과로 멈춘 화면(StopView)에는 X 대신 기존 홈으로 가기 버튼만 둔다
+      onClose={blocked ? undefined : leave.ask}
     />
   );
   const banner = offline ? (
@@ -185,6 +190,7 @@ function LearnBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
     <>
       <PhaseOverlay overlay={overlay} levelCheck={levelCheck} />
       <IdleModal visible={clock.idle} onContinue={clock.dismissIdle} />
+      {leave.sheet(themeOf(view))}
     </>
   );
 

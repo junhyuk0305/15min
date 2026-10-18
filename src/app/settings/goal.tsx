@@ -4,9 +4,12 @@ import { Text, View } from 'react-native';
 import { Chip } from '@/components/goal/Chip';
 import { clampTarget, MINUTE_PRESETS, setMinute, toggleWeekday, WEEKDAY_ORDER, weekdaysShort, wrapDay } from '@/components/goal/logic';
 import { ErrorLine } from '@/components/ErrorLine';
+import { Header } from '@/components/Header';
 import { TextButton } from '@/components/TextButton';
-import { Body, Button, Card, H1, Label, Screen, Stepper } from '@/components/ui';
+import { showToast } from '@/components/Toast';
+import { Body, Button, Card, Label, Screen, Stepper } from '@/components/ui';
 import { copy } from '@/lib/copy';
+import { success } from '@/lib/haptics';
 import { crossesBoundary, fmtClock } from '@/lib/rules';
 import { showsKstLabel } from '@/lib/selectors';
 import { useApp } from '@/lib/store';
@@ -32,7 +35,6 @@ export default function GoalSettings() {
     weekdays: base?.weekdays ?? [],
   });
   const [confirmShrink, setConfirmShrink] = useState(false);
-  const [saved, setSaved] = useState(false);
   if (!goal || !base) return null; // route.ts가 홈으로 보낸다
 
   const pendingGiveup = goal.giveupRequestedAt !== null;
@@ -42,7 +44,6 @@ export default function GoalSettings() {
   const edit = (patch: Partial<Sched>) => {
     setV({ ...v, ...patch });
     setConfirmShrink(false);
-    setSaved(false);
   };
 
   const save = async () => {
@@ -57,47 +58,41 @@ export default function GoalSettings() {
     });
     if (!ok) return;
     setConfirmShrink(false);
-    setSaved(true);
+    showToast(t.savedToast);
+    success();
   };
 
+  // 빨강 이유는 조건을 못 채웠을 때만 보인다. 바꾼 것이 없거나 포기 대기 중이면 이유 없이 비활성이다(3절 빨강 안내)
   const reason = pendingGiveup
-    ? t.giveupPending
+    ? null
     : short > 0
       ? t.weekdaysShort(short)
-      : !changed
-        ? saved
-          ? t.saved
-          : t.noChange
-        : crossesBoundary(v.startMinutes, v.targetMinutes)
-          ? copy.goalSetup.boundary
-          : null;
+      : changed && crossesBoundary(v.startMinutes, v.targetMinutes)
+        ? copy.goalSetup.boundary
+        : null;
+  const back = () => (router.canGoBack() ? router.back() : router.replace('/settings'));
   const minute = v.startMinutes % 60;
 
   return (
     <Screen
+      header={<Header title={t.goal} onLeft={back} />}
       footer={
         <>
           <ErrorLine message={saveAction.message} />
+          {pendingGiveup ? <Text style={[T.small, { color: C.sub, textAlign: 'center' }]}>{t.giveupPending}</Text> : null}
           {/* 줄이기 확인은 누를 버튼 바로 위에 둔다(작은 화면에서도 보이게) */}
           {confirmShrink ? <Text style={[T.h2, { color: C.redText }]}>{t.shrink(base.targetMinutes, v.targetMinutes)}</Text> : null}
           <Button
             title={confirmShrink ? t.shrinkYes : t.save}
             onPress={() => void save()}
             busy={saveAction.busy}
-            disabled={!!reason}
+            disabled={pendingGiveup || !changed || !!reason}
             disabledReason={reason}
           />
           {pendingGiveup ? null : <TextButton title={t.giveupEntry} tone="danger" onPress={() => router.push('/settings/giveup')} />}
         </>
       }
     >
-      <TextButton
-        title={t.backToSettings}
-        tone="sub"
-        onPress={() => (router.canGoBack() ? router.back() : router.replace('/settings'))}
-        style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }}
-      />
-      <H1>{t.goal}</H1>
       <Card>
         <Label>{t.nameLabel}</Label>
         <Body>{goal.name}</Body>

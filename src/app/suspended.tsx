@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Text, TextInput, View } from 'react-native';
-import { DeleteAccountButton, LegalLinks } from '@/components/AccountLinks';
+import { AccountMenu } from '@/components/AccountLinks';
 import { ChatLine } from '@/components/ChatLine';
+import { Header } from '@/components/Header';
 import { TextButton } from '@/components/TextButton';
 import { Body, Button, H1, Screen, styles, useNow } from '@/components/ui';
 import { toApiError } from '@/lib/api';
@@ -53,7 +54,7 @@ function Report({ id }: { id: string }) {
 
 /**
  * 이용 정지 중 화면. 반성문 채팅은 포기한 목표의 원래 시작 시각부터 원래 학습 분 동안만 열린다.
- * 그 밖에는 다음에 열리는 시각을 보인다. 나가는 길 대신 계정 삭제와 약관을 둔다.
+ * 그 밖에는 다음에 열리는 시각을 보인다. 나가는 길 대신 헤더에 이유 한 줄을 두고, 계정 삭제와 약관은 헤더 "⋯"에 둔다(갭분석 F13).
  */
 export default function Suspended() {
   useBlockBack();
@@ -128,28 +129,20 @@ export default function Suspended() {
   const open = chat === 'open' && winOpen !== false;
   // 창이 열린 시각(또는 시각을 몰라 서버에 묻는 중)인데 아직 대화를 받지 못했다
   const asking = !open && chat !== 'closed' && (win ? win.open : chat === 'unknown');
-  const footer = (
+  const footer = open ? (
     <>
-      {open ? (
-        <>
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder={t.placeholder}
-            placeholderTextColor={C.sub}
-            accessibilityLabel={t.placeholder}
-            multiline
-            style={[styles.input, T.bodySerif, { borderColor: C.ink, backgroundColor: C.card, color: C.ink, minHeight: 80, maxHeight: 160, textAlignVertical: 'top' }]}
-          />
-          <Button title={t.send} onPress={() => void send()} busy={busy} disabled={!canSend(text)} disabledReason={canSend(text) ? null : t.needText} />
-        </>
-      ) : null}
-      <View style={{ flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap' }}>
-        <DeleteAccountButton />
-      </View>
-      <LegalLinks />
+      <TextInput
+        value={text}
+        onChangeText={setText}
+        placeholder={t.placeholder}
+        placeholderTextColor={C.sub}
+        accessibilityLabel={t.placeholder}
+        multiline
+        style={[styles.input, T.bodySerif, { borderColor: C.ink, backgroundColor: C.card, color: C.ink, minHeight: 80, maxHeight: 160, textAlignVertical: 'top' }]}
+      />
+      <Button title={t.send} onPress={() => void send()} busy={busy} disabled={!canSend(text)} />
     </>
-  );
+  ) : null;
 
   const speakerOf = (m: ReflectionMessage): 'me' | 'partner' => (m.role === 'user' ? 'me' : 'partner');
   const lines = reflections.map((m, i) => {
@@ -164,7 +157,7 @@ export default function Suspended() {
   });
 
   return (
-    <Screen footer={footer}>
+    <Screen header={<Header title={t.header} left="none" reason={t.locked} right={<AccountMenu />} />} footer={footer}>
       <H1>{t.title}</H1>
       {profile?.suspendedUntil ? <Body>{t.until(fmtWhen(profile.suspendedUntil, tz))}</Body> : null}
       <Body muted>{t.body}</Body>

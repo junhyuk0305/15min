@@ -1,6 +1,8 @@
-import { router } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import { router, useNavigation } from 'expo-router';
+import { usePreventRemove, type NavigationAction } from 'expo-router/react-navigation';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ConfirmSheet } from '@/components/BottomSheet';
 import { CoachNote } from '@/components/CoachNote';
 import { ErrorLine } from '@/components/ErrorLine';
 import { LearnShell } from '@/components/learn/LearnShell';
@@ -118,6 +120,66 @@ export function StopView({ theme, header, title, body }: { theme: ThemeName; hea
       </View>
     </LearnShell>
   );
+}
+
+/** 뒤로 가는 동작. 이것만 시트로 막고 replace, navigate(회고로 넘어가기, route.ts 이동)는 그대로 보낸다 */
+const BACK_ACTIONS = new Set(['GO_BACK', 'POP', 'POP_TO_TOP']);
+
+/**
+ * 학습 나가기(UXP 3절, 갭분석 N8). X(ask), Android 뒤로, iOS 스와이프가 같은 확인 시트를 연다.
+ * open, setOpen은 부르는 쪽이 가진다. 시계보다 먼저 만들어 그 값으로 시계를 멈춘다(안내 모달로 본다, UXP 6.1).
+ * 나가기는 OS 뒤로와 같다: 막았던 동작을 그대로 보내고, X였으면 앞 화면(없으면 홈)으로 간다. 이탈 처리는 useSessionPresence가 한다.
+ * onActivity는 학습 시계의 touch처럼 고정된 함수를 넘긴다(1초마다 다시 그려져도 콜백이 바뀌지 않게, UXP 9.3).
+ */
+export function useLeave({
+  enabled,
+  open,
+  setOpen,
+  body,
+  onActivity,
+}: {
+  enabled: boolean;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  body: string;
+  onActivity: () => void;
+}) {
+  const navigation = useNavigation();
+  const pending = useRef<NavigationAction | null>(null);
+  const leaving = useRef(false);
+  usePreventRemove(enabled, ({ data }) => {
+    if (leaving.current || !BACK_ACTIONS.has(data.action.type)) {
+      navigation.dispatch(data.action);
+      return;
+    }
+    pending.current = data.action;
+    onActivity();
+    setOpen(true);
+  });
+  const ask = useCallback(() => {
+    pending.current = null;
+    onActivity();
+    setOpen(true);
+  }, [onActivity, setOpen]);
+  const stay = useCallback(() => {
+    pending.current = null;
+    onActivity();
+    setOpen(false);
+  }, [onActivity, setOpen]);
+  const leave = useCallback(() => {
+    const action = pending.current;
+    pending.current = null;
+    leaving.current = true;
+    setOpen(false);
+    if (action) navigation.dispatch(action);
+    else if (router.canGoBack()) router.back();
+    else router.replace('/');
+  }, [navigation, setOpen]);
+  // 학습 B(다크)에서는 시트도 다크로 그린다
+  const sheet = (theme?: ThemeName) => (
+    <ConfirmSheet visible={open} onClose={stay} title={t.leaveTitle} body={body} primary={t.stay} onPrimary={stay} secondary={t.leave} onSecondary={leave} theme={theme} />
+  );
+  return { ask, sheet };
 }
 
 /**

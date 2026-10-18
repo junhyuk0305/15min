@@ -3,13 +3,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Banner } from '@/components/Banner';
 import { ErrorLine } from '@/components/ErrorLine';
 import { ClockHeader, LearnShell } from '@/components/learn/LearnShell';
-import { Composer, IdleModal, StopView, useReport } from '@/components/learn/parts';
+import { Composer, IdleModal, StopView, useLeave, useReport } from '@/components/learn/parts';
 import { Transcript } from '@/components/learn/Transcript';
 import { useLearnClock, useOnline, useSessionPresence } from '@/components/learn/useLearnClock';
 import { Body, Button, useNow } from '@/components/ui';
 import { toApiError } from '@/lib/api';
 import { copy, errorText } from '@/lib/copy';
-import { dayEnded, linesOf, retroAwaitsAnswer, retroClosing, saveFailure, sendId } from '@/lib/learn';
+import { dayEnded, leftMinutes, linesOf, retroAwaitsAnswer, retroClosing, saveFailure, sendId } from '@/lib/learn';
 import { dayKeyId, uuidv4, type Message } from '@/lib/model';
 import { reportError } from '@/lib/report';
 import { RETRO_SECONDS, type DayRow } from '@/lib/rules';
@@ -55,6 +55,8 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
   const pending = useRef<{ id: string; text: string } | null>(null);
   const [saveStuck, setSaveStuck] = useState(false);
   const saveFails = useRef(0);
+  // 나가기 시트가 떠 있는 동안 시계를 멈춘다(안내 모달). 시계보다 먼저 둔다
+  const [leaveOpen, setLeaveOpen] = useState(false);
 
   const save = useCallback(
     (secs: number) => {
@@ -84,12 +86,21 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
   const clock = useLearnClock({
     initial: done ? RETRO_SECONDS : rec.retroSeconds,
     total: RETRO_SECONDS,
-    gates: { waiting, offline, failed: failed !== null || saveStuck, overlay: false, blocked: done || blocked },
+    gates: { waiting, offline, failed: failed !== null || saveStuck, overlay: leaveOpen, blocked: done || blocked },
     save,
   });
   const { touch, syncTo, current } = clock;
   useSessionPresence(() => save(current()));
   const report = useReport(touch);
+  // 3분을 채운 뒤에는 남은 분 대신 완료하기를 눌러야 끝난다고 알린다
+  const filled = done || clock.secs >= RETRO_SECONDS;
+  const leave = useLeave({
+    enabled: !done && !blocked,
+    open: leaveOpen,
+    setOpen: setLeaveOpen,
+    body: filled ? t.leaveFilledBody : t.leaveBody(leftMinutes(RETRO_SECONDS - clock.secs)),
+    onActivity: touch,
+  });
 
   /** 실패면 안내 문장을 남긴다. 연결 끊김이면 연결이 돌아올 때 다시 한다 */
   const run = useCallback(
@@ -173,7 +184,6 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
     if (ok) router.replace({ pathname: '/session/done', params: { earned: out.earned ? '1' : '0' } });
   };
 
-  const filled = done || clock.secs >= RETRO_SECONDS;
   const composer = (secondary: boolean) => (
     <Composer
       value={text}
@@ -212,6 +222,7 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
       remaining={RETRO_SECONDS - clock.secs}
       ratio={clock.secs / RETRO_SECONDS}
       paused={!clock.running && !filled}
+      onClose={done || blocked ? undefined : leave.ask}
     />
   );
   if (blocked) return <StopView theme="white" header={header} title={t.limitTitle} body={t.limitBody} />;
@@ -228,7 +239,12 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
         ) : null
       }
       footer={footer}
-      overlay={<IdleModal visible={clock.idle} onContinue={clock.dismissIdle} />}
+      overlay={
+        <>
+          <IdleModal visible={clock.idle} onContinue={clock.dismissIdle} />
+          {leave.sheet()}
+        </>
+      }
       follow
     >
       <Body muted>{t.retroSub}</Body>
