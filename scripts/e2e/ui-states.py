@@ -349,7 +349,9 @@ def settings_tab(b):
     ctx.close()
     ctx, pg = page(b, U, '/settings')
     lib.fail_server(pg, '/auth/v1/logout')
-    pg.get_by_role('button', name='로그아웃').click(); pg.wait_for_timeout(3000)
+    pg.get_by_role('button', name='로그아웃').click(); pg.wait_for_timeout(1200)
+    capture(pg, 'settings-logout-confirm', '로그아웃 확인 시트(U6)')
+    click(pg, '로그아웃하기', wait=3000)
     capture(pg, 'settings-error', '로그아웃 요청 500')
     ctx.close()
     s_none()
@@ -417,7 +419,7 @@ def settings_giveup(b):
     capture(pg, 'settings-giveup-error', '신청 500')
     ctx.close()
     ctx, pg = page(b, U, '/settings/giveup')
-    click(pg, '포기 신청하기', wait=800)
+    click(pg, '포기 신청하기', wait=1300)  # U7: 2단계는 줄인 움직임에서 1초 비활성 뒤 탭
     lib.fail_network(pg)
     click(pg, '포기 신청하기', wait=2500)
     capture(pg, 'settings-giveup-offline', '신청 끊김')
@@ -592,14 +594,15 @@ def learn(b):
     learn_setup(30)
     ctx, pg = page(b, LEARN, None)
     hold = lib.Hold(pg, '/functions/v1/review-quiz')
-    pg.goto(lib.BASE + '/session/learn'); pg.wait_for_timeout(1600)
-    capture(pg, 'learn-a-overlay', '단계 안내 1초', wait=0)
+    pg.goto(lib.BASE + '/session/learn'); pg.wait_for_timeout(700)
+    capture(pg, 'learn-a-overlay', '단계 전환 연출(U5, 들어옴 250 + 1000 유지 + 나감 250 안)', wait=0)
     pg.wait_for_timeout(2500)
     capture(pg, 'learn-loading', 'A 문항 대기(review-quiz 붙잡음)')
     hold.release(); pg.wait_for_timeout(3000)
     capture(pg, 'learn-a-normal')
-    if pg.locator('textarea').count():
-        pg.locator('textarea').last.fill('receipt')  # 문제 1 "뜻: 영수증"의 정답
+    answer = pg.locator('textarea, input')  # U4: 복습 답은 한 줄 입력(input, type 속성 없음)
+    if answer.count():
+        answer.last.fill('receipt')  # 문제 1 "뜻: 영수증"의 정답
         pg.wait_for_timeout(300)
         capture(pg, 'learn-a-typed', wait=0)
         click(pg, '제출하기', wait=800)
@@ -611,8 +614,8 @@ def learn(b):
     # 오답: 다시 답하기와 정답 보기 → 정답 → 다음 문제 보기
     for _ in range(4):
         pg.wait_for_timeout(2500)
-        if pg.locator('textarea').count():
-            pg.locator('textarea').last.fill('hello')
+        if answer.count():
+            answer.last.fill('hello')
             click(pg, '제출하기', wait=1500)
         elif pg.get_by_role('radio').count():
             pg.get_by_role('radio').nth(0).click()
@@ -783,9 +786,11 @@ def goal_new(b):
     capture(pg, 'goal-new-loading', '코치 답 대기')
     hold.release(); pg.wait_for_timeout(3000)
     capture(pg, 'goal-new-normal-chat')
-    if pg.get_by_role('button', name='이 응답 신고하기').count():
-        pg.get_by_role('button', name='이 응답 신고하기').last.click(); pg.wait_for_timeout(800)
-        capture(pg, 'goal-new-report', '코치 답 신고 창')
+    if pg.get_by_role('button', name='더 보기').count():  # U4: 헤더 ⋯ → 신고하기 → 사유 시트
+        pg.get_by_role('button', name='더 보기').last.click(); pg.wait_for_timeout(800)
+        capture(pg, 'goal-new-report-menu', '헤더 더 보기 시트')
+        pg.get_by_role('button', name='신고하기').last.click(); pg.wait_for_timeout(1200)
+        capture(pg, 'goal-new-report', '코치 답 신고 사유 시트')
         pg.get_by_role('button', name='부적절한 내용').last.click(); pg.wait_for_timeout(2000)
         capture(pg, 'goal-new-report-done', '신고 뒤')
     lib.fail_server(pg, '/functions/v1/goal-setup')
@@ -824,7 +829,6 @@ def goal_new(b):
     pg.add_init_script("localStorage.setItem('graego-goal-setup-v1', %s)" % json.dumps(json.dumps(draft)))
     pg.goto(lib.BASE + '/goal/new'); pg.wait_for_timeout(5000)
     capture(pg, 'goal-new-normal-plan')
-    click(pg, '확인하기', exact=False, wait=1200) if pg.get_by_role('button', name='확인').count() else None
     ctx.close()
     draft['state']['stage'] = 'confirm'
     ctx, pg = page(b, U, None)
@@ -837,13 +841,37 @@ def goal_new(b):
     ctx.close()
 
 
+# ---------- 처음 안내(seenTips를 넣지 않은 컨텍스트) ----------
+@sc
+def tips(b):
+    HOME_STATES['before_first']()
+    ctx, pg = page(b, U, '/', ctx_kw={'tips': False})
+    capture(pg, 'tips-home-tour', '첫 학습일 전 홈 코치마크 1/3')
+    ctx.close()
+    s_none()
+    ctx, pg = page(b, U, '/goal/new', 5000, ctx_kw={'tips': False})
+    capture(pg, 'tips-goal-intro', '목표 정하기 첫 시트')
+    ctx.close()
+    LEARN.reset(); g = LEARN.goal(start_off=-35, target=10, first=0)
+    LEARN.day(g, 0, 'progress', 30, reason='처음이라 긴장되지만 오늘부터 시작해 보려고 합니다', phase='A', started_min=30, target=10)
+    ctx, pg = page(b, LEARN, '/session/learn', 6000, ctx_kw={'tips': False})
+    capture(pg, 'tips-first-rules', '첫 학습 규칙 모달')
+    ctx.close()
+
+
 # ---------- 온보딩, 인증 ----------
+def agree_all(pg):
+    """U7: 맨 위 '모두 동의합니다'가 아래 3개를 함께 켠다"""
+    pg.get_by_role('checkbox', name='모두 동의합니다').click()
+    pg.wait_for_timeout(200)
+
+
 @sc
 def onboarding(b):
     ctx, pg = page(b, None, '/', 4000, onboarded=False)
     capture(pg, 'onboarding-normal-1')
     for i in range(2, 5):
-        click(pg, '다음 보기', wait=1200)
+        click(pg, '다음', wait=1200)  # U7: '다음 보기' → '다음'
         capture(pg, f'onboarding-normal-{i}')
     pg.get_by_role('button').last.click(); pg.wait_for_timeout(2500)
     capture(pg, 'onboarding-error', '웹: 알림 권한 요청 결과와 상관없이 넘어감')
@@ -855,8 +883,7 @@ def auth(b):
     ctx, pg = page(b, None, '/auth', 4000)
     capture(pg, 'auth-normal-email-blank', '입력 전(비활성 이유)')
     pg.get_by_label('이메일').fill('ui-qa-new@graego.local')
-    for cb in pg.get_by_role('checkbox').all():
-        cb.click()
+    agree_all(pg)
     capture(pg, 'auth-normal-email', '입력 후')
     if pg.get_by_role('link', name='국외 이전 보기').count():  # U3: 본문 링크(role=link)
         pg.get_by_role('link', name='국외 이전 보기').last.click(); pg.wait_for_timeout(800)
@@ -867,15 +894,14 @@ def auth(b):
     capture(pg, 'auth-loading', '요청 대기')
     hold.release(); pg.wait_for_timeout(3000)
     capture(pg, 'auth-normal-code')
+    # U7: 6자리면 자동 제출. 틀린 코드면 6칸을 비운다(U8a). '로그인하기'를 또 누르지 않는다
     pg.get_by_label('6자리 코드', exact=False).first.fill('123456') if pg.get_by_label('6자리 코드', exact=False).count() else pg.locator('input').last.fill('123456')
-    pg.wait_for_timeout(300)
-    click(pg, '로그인하기', wait=3000)
-    capture(pg, 'auth-error', '틀린 코드')
+    pg.wait_for_timeout(3000)
+    capture(pg, 'auth-error', '틀린 코드(자동 제출)')
     ctx.close()
     ctx, pg = page(b, None, '/auth', 4000)
     pg.get_by_label('이메일').fill('ui-qa-new@graego.local')
-    for cb in pg.get_by_role('checkbox').all():
-        cb.click()
+    agree_all(pg)
     lib.fail_network(pg)
     click(pg, '코드 받기', wait=2500)
     capture(pg, 'auth-offline')
@@ -883,15 +909,13 @@ def auth(b):
     ctx, pg = page(b, None, '/auth', 4000)
     pg.route('**/auth/v1/otp*', lambda r: r.fulfill(status=429, content_type='application/json', body='{"code":429,"error_code":"over_email_send_rate_limit","msg":"For security purposes, you can only request this after 60 seconds."}'))
     pg.get_by_label('이메일').fill('ui-qa-new@graego.local')
-    for cb in pg.get_by_role('checkbox').all():
-        cb.click()
+    agree_all(pg)
     click(pg, '코드 받기', wait=2500)
     capture(pg, 'auth-error-rate', '요청 과다 429')
     ctx.close()
     ctx, pg = page(b, None, '/auth', 4000)
     pg.get_by_label('이메일').fill('review@graego.app')
-    for cb in pg.get_by_role('checkbox').all():
-        cb.click()
+    agree_all(pg)
     click(pg, '코드 받기', wait=2500)
     capture(pg, 'auth-normal-password', '심사 계정')
     pg.locator('input[type=password]').fill('wrong-password')

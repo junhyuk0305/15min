@@ -72,7 +72,7 @@ def s1(b, c: Check):
     for _ in range(5):
         if page.get_by_role('button', name=AGREE, exact=True).count():
             break
-        click(page, '다음 보기')
+        click(page, '다음')  # U7: '다음 보기' → '다음'(UXP 3절 버튼 문구 예외)
         page.wait_for_timeout(400)
     c.ok('온보딩 마지막 장: 동의 문장이 버튼 위에', has(page, '알림 켜기를 누르면 위 규칙에 동의한 것으로 봅니다.'), '')
     click(page, AGREE)
@@ -86,8 +86,7 @@ def s1(b, c: Check):
     click(page, '코드 받기')
     code = latest_otp(email, after=sent)
     page.wait_for_timeout(800)
-    page.get_by_label('6자리 코드').first.fill(code)
-    click(page, '로그인하기')
+    page.get_by_label('6자리 코드').first.fill(code)  # U7: 6자리면 자동 제출. '로그인하기'를 또 누르지 않는다
     settle(page, 2500)
     if '/goal/new' not in page.url:
         if page.get_by_role('button', name='목표 정하기').count():
@@ -109,10 +108,10 @@ def s1(b, c: Check):
         click(page, '이어서 정하기')
         settle(page, 800)
     c.shot(page, '학습약속')
-    click(page, '확인하기')
+    click(page, '약속 확인하기')  # U8: '확인하기' → '약속 확인하기'
     settle(page, 800)
     c.ok('확인 화면에 내일 시작 안내', has(page, '내일'), text(page)[:300].replace('\n', ' / '))
-    click(page, '이걸로 시작')
+    click(page, '시작하기')  # U8: '이걸로 시작' → '시작하기'
     settle(page, 2500)
     body = text(page)
     c.ok('홈에 목표 카드(목표 이름)', '카페에서 영어로 말하기' in body, body[:200].replace('\n', ' / '))
@@ -159,8 +158,8 @@ def session_page(b, email: str):
 
 
 def start_today(page, reason: str):
-    """홈에서 지금 시작 → 오늘의 이유 → 시작하기"""
-    click(page, '지금 시작')
+    """홈에서 시작하기 → 오늘의 이유 → 시작하기"""
+    click(page, '시작하기')
     settle(page)
     page.get_by_placeholder('오늘 이걸 하는 이유를 쓰십시오.').fill(reason)
     click(page, '시작하기')
@@ -168,8 +167,8 @@ def start_today(page, reason: str):
 
 
 def remaining(page) -> str:
-    """학습 화면 상단 큰 시계(전체 남은 시간). '이 단계 mm:ss'(멈췄으면 '멈춤') 다음 줄"""
-    m = re.search(r'(?:이 단계 \d+:\d+|멈춤)\s*\n\s*(\d+:\d+)', text(page))
+    """학습 머리 큰 시계(전체 남은 시간). U5: '오늘 남은 시간'(회고는 '회고 남은 시간') 라벨 다음 줄"""
+    m = re.search(r'(?:오늘|회고) 남은 시간\s*\n\s*(\d+:\d+)', text(page))
     return m.group(1) if m else ''
 
 
@@ -177,9 +176,9 @@ def remaining(page) -> str:
 def s3(b, c: Check):
     email, uid, gid = user_with_goal('S3', -1)
     ctx, page = session_page(b, email)
-    c.ok('정각 홈: 지금 시작 버튼', page.get_by_role('button', name='지금 시작').count() > 0, text(page)[:160].replace('\n', ' / '))
+    c.ok('정각 홈: 시작하기 버튼', page.get_by_role('button', name='시작하기').count() > 0, text(page)[:160].replace('\n', ' / '))
     c.shot(page, '1홈정각')
-    click(page, '지금 시작')
+    click(page, '시작하기')
     settle(page)
     c.ok('오늘의 이유 화면', has(page, '오늘은 왜 하십니까?'), page.url)
     c.shot(page, '2이유')
@@ -363,7 +362,7 @@ def s7(b, c: Check):
     ctx, page = session_page(b, email)
     body = text(page)
     c.ok('홈 독촉 상태(약속 시각이 지났습니다)', '약속 시각이 지났습니다' in body and '분 늦음' in body, body[:200].replace('\n', ' / '))
-    c.ok('지금 시작 버튼', page.get_by_role('button', name='지금 시작').count() > 0, '')
+    c.ok('시작하기 버튼', page.get_by_role('button', name='시작하기').count() > 0, '')
     page.wait_for_timeout(1200)
     c.shot(page, '독촉')
     bg = page.evaluate("getComputedStyle(document.body).backgroundColor")
@@ -436,7 +435,7 @@ def s10(b, c: Check):
     body = text(page)
     c.ok('홈 쉬는 요일 상태', '오늘은 쉬는 요일입니다' in body, body[:200].replace('\n', ' / '))
     c.ok('연속 유지(연속 1일)', '연속 1일' in body, '')
-    c.ok('지금 시작 버튼 없음', page.get_by_role('button', name='지금 시작').count() == 0, '')
+    c.ok('시작하기 버튼 없음', page.get_by_role('button', name='시작하기').count() == 0, '')
     c.shot(page, '쉬는요일')
     st = sql1(f"select status from public.days where goal_id = '{gid}' and day = app_private.day_key(now(), 'Asia/Seoul') - 1;")
     pr = sql1(f"select coupon_progress_days from public.goals where id = '{gid}';")
@@ -455,6 +454,8 @@ def s11(b, c: Check):
     click(page, '포기 신청하기')
     settle(page, 800)
     c.ok('마지막 확인 화면', has(page, '마지막으로 묻습니다.'), '')
+    # U7: 2단계는 2초 길게 누르기. 줄인 움직임 컨텍스트라 1초 비활성 뒤 탭으로 확정한다(UXP 3절 포기 확정)
+    page.wait_for_timeout(1200)
     click(page, '포기 신청하기')
     settle(page, 2500)
     if '/settings' in page.url and page.get_by_role('button', name='홈으로 가기').count():
@@ -625,7 +626,7 @@ def s16(b, c: Check):
         for _ in range(5):
             if page.get_by_role('button', name=AGREE, exact=True).count():
                 break
-            click(page, '다음 보기')
+            click(page, '다음')
         click(page, AGREE)
         settle(page)
     page.get_by_placeholder('name@example.com').fill(email)
@@ -636,7 +637,6 @@ def s16(b, c: Check):
     code = latest_otp(email, after=sent)
     page.wait_for_timeout(800)
     page.get_by_label('6자리 코드').first.fill(code)
-    click(page, '로그인하기')
     settle(page, 3500)
     c.ok('재가입 뒤 반성문 화면(정지 승계)', '/suspended' in page.url and has(page, '이용 정지 중입니다'), page.url)
     c.shot(page, '2재가입')
@@ -676,7 +676,9 @@ def s17(b, c: Check):
     cards = re.findall(r'(\d+월 \d+일)\s+10분', body)
     c.ok('기록 탭에 성과 문장', '지금까지 단어 1개와 표현 1개를 배웠습니다.' in body, '')
     c.ok('기록 탭에 카드 3장', len(cards) == 3, ', '.join(cards))
-    marks = page.get_by_label(re.compile(r'\d+월 \d+일 완료')).count()
+    # U7: 뒤에 남은 홈 탭의 이번 주 띠도 같은 이름을 쓴다. 맨 위에 그려진(가려지지 않은) 기록 탭 달력 칸만 센다
+    on_top = "e => { const r = e.getBoundingClientRect(); const t = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return !!t && (e === t || e.contains(t)); }"
+    marks = sum(1 for m in page.get_by_label(re.compile(r'\d+월 \d+일 완료')).all() if m.evaluate(on_top))
     c.ok('달력에 완료 표시 3칸', marks == 3, str(marks))
     c.shot(page, '기록')
     n = sql1(f"select count(*) from public.days where goal_id = '{gid}' and status = 'done';")

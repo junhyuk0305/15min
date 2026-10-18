@@ -6,6 +6,8 @@ from collections import defaultdict
 meta = sys.argv[1]
 lines = defaultdict(set)
 for f in sorted(glob.glob(os.path.join(meta, '*.json'))):
+    if os.path.basename(f) == 'checks.json':
+        continue  # ui-checks.py 결과(화면 글자가 아님)
     d = json.load(open(f, encoding='utf-8'))
     if d['name'].startswith('legal-normal') or d['name'].startswith('legal-offline'):
         continue  # 법무 원문은 copy.legal 별도 규칙

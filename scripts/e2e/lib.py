@@ -4,7 +4,7 @@
 - make_user(): 시드와 같은 방식으로 비밀번호 사용자를 만든다. 가입 트리거가 프로필을 만든다.
 - session_for(): 관리자 매직링크(generate_link → verify)로 세션을 받는다. 비밀번호 로그인은 심사 계정만 된다.
   테스트는 세션을 localStorage에 직접 넣는다(supabase-js 웹 기본 저장소).
-- open_app(): 390px 폭, 줄인 움직임, E2E_TZ(기본 Asia/Seoul) 시간대 브라우저 컨텍스트에 세션과 온보딩 완료 표시를 넣고 연다.
+- open_app(): 390px 폭, 줄인 움직임, E2E_TZ(기본 Asia/Seoul) 시간대 브라우저 컨텍스트에 세션, 온보딩 완료, 처음 안내 본 표시를 넣고 연다.
   앱은 기기 시간대와 상관없이 한국 시간으로 돈다. E2E_TZ=America/New_York으로 해외 기기를 흉내 낸다.
 - latest_otp(): Mailpit에서 그 주소로 온 마지막 6자리 코드를 읽는다.
 키는 `npx supabase status -o env`에서 읽고 출력하지 않는다.
@@ -27,6 +27,10 @@ STORAGE_KEY = 'sb-127-auth-token'
 CACHE_KEY = 'graego-cache-v3'
 VIEWPORT = {'width': 390, 'height': 844}
 BROWSER_TZ = os.environ.get('E2E_TZ', 'Asia/Seoul')
+# 처음 안내(src/lib/tips.ts)를 모두 본 것으로 넣는다. 안내 자체는 U5 스크립트가 검증했다. E2E_TIPS=0이면 넣지 않는다.
+TIPS_KEY = 'graego-tips-v1'
+TIP_IDS = ['first-rules', 'goal-intro', 'home-tour', 'phase-b', 'phase-c', 'coach-modal', 'report-longpress']
+TIPS_SEEN = os.environ.get('E2E_TIPS', '1') != '0'
 
 _env: dict[str, str] | None = None
 
@@ -159,13 +163,15 @@ def latest_otp(email: str, after: float = 0, timeout: float = 30) -> str:
     raise TimeoutError(f'OTP for {email} not found')
 
 
-def new_context(browser, session: dict | None = None, onboarded: bool = True):
+def new_context(browser, session: dict | None = None, onboarded: bool = True, tips: bool = TIPS_SEEN):
     ctx = browser.new_context(viewport=VIEWPORT, timezone_id=BROWSER_TZ, locale='ko-KR', device_scale_factor=1, reduced_motion='reduce')
     seed = {}
     if session is not None:
         seed[STORAGE_KEY] = json.dumps(session)
     if onboarded:
         seed[CACHE_KEY] = json.dumps({'state': {'onboarded': True}, 'version': 0})
+    if tips:
+        seed[TIPS_KEY] = json.dumps({'state': {'seenTips': TIP_IDS}, 'version': 0})
     if seed:
         # 첫 로드에만 넣는다. 새로고침(강제 종료 흉내)은 앱이 저장한 값을 그대로 쓴다.
         ctx.add_init_script(f"""
@@ -180,8 +186,8 @@ def new_context(browser, session: dict | None = None, onboarded: bool = True):
     return ctx
 
 
-def open_app(browser, session: dict | None = None, path: str = '/', onboarded: bool = True):
-    ctx = new_context(browser, session, onboarded)
+def open_app(browser, session: dict | None = None, path: str = '/', onboarded: bool = True, tips: bool = TIPS_SEEN):
+    ctx = new_context(browser, session, onboarded, tips)
     page = ctx.new_page()
     page.console_errors = []  # type: ignore[attr-defined]
     page.on('console', lambda m: m.type == 'error' and page.console_errors.append(m.text))  # type: ignore[attr-defined]

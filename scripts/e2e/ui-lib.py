@@ -136,7 +136,11 @@ class User:
         return iid
 
 
-def context(browser, user=None, w=390, h=844, scale=1, onboarded=True, extra_cache=None):
+TIP_IDS = ['first-rules', 'goal-intro', 'home-tour', 'phase-b', 'phase-c', 'coach-modal', 'report-longpress']
+TIPS_SEEN = os.environ.get('UI_TIPS', '1') != '0'
+
+
+def context(browser, user=None, w=390, h=844, scale=1, onboarded=True, extra_cache=None, tips=TIPS_SEEN):
     ctx = browser.new_context(viewport={'width': w, 'height': h}, device_scale_factor=scale, locale='ko-KR', timezone_id='Asia/Seoul', reduced_motion='reduce')
     init = ''
     if user is not None:
@@ -144,6 +148,9 @@ def context(browser, user=None, w=390, h=844, scale=1, onboarded=True, extra_cac
         init += "if (!localStorage.getItem('sb-127-auth-token')) localStorage.setItem('sb-127-auth-token', %s);" % json.dumps(json.dumps(sess))
     if onboarded:
         init += "if (!localStorage.getItem('graego-cache-v3')) localStorage.setItem('graego-cache-v3', JSON.stringify({state:{onboarded:true},version:0}));"
+    if tips:
+        # 처음 안내(src/lib/tips.ts)를 모두 본 것으로. 안내 화면은 ui-states.py tips 시나리오가 tips=False로 따로 찍는다. UI_TIPS=0이면 넣지 않는다
+        init += "if (!localStorage.getItem('graego-tips-v1')) localStorage.setItem('graego-tips-v1', %s);" % json.dumps(json.dumps({'state': {'seenTips': TIP_IDS}, 'version': 0}))
     if init:
         ctx.add_init_script(init)
     return ctx
