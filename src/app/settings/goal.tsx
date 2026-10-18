@@ -109,13 +109,13 @@ export default function GoalSettings() {
       <View style={{ gap: S.sm }}>
         <Stepper
           label={t.hourLabel}
-          display={fmtClock(v.startMinutes)}
+          display={fmtClock(v.startMinutes).slice(0, 2)}
           onMinus={() => edit({ startMinutes: wrapDay(v.startMinutes - 60) })}
           onPlus={() => edit({ startMinutes: wrapDay(v.startMinutes + 60) })}
         />
         <Stepper
           label={t.minuteLabel}
-          display={fmtClock(v.startMinutes)}
+          display={fmtClock(v.startMinutes).slice(3)}
           onMinus={() => edit({ startMinutes: wrapDay(v.startMinutes - 1) })}
           onPlus={() => edit({ startMinutes: wrapDay(v.startMinutes + 1) })}
         />

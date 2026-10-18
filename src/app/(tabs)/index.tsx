@@ -24,6 +24,7 @@ import {
   settingsFor,
   streakOf,
   totalMinutes,
+  type HomeState,
 } from '@/lib/rules';
 import { LEARN_PATH, RETRO_PATH } from '@/lib/route';
 import { useRuntime } from '@/lib/runtime';
@@ -91,6 +92,8 @@ function useFlash(on: boolean, key: string) {
   }, [on, key, opacity]);
   return opacity;
 }
+
+const COUPON_USABLE = new Set<HomeState>(['waiting', 'soon', 'grace', 'nag', 'resume']);
 
 export default function Home() {
   const now = useNow();
@@ -309,8 +312,11 @@ export default function Home() {
         {st === 'giveup' ? null : (
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: S.sm }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: S.sm }}>
-              <TextButton title={h.couponOpen} onPress={() => router.push('/coupon')} style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }} />
-              <Text style={[T.small, { color: sub }]}>{h.couponsLeft(goal.coupons)}</Text>
+              {/* 쿠폰은 오늘 학습할 날이고 아직 끝나지 않았을 때만 쓸 수 있다. 쿠폰 쓴 날은 가운데에 이미 남은 수가 보인다 */}
+              {COUPON_USABLE.has(st) ? (
+                <TextButton title={h.couponOpen} onPress={() => router.push('/coupon')} style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }} />
+              ) : null}
+              {st === 'coupon' ? null : <Text style={[T.small, { color: sub }]}>{h.couponsLeft(goal.coupons)}</Text>}
             </View>
             {canAchieve(goal, today) ? (
               <TextButton title={h.achieve} onPress={() => router.push('/goal/achieve')} style={{ alignSelf: 'flex-end', paddingHorizontal: 0 }} />
