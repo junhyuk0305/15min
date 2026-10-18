@@ -59,7 +59,7 @@ export default function Suspended() {
   useBlockBack();
   const now = useNow(15_000);
   const profile = useApp((s) => s.profile);
-  const sched = useApp((s) => s.suspendedGoal);
+  const cached = useApp((s) => s.suspendedGoal);
   const reflections = useApp((s) => s.reflections);
   const reflectionTurn = useApp((s) => s.reflectionTurn);
   const tz = useApp(tzOf);
@@ -68,8 +68,14 @@ export default function Suspended() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 반성문 시간대는 서버 프로필 값(suspended_start_minutes, suspended_target_minutes)을 쓴다.
+  // 그 값이 없는 옛 응답일 때만 이 기기의 목표 캐시로 대신한다
+  const sched =
+    profile?.suspendedStartMinutes != null && profile.suspendedTargetMinutes != null
+      ? { startMinutes: profile.suspendedStartMinutes, targetMinutes: profile.suspendedTargetMinutes }
+      : cached;
   const win = sched ? reflectionWindow(sched, now, tz) : null;
-  // 시각을 알면 창이 열렸을 때만 서버에 묻는다. 모르면(다른 기기에서 포기) 서버 답으로 정한다
+  // 시각을 알면 창이 열렸을 때만 서버에 묻는다. 모르면 서버 답으로 정한다
   const shouldAsk = win ? win.open : chat === 'unknown';
 
   const load = useCallback(

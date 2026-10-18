@@ -1,6 +1,6 @@
 // 서버 행(snake_case)을 앱 모양(camelCase, 시각은 epoch ms)으로 바꾸는 순수 함수와 타입.
 // api.ts가 응답을 이 모양으로 돌려주고, store.ts가 그대로 캐시한다. React Native를 import하지 않는다(Node 테스트용).
-import type { DayRow, DayStatus, Goal, Phase, PendingChange, QuizType, Situation } from './rules';
+import type { DayRow, DayStatus, Goal, Item, ItemEvent, Phase, PendingChange, QuizType, Situation } from './rules';
 
 export type Profile = {
   userId: string;
@@ -10,6 +10,9 @@ export type Profile = {
   giveupConfirmedCount: number;
   suspendedUntil: number | null;
   suspendedGoalId: string | null;
+  /** 정지 중 반성문 시간대: 포기한 목표의 원래 시작 시각과 학습 분. 정지가 아니면 null */
+  suspendedStartMinutes: number | null;
+  suspendedTargetMinutes: number | null;
   banned: boolean;
 };
 
@@ -94,6 +97,7 @@ export const ts = (v: unknown): number | null => {
 const str = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : fallback);
 const num = (v: unknown, fallback = 0): number => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
 const strOrNull = (v: unknown): string | null => (typeof v === 'string' ? v : null);
+const numOrNull = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 export function profileFromRow(r: Row): Profile {
   return {
@@ -104,6 +108,8 @@ export function profileFromRow(r: Row): Profile {
     giveupConfirmedCount: num(r.giveup_confirmed_count),
     suspendedUntil: ts(r.suspended_until),
     suspendedGoalId: strOrNull(r.suspended_goal_id),
+    suspendedStartMinutes: numOrNull(r.suspended_start_minutes),
+    suspendedTargetMinutes: numOrNull(r.suspended_target_minutes),
     banned: r.banned === true,
   };
 }
@@ -171,6 +177,37 @@ export function messageFromRow(r: Row): Message {
     role: str(r.role, 'system') as MessageRole,
     text: str(r.text),
     meta: r.meta && typeof r.meta === 'object' ? (r.meta as Record<string, unknown>) : {},
+    createdAt: ts(r.created_at) ?? 0,
+  };
+}
+
+export function itemFromRow(r: Row): Item {
+  return {
+    id: str(r.id),
+    goalId: str(r.goal_id),
+    kind: r.kind === 'word' ? 'word' : 'expression',
+    base: str(r.base),
+    ko: str(r.ko),
+    note: str(r.note),
+    state: str(r.state, 'seen') as Item['state'],
+    srsStep: num(r.srs_step),
+    nextDueDay: strOrNull(r.next_due_day),
+    unaidedStreak: num(r.unaided_streak),
+    firstDay: strOrNull(r.first_day),
+    createdAt: ts(r.created_at) ?? 0,
+  };
+}
+
+export function itemEventFromRow(r: Row): ItemEvent {
+  return {
+    id: str(r.id),
+    itemId: str(r.item_id),
+    day: str(r.day),
+    phase: strOrNull(r.phase),
+    kind: str(r.kind, 'seen') as ItemEvent['kind'],
+    aided: r.aided === true,
+    correct: typeof r.correct === 'boolean' ? r.correct : null,
+    questionType: strOrNull(r.question_type) as QuizType | null,
     createdAt: ts(r.created_at) ?? 0,
   };
 }
