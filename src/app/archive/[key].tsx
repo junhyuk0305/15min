@@ -1,10 +1,11 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { ChatLine, type ChatSpeaker } from '@/components/ChatLine';
 import { CoachNote } from '@/components/CoachNote';
 import { ErrorLine } from '@/components/ErrorLine';
 import { Header } from '@/components/Header';
+import { Skeleton } from '@/components/Skeleton';
 import { StatusBanner } from '@/components/StatusBanner';
 import { TextButton } from '@/components/TextButton';
 import { Body, Label, Screen } from '@/components/ui';
@@ -109,9 +110,12 @@ export default function ArchiveDetail() {
       </View>
 
       {status === 'loading' ? (
-        <View accessibilityRole="progressbar" style={{ flexDirection: 'row', gap: S.sm, alignItems: 'center' }}>
-          <ActivityIndicator color={C.ink} />
-          <Text style={[T.small, { color: C.sub }]}>{t.loading}</Text>
+        // 대화 줄 모양의 스켈레톤(갭분석 F6, M19). 300ms가 넘을 때만 보인다
+        <View accessible accessibilityRole="progressbar" accessibilityLabel={t.loading} style={{ gap: S.sm }}>
+          <Skeleton width={72} height={12} />
+          {(['92%', '70%', '84%', '56%'] as const).map((w) => (
+            <Skeleton key={w} width={w} height={16} />
+          ))}
         </View>
       ) : null}
       {status === 'error' ? (

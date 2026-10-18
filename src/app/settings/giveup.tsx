@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { BackHandler, Text, View } from 'react-native';
 import { ErrorLine } from '@/components/ErrorLine';
 import { Header } from '@/components/Header';
+import { HoldButton } from '@/components/HoldButton';
 import { TextButton } from '@/components/TextButton';
 import { Big, Body, Button, Label, Screen } from '@/components/ui';
 import { copy } from '@/lib/copy';
@@ -17,21 +18,23 @@ const keep = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
 /**
  * G1 포기 확인. 계속하기가 주 버튼 모양이고 더 크다. 포기 신청은 글자 버튼이고 한 번 더 확인한다 (MP 7.5-4, 화면구성 5절).
+ * 2단계 확인은 2초 길게 누르기다(3절 "포기 확정"). 연타로 확인을 건너뛰지 못한다.
  */
 export default function Giveup() {
   const state = useApp();
   const goal = state.goal;
   const request = useAction();
   const [confirming, setConfirming] = useState(false);
-  // 2단계에서 Android 뒤로는 헤더 chevron과 같이 1단계로 돌아간다(MP 7.7-2 "앞 화면으로")
+  const busy = request.busy;
+  // 2단계에서 Android 뒤로는 헤더 chevron과 같이 1단계로 돌아간다(MP 7.7-2 "앞 화면으로"). 요청 중에는 막는다
   useEffect(() => {
     if (!confirming) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      setConfirming(false);
+      if (!busy) setConfirming(false);
       return true;
     });
     return () => sub.remove();
-  }, [confirming]);
+  }, [confirming, busy]);
   if (!goal) return null; // route.ts가 홈으로 보낸다
 
   if (goal.giveupRequestedAt !== null) {
@@ -69,7 +72,7 @@ export default function Giveup() {
       <Button title={t.keep} kind="inverse" onPress={keep} style={{ minHeight: 64 }} />
       <ErrorLine message={request.message} />
       {confirming ? (
-        <TextButton title={t.confirmApply} tone="danger" busy={request.busy} onPress={() => void apply()} />
+        <HoldButton title={t.confirmApply} hint={t.holdHint} a11yHint={t.holdA11yHint} busy={busy} onConfirm={() => void apply()} />
       ) : (
         <TextButton title={t.apply} tone="danger" onPress={() => setConfirming(true)} />
       )}
@@ -78,7 +81,7 @@ export default function Giveup() {
 
   if (confirming) {
     return (
-      <Screen danger header={<Header title={t.header} onLeft={() => setConfirming(false)} />} footer={footer}>
+      <Screen danger header={<Header title={t.header} left={busy ? 'none' : 'back'} onLeft={() => setConfirming(false)} />} footer={footer}>
         <View style={{ flex: 1, justifyContent: 'center', gap: S.md, minHeight: 360 }}>
           <Label inverse>{left > 0 ? t.count(nth, left) : t.countLast(nth)}</Label>
           <Text style={[T.h1Serif, { color: C.redInk }]}>{t.confirmTitle}</Text>

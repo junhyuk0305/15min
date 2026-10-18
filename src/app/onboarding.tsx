@@ -1,7 +1,9 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, ScrollView, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CountUp } from '@/components/CountUp';
 import { PrimaryFooter } from '@/components/PrimaryFooter';
 import { SurfaceProvider } from '@/components/surface';
 import { Body, Button, Label } from '@/components/ui';
@@ -10,8 +12,10 @@ import { requestPermission, setupNotifications } from '@/lib/notify';
 import { reportError } from '@/lib/report';
 import { MIN_WEEKDAYS } from '@/lib/rules';
 import { useRuntime } from '@/lib/runtime';
+import { DUR, EASE } from '@/lib/motion';
 import { useApp } from '@/lib/store';
 import { B, C, R, S, T } from '@/lib/theme';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 
 // 4장: O1 후킹, O2 문제, O3 약속, O4 경고와 알림(명세 5절). 옆으로 넘기거나 아래 버튼으로 넘긴다.
 // 목표, 이유, 시각, 분은 여기서 묻지 않는다. 로그인 뒤 목표 설정 채팅에서 정한다.
@@ -22,13 +26,25 @@ const PAGES = 4;
 const HOOK_MINUTES = 15;
 const WEEKS_PER_YEAR = 52;
 const perYear = HOOK_MINUTES * MIN_WEEKDAYS * WEEKS_PER_YEAR;
-const HOOK_ROWS = [1, 3, 5].map((y) => ({ label: o.year(y), value: copy.unit.minutes(perYear * y) }));
+const HOOK_ROWS = [1, 3, 5].map((y) => ({ label: o.year(y), value: perYear * y }));
 
+/** 점 하나. 지금 장이면 6에서 18로 늘어난다(갭분석 M16). 줄인 움직임이면 바로 바뀐다 */
+function Dot({ on }: { on: boolean }) {
+  const reduced = useReducedMotion();
+  const w = useSharedValue(on ? 18 : 6);
+  useEffect(() => {
+    w.value = reduced ? (on ? 18 : 6) : withTiming(on ? 18 : 6, { duration: DUR.base, easing: EASE });
+  }, [on, reduced, w]);
+  const anim = useAnimatedStyle(() => ({ width: w.value }));
+  return <Animated.View style={[{ height: 6, borderRadius: 3, backgroundColor: on ? C.ink : C.line }, anim]} />;
+}
+
+/** 장 위치는 점 하나로만 보인다("4 / 4" 라벨은 뺐다, 갭분석 V8). 읽을 때는 "4 / 4"로 읽는다 */
 function Dots({ step }: { step: number }) {
   return (
-    <View style={{ flexDirection: 'row', gap: 6, justifyContent: 'center' }} accessibilityLabel={o.page(step + 1, PAGES)}>
+    <View style={{ flexDirection: 'row', gap: 6, justifyContent: 'center' }} accessible accessibilityLabel={o.page(step + 1, PAGES)}>
       {Array.from({ length: PAGES }, (_, i) => (
-        <View key={i} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: i === step ? C.ink : C.line }} />
+        <Dot key={i} on={i === step} />
       ))}
     </View>
   );
@@ -40,7 +56,8 @@ function Hook() {
       <Label>{o.hookLabel(MIN_WEEKDAYS, HOOK_MINUTES)}</Label>
       {HOOK_ROWS.map((r, i) => (
         <View key={r.label} style={{ gap: 2 }}>
-          <Text style={[T.hero, i > 0 && { fontSize: 34, lineHeight: 42 }, { color: C.ink }]}>{r.value}</Text>
+          {/* 숫자는 0에서 세어 올라간다(갭분석 M16). 줄마다 150ms 늦게 */}
+          <CountUp value={r.value} format={copy.unit.minutes} delay={i * 150} style={[T.hero, i > 0 && { fontSize: 34, lineHeight: 42 }, { color: C.ink }]} />
           <Text style={[T.small, { color: C.sub }]}>{r.label}</Text>
         </View>
       ))}
@@ -66,7 +83,6 @@ function Statement({ title, sub }: { title: string; sub: string }) {
 function Warning() {
   return (
     <View style={{ gap: S.md }}>
-      <Label>{o.page(PAGES, PAGES)}</Label>
       <Text accessibilityRole="header" style={[T.h1Serif, { color: C.ink }]}>
         {o.warnTitle}
       </Text>

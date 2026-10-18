@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -69,6 +70,7 @@ export function useNow(intervalMs = 1000, now: () => number = nowMs): number {
  * 화면 틀. theme: ivory(기본), white(학습 A, C), dark(학습 B). danger면 빨강 바탕.
  * footer는 바닥에 고정되고 키보드가 올라오면 함께 올라간다 (MP 7.5-1).
  * header(공통 Header)는 위에 고정되고 본문만 스크롤된다.
+ * onRefresh를 주면 당겨서 새로고침이 된다(갭분석 F8, 홈과 기록 탭). 웹은 react-native-web이 당기기를 지원하지 않는다.
  */
 export function Screen({
   children,
@@ -77,6 +79,8 @@ export function Screen({
   footer,
   header,
   theme = 'ivory',
+  refreshing,
+  onRefresh,
 }: {
   children: ReactNode;
   danger?: boolean;
@@ -84,6 +88,8 @@ export function Screen({
   footer?: ReactNode;
   header?: ReactNode;
   theme?: ThemeName;
+  refreshing?: boolean;
+  onRefresh?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const p = PALETTES[theme];
@@ -97,7 +103,15 @@ export function Screen({
         <StatusBar style={danger || theme === 'dark' ? 'light' : 'dark'} />
         {header ? <View style={{ paddingTop: insets.top }}>{header}</View> : null}
         {scroll ? (
-          <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1 }}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={
+              onRefresh ? (
+                <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={danger ? p.onRed : p.ink} colors={[p.ink]} />
+              ) : undefined
+            }
+          >
             {body}
           </ScrollView>
         ) : (

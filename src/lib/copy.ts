@@ -51,7 +51,7 @@ export const copy = {
     warnBanner: '알림을 끄면 홈에 붉은 경고가 뜹니다.',
     warnAgree: '알림 켜기',
     warnConsent: '알림 켜기를 누르면 위 규칙에 동의한 것으로 봅니다.',
-    next: '다음 보기',
+    next: '다음',
   },
 
   goalSetup: {
@@ -172,6 +172,12 @@ export const copy = {
     openSettings: '설정 열기',
     failedNote: '지난 학습일을 채우지 못했습니다. 연속이 0일로 돌아갔습니다.',
     backNote: '돌아오셨습니다. 연속은 0일부터 다시 시작입니다.',
+    // 아래 이번 주 띠(3절)
+    week: '이번 주',
+    // 첫 홈 코치마크 3개(갭분석 3.1-3). 알림은 시작 시각부터 학습 분만큼 지난 뒤 1분마다 간다(plan.ts)
+    tourStart: (m: number) => `이 시각에 학습을 시작합니다. ${m}분 안에 시작하지 않으면 1분마다 알림이 갑니다.`,
+    tourCoupon: '쿠폰을 쓰면 그날은 실패로 세지 않습니다. 연속은 0일이 됩니다.',
+    tourArchive: '학습한 날이 여기 쌓입니다.',
   },
 
   session: {
@@ -291,6 +297,8 @@ export const copy = {
     closedGiveup: '포기 대기 중에는 쓸 수 없습니다.',
     used: '오늘은 쉬십시오.',
     usedShake: (n: number) => `남은 쿠폰은 ${n}장입니다. 내일은 0일부터입니다.`,
+    // 완료 화면 쿠폰 획득 카드(갭분석 3.1-11). 숫자는 selectors.couponEarnedOf
+    earnedCard: (got: number, next: number) => `연속 ${got}일을 지켜 쿠폰 1장을 받았습니다. 다음은 연속 ${next}일입니다.`,
     home: '홈으로 가기',
     back: '돌아가기',
   },
@@ -334,6 +342,9 @@ export const copy = {
     confirmTitle: '마지막으로 묻습니다.',
     confirmBody: '지금까지 쌓은 시간이 24시간 뒤 사라집니다. 대기 중에는 홈에서 철회할 수 있습니다.',
     confirmApply: '포기 신청하기',
+    // 2단계는 2초 길게 눌러 확정한다(3절 "포기 확정"). 스크린리더는 두 번 탭으로 확정한다
+    holdHint: '2초 동안 누르고 있으면 신청됩니다.',
+    holdA11yHint: '두 번 탭하면 포기를 신청합니다.',
     pendingTitle: '이미 포기 대기 중입니다.',
     pendingBody: '홈에서 남은 시간을 보고 철회할 수 있습니다.',
     home: '홈으로 가기',
@@ -368,6 +379,8 @@ export const copy = {
     loading: '불러오는 중입니다.',
     loadError: '대화를 불러오지 못했습니다. 다시 불러오기를 누르십시오.',
     retry: '다시 불러오기',
+    // 탭을 열 때 읽는 배운 항목과 글자 수가 실패하거나 10초를 넘었을 때(MP 7.4-2)
+    extraError: '배운 항목과 글자 수를 불러오지 못했습니다. 다시 불러오기를 누르십시오.',
     achieved: '달성한 목표',
   },
 
@@ -512,6 +525,7 @@ export const copy = {
     viewPrivacy: '처리방침 보기',
     badEmail: '이메일 형식을 확인하십시오.',
     needConsent: '필수 항목 3개에 모두 동의하십시오.',
+    agreeAll: '모두 동의합니다',
     sendCode: '코드 받기',
     codeTitle: '코드를 입력하십시오.',
     codeSent: (email: string) => `${email}로 6자리 코드를 보냈습니다.`,

@@ -1,4 +1,7 @@
-import { View, type ViewStyle } from 'react-native';
+import { createRef } from 'react';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
+import Animated, { makeMutable, useAnimatedStyle } from 'react-native-reanimated';
+import { C } from '@/lib/theme';
 
 /**
  * 탭 바 아이콘 4개. docs/ia-screens.html의 선 아이콘을 View 선으로 그린다(SVG 패키지 없음).
@@ -65,4 +68,18 @@ export function TabIcon({ name, color, size = 22 }: { name: TabIconName; color: 
       })}
     </View>
   );
+}
+
+/** 홈 첫 안내 3번째 코치마크가 가리킬 기록 탭 아이콘(갭분석 3.1-3) */
+export const archiveTabTarget = createRef<View>();
+
+/**
+ * 홈이 빨강일 때 탭 바도 빨강(갭분석 N12, 메가프롬프트 4.3). 0이면 아이보리, 1이면 빨강.
+ * 홈 화면이 값을 움직이고 탭 바 바탕(tabBarBackground)이 따라 칠한다. 홈 탭에서만 쓴다.
+ */
+export const homeRed = makeMutable(0);
+
+export function TabBarTint() {
+  const anim = useAnimatedStyle(() => ({ opacity: homeRed.value }));
+  return <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: C.red }, anim]} />;
 }

@@ -5,6 +5,7 @@ import {
   expressionPattern,
   isStudyDay,
   settingsFor,
+  weekdayOf,
   wordBase,
   type DayRow,
   type DayStatus,
@@ -48,6 +49,19 @@ export function monthGrid(month: string): (string | null)[][] {
   const weeks: (string | null)[][] = [];
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
   return weeks;
+}
+
+/**
+ * 홈 이번 주 띠(메가프롬프트 3절 "홈 이번 주 띠"). 오늘이 든 주의 일요일부터 7칸. 달력과 같은 칸 상태를 쓴다.
+ * today는 학습일 키(한국 시간, 04:00 경계)다.
+ */
+export function weekStrip(days: readonly DayRow[], goal: AppGoal | null, today: string): { day: string; mark: CalendarMark }[] {
+  const sunday = addDays(today, -weekdayOf(today));
+  const status = statusByDay(days, goal?.id ?? null);
+  return Array.from({ length: 7 }, (_, i) => {
+    const day = addDays(sunday, i);
+    return { day, mark: calendarMark(day, status.get(day), goal, today) };
+  });
 }
 
 /** 'YYYY-MM'에서 n달 이동 */

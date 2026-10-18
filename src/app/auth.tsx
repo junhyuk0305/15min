@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { BackHandler, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { Checkbox } from '@/components/Checkbox';
+import { CodeInput } from '@/components/CodeInput';
 import { Header } from '@/components/Header';
 import { useInk } from '@/components/surface';
 import { TextButton } from '@/components/TextButton';
@@ -91,7 +92,8 @@ export default function Auth() {
       setInfo(t.resent);
     });
 
-  const verify = () => run(() => store.verifyCode(email, code));
+  // 6자리가 차면 바로 보낸다(갭분석 V10). 버튼도 같은 일을 한다
+  const verify = (c = code) => run(() => store.verifyCode(email, c));
   const passwordLogin = () => run(() => store.signInWithPassword(email, password));
 
   const backToEmail = () => {
@@ -138,31 +140,35 @@ export default function Auth() {
           returnKeyType="done"
         />
         <View style={{ gap: S.xs }}>
-          <Checkbox label={t.required(t.age(MIN_AGE))} checked={consent.age} onChange={(age) => setConsent({ ...consent, age })} />
-          <Checkbox label={t.required(t.terms)} checked={consent.terms} onChange={(terms) => setConsent({ ...consent, terms })} />
-          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: S.sm }}>
-            <TextButton title={t.viewTerms} tone="sub" link onPress={() => legal('terms')} />
-            <TextButton title={t.viewPrivacy} tone="sub" link onPress={() => legal('privacy')} />
-          </View>
-          <Checkbox label={t.required(t.ai)} checked={consent.ai} onChange={(ai) => setConsent({ ...consent, ai })} />
-          {/* 국외 이전 동의에 알릴 다섯 가지(받는 자, 국가, 항목, 시기와 방법, 목적과 보유 기간). 처리방침 7절과 같다 */}
-          <TextButton
-            title={showTransfer ? t.hideTransfer : t.viewTransfer}
-            tone="sub"
-            link
-            onPress={() => setShowTransfer(!showTransfer)}
-            style={{ alignSelf: 'flex-end' }}
-          />
-          {showTransfer ? (
-            <View style={{ gap: S.sm, borderTopWidth: B.hair, borderColor: C.line, paddingTop: S.sm }}>
-              {t.transferRows.map(([k, v]) => (
-                <View key={k} style={{ gap: 2 }}>
-                  <Label>{k}</Label>
-                  <Text style={[T.small, { color: C.ink }]}>{v}</Text>
-                </View>
-              ))}
+          {/* 모두 동의(갭분석 V9). 아래 3개를 한 번에 체크하고 푼다. 3개가 모두 체크되면 같이 체크된다 */}
+          <Checkbox label={t.agreeAll} checked={allAgreed} onChange={(v) => setConsent({ age: v, terms: v, ai: v })} />
+          <View style={{ gap: S.xs, paddingLeft: S.lg }}>
+            <Checkbox label={t.required(t.age(MIN_AGE))} checked={consent.age} onChange={(age) => setConsent({ ...consent, age })} />
+            <Checkbox label={t.required(t.terms)} checked={consent.terms} onChange={(terms) => setConsent({ ...consent, terms })} />
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: S.sm }}>
+              <TextButton title={t.viewTerms} tone="sub" link onPress={() => legal('terms')} />
+              <TextButton title={t.viewPrivacy} tone="sub" link onPress={() => legal('privacy')} />
             </View>
-          ) : null}
+            <Checkbox label={t.required(t.ai)} checked={consent.ai} onChange={(ai) => setConsent({ ...consent, ai })} />
+            {/* 국외 이전 동의에 알릴 다섯 가지(받는 자, 국가, 항목, 시기와 방법, 목적과 보유 기간). 처리방침 7절과 같다 */}
+            <TextButton
+              title={showTransfer ? t.hideTransfer : t.viewTransfer}
+              tone="sub"
+              link
+              onPress={() => setShowTransfer(!showTransfer)}
+              style={{ alignSelf: 'flex-end' }}
+            />
+            {showTransfer ? (
+              <View style={{ gap: S.sm, borderTopWidth: B.hair, borderColor: C.line, paddingTop: S.sm }}>
+                {t.transferRows.map(([k, v]) => (
+                  <View key={k} style={{ gap: 2 }}>
+                    <Label>{k}</Label>
+                    <Text style={[T.small, { color: C.ink }]}>{v}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
         </View>
       </>
     );
@@ -174,16 +180,10 @@ export default function Auth() {
       <>
         <H1>{t.codeTitle}</H1>
         <Body muted>{t.codeSent(email.trim())}</Body>
-        <Input
-          label={t.codeLabel}
-          value={code}
-          onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, CODE_LENGTH))}
-          keyboardType="number-pad"
-          textContentType="oneTimeCode"
-          autoComplete="one-time-code"
-          maxLength={CODE_LENGTH}
-          autoFocus
-        />
+        <View style={{ gap: S.xs }}>
+          <Label>{t.codeLabel}</Label>
+          <CodeInput value={code} onChange={setCode} onFull={(c) => void verify(c)} length={CODE_LENGTH} label={t.codeLabel} />
+        </View>
         <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
           {wait > 0 ? (
             <Text style={[T.small, { color: C.sub }]}>{t.resendIn(wait)}</Text>
@@ -195,7 +195,7 @@ export default function Auth() {
     );
     // 빈 코드는 이유 없이 비활성. 쓰기 시작했는데 모자라면 빨강
     footer = (
-      <Button title={t.verify} onPress={verify} busy={busy} disabled={left > 0} disabledReason={code.length > 0 && left > 0 ? t.codeLeft(left) : null} />
+      <Button title={t.verify} onPress={() => void verify()} busy={busy} disabled={left > 0} disabledReason={code.length > 0 && left > 0 ? t.codeLeft(left) : null} />
     );
   } else {
     body = (

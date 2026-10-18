@@ -196,6 +196,15 @@ export function homeNoteOf(goal: Goal, days: readonly Pick<DayRow, 'day' | 'stat
   return null;
 }
 
+/**
+ * 완료 화면 쿠폰 획득 카드의 숫자(갭분석 3.1-11). got은 이번에 채운 연속 학습일, next는 다음 쿠폰까지 연속 학습일.
+ * 받은 직후 서버는 진행일을 0으로, 기준 주를 1 올린다. 화면이 그 값을 다시 읽기 전이면 진행일이 0이 아니다(기준이 최소 2주 x 5일).
+ */
+export function couponEarnedOf(goal: Pick<Goal, 'couponStreakGoalWeeks' | 'couponProgressDays' | 'weekdays'>): { got: number; next: number } {
+  const weeks = goal.couponProgressDays === 0 ? goal.couponStreakGoalWeeks - 1 : goal.couponStreakGoalWeeks;
+  return { got: weeks * goal.weekdays.length, next: (weeks + 1) * goal.weekdays.length };
+}
+
 /** 오늘 회고 첫 답의 첫 줄 (홈 완료 상태) */
 export function retroFirstLine(messages: readonly Message[]): string | null {
   const first = messages
