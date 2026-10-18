@@ -234,8 +234,34 @@ def home_offline(b):
     ctx, pg = page(b, U, '/')
     lib.fail_network(pg)
     pg.reload(); pg.wait_for_timeout(4000)
-    click(pg, '포기 철회', wait=2500)
+    click(pg, '포기 철회하기', wait=2500)
     capture(pg, 'home-offline-giveup', '포기 대기 + 오프라인에서 철회 누름')
+    ctx.close()
+
+
+@sc
+def home_giveup_end(b):
+    # 마감 20초 전에 열어 두고 마감을 넘긴다. 홈이 마감에 다시 읽어 반성문 화면으로 가는지 본다
+    U.reset(); g = U.goal(start_off=-40)
+    U.day(g, -1, 'done', 900); U.day(g, -2, 'done', 900)
+    lib.sql(f"update public.goals set giveup_requested_at = now() - interval '24 hours' + interval '24 seconds' where id='{g}'")
+    t0 = time.time()
+    ctx, pg = page(b, U, '/', 4000)
+    capture(pg, 'home-normal-giveup-end', '포기 마감 약 20초 전')
+    pg.wait_for_timeout(max(0, int((t0 + 24 - time.time()) * 1000)) + 4000)
+    capture(pg, 'home-giveup-ended', '마감 지나고 4초(자동 다시 읽기)')
+    ctx.close()
+    # 마감 직후 다시 읽기 전에 철회를 누른 경우
+    U.reset(); g = U.goal(start_off=-40)
+    U.day(g, -1, 'done', 900)
+    lib.sql(f"update public.goals set giveup_requested_at = now() - interval '24 hours' + interval '10 seconds' where id='{g}'")
+    t0 = time.time()
+    ctx, pg = page(b, U, '/', 4000)
+    pg.wait_for_timeout(max(0, int((t0 + 10.2 - time.time()) * 1000)))
+    pg.get_by_role('button', name='포기 철회하기').last.click()
+    capture(pg, 'home-giveup-withdraw-late', '마감 0.2초 뒤 철회 누름', wait=500)
+    pg.wait_for_timeout(3000)
+    capture(pg, 'home-giveup-withdraw-late-after', '그 뒤 3초')
     ctx.close()
 
 
@@ -333,10 +359,15 @@ def settings_tab(b):
     # 계정 삭제 확인 창과 실패
     ctx, pg = page(b, U, '/settings')
     lib.fail_server(pg, '/functions/v1/delete-account')
-    pg.get_by_role('button', name='계정 삭제').first.click(); pg.wait_for_timeout(1200)
+    pg.get_by_role('button', name='계정 삭제하기').first.click(); pg.wait_for_timeout(1200)
     capture(pg, 'settings-delete-confirm')
     pg.get_by_role('button', name='삭제하기').last.click() if pg.get_by_role('button', name='삭제하기').count() else None
     capture(pg, 'settings-delete-error', '계정 삭제 500', wait=2500)
+    ctx.close()
+    HOME_STATES['giveup']()
+    ctx, pg = page(b, U, '/settings')
+    pg.get_by_role('button', name='계정 삭제하기').first.click(); pg.wait_for_timeout(1200)
+    capture(pg, 'settings-delete-confirm-giveup', '포기 대기 중 삭제 확인')
     ctx.close()
 
 
@@ -379,14 +410,14 @@ def settings_giveup(b):
     capture(pg, 'settings-giveup-normal')
     pg.mouse.wheel(0, 900)
     capture(pg, 'settings-giveup-normal-scrolled', wait=500)
-    click(pg, '포기 신청', wait=1000)
+    click(pg, '포기 신청하기', wait=1000)
     capture(pg, 'settings-giveup-confirm')
     lib.fail_server(pg, '/rest/v1/rpc/request_giveup')
     click(pg, '포기 신청하기', wait=2500)
     capture(pg, 'settings-giveup-error', '신청 500')
     ctx.close()
     ctx, pg = page(b, U, '/settings/giveup')
-    click(pg, '포기 신청', wait=800)
+    click(pg, '포기 신청하기', wait=800)
     lib.fail_network(pg)
     click(pg, '포기 신청하기', wait=2500)
     capture(pg, 'settings-giveup-offline', '신청 끊김')
@@ -414,6 +445,17 @@ def legal(b):
 
 
 @sc
+def crash(b):
+    s_waiting()
+    ctx, pg = page(b, U, '/?crash=1', 5000)
+    capture(pg, 'crash-error', '렌더 오류(개발 빌드 ?crash=1)')
+    if pg.get_by_role('button', name='다시 열기').count():
+        click(pg, '다시 열기', wait=3000)
+        capture(pg, 'crash-recovered', '다시 열기 뒤')
+    ctx.close()
+
+
+@sc
 def not_found(b):
     s_waiting()
     ctx, pg = page(b, U, '/no-such-screen', 3500)
@@ -426,7 +468,7 @@ def not_found(b):
 def coupon(b):
     s_nag()
     ctx, pg = page(b, U, '/')
-    pg.get_by_text('쿠폰 3장').click(); pg.wait_for_timeout(1200)
+    click(pg, '쿠폰 쓰기', wait=0); pg.wait_for_timeout(1200)
     capture(pg, 'coupon-normal')
     hold = lib.Hold(pg)
     click(pg, '쿠폰 쓰기', wait=700)
@@ -436,21 +478,21 @@ def coupon(b):
     ctx.close()
     s_nag()
     ctx, pg = page(b, U, '/')
-    pg.get_by_text('쿠폰 3장').click(); pg.wait_for_timeout(1000)
+    click(pg, '쿠폰 쓰기', wait=0); pg.wait_for_timeout(1000)
     lib.fail_server(pg, '/rest/v1/rpc/use_coupon')
     click(pg, '쿠폰 쓰기', wait=2500)
     capture(pg, 'coupon-error', '쓰기 500')
     ctx.close()
     s_nag()
     ctx, pg = page(b, U, '/')
-    pg.get_by_text('쿠폰 3장').click(); pg.wait_for_timeout(1000)
+    click(pg, '쿠폰 쓰기', wait=0); pg.wait_for_timeout(1000)
     lib.fail_network(pg)
     click(pg, '쿠폰 쓰기', wait=2500)
     capture(pg, 'coupon-offline', '쓰기 끊김')
     ctx.close()
     U.reset(); g = U.goal(start_off=-40, coupons=0); U.day(g, -1, 'done', 900)
     ctx, pg = page(b, U, '/')
-    pg.get_by_text('쿠폰 0장').click(); pg.wait_for_timeout(1000)
+    click(pg, '쿠폰 쓰기', wait=0); pg.wait_for_timeout(1000)
     capture(pg, 'coupon-empty', '남은 쿠폰 없음')
     ctx.close()
 
@@ -497,6 +539,10 @@ def reason(b):
     U.reset(); g = U.goal(start_off=-5); U.day(g, -1, 'done', 900, reason='출장이 다음 주라서 더는 미룰 수 없어서')
     ctx, pg = page(b, U, '/session/reason')
     capture(pg, 'reason-normal-blank', '입력 전(비활성)')
+    pg.locator('textarea').first.fill('오늘은 사이즈를')
+    capture(pg, 'reason-normal-short', '20자 미만')
+    pg.locator('textarea').first.fill('출장이 다음 주라서 더는 미룰 수 없어서')
+    capture(pg, 'reason-normal-same', '지난 이유와 같음')
     pg.locator('textarea').first.fill('어제 주문은 됐으니 오늘은 사이즈를 바꿔 보려고 합니다')
     capture(pg, 'reason-normal', '입력 후')
     lib.fail_server(pg, '/rest/v1/rpc/start_day')
@@ -553,15 +599,30 @@ def learn(b):
     hold.release(); pg.wait_for_timeout(3000)
     capture(pg, 'learn-a-normal')
     if pg.locator('textarea').count():
-        pg.locator('textarea').last.fill('Could I have oat milk instead?')
+        pg.locator('textarea').last.fill('receipt')  # 문제 1 "뜻: 영수증"의 정답
         pg.wait_for_timeout(300)
         capture(pg, 'learn-a-typed', wait=0)
-        click(pg, '제출하기', wait=1500)
-        capture(pg, 'learn-a-graded')
+        click(pg, '제출하기', wait=800)
+        capture(pg, 'learn-a-graded', '정답', wait=0)
     elif pg.get_by_role('radio').count():
         pg.get_by_role('radio').nth(1).click()
         click(pg, '제출하기', wait=1500)
         capture(pg, 'learn-a-graded')
+    # 오답: 다시 답하기와 정답 보기 → 정답 → 다음 문제 보기
+    for _ in range(4):
+        pg.wait_for_timeout(2500)
+        if pg.locator('textarea').count():
+            pg.locator('textarea').last.fill('hello')
+            click(pg, '제출하기', wait=1500)
+        elif pg.get_by_role('radio').count():
+            pg.get_by_role('radio').nth(0).click()
+            click(pg, '제출하기', wait=1500)
+        if pg.get_by_role('button', name='정답 보기').count():
+            break
+    capture(pg, 'learn-a-retry', '첫 오답(정답 숨김)', wait=0)
+    if pg.get_by_role('button', name='정답 보기').count():
+        click(pg, '정답 보기', wait=1500)
+        capture(pg, 'learn-a-revealed', '정답 보기 뒤', wait=0)
     # A 오류: 다음 문항 502
     pg.route('**/functions/v1/review-quiz', lambda r: r.fulfill(status=502, content_type='application/json', body='{"error":"ai_failed"}') if r.request.method == 'POST' else r.continue_())
     pg.reload(); pg.wait_for_timeout(6000)
@@ -609,14 +670,19 @@ def learn(b):
     pg.goto(lib.BASE + '/session/learn'); pg.wait_for_timeout(8000)
     capture(pg, 'learn-error-limit', 'B 한도 초과 429')
     ctx.close()
-    # C 정상
+    learn_c(b)
+
+
+@sc
+def learn_c(b):
     learn_setup(500)
     lib.sql(f"update public.items set first_day = {lib.TODAY} where user_id='{LEARN.uid}' and base='receipt'")
     ctx, pg = page(b, LEARN, '/session/learn', 8000)
     capture(pg, 'learn-c-normal')
     if pg.get_by_role('radio').count():
         pg.get_by_role('radio').nth(1).click(); click(pg, '제출하기', wait=1500)
-        capture(pg, 'learn-c-graded')
+        capture(pg, 'learn-c-graded', '오답 제출 1.5초 뒤', wait=0)
+        capture(pg, 'learn-c-graded-5s', '오답 제출 5초 뒤', wait=3500)
     ctx.close()
     # 딴짓 팝업은 2분 무활동 뒤라 따로 찍는다(learn_idle)
 
@@ -709,12 +775,19 @@ def goal_new(b):
     s_none()
     ctx, pg = page(b, U, '/goal/new', 5000)
     capture(pg, 'goal-new-empty', '첫 질문')
+    pg.locator('textarea').last.fill('출장 때문입니다')
+    capture(pg, 'goal-new-short', '이유 20자 미만')
     pg.locator('textarea').last.fill('해외 출장 때 카페에서 주문을 못 해서 동료에게 부탁했습니다')
     hold = lib.Hold(pg, '/functions/v1/goal-setup')
     click(pg, '보내기', wait=1200)
     capture(pg, 'goal-new-loading', '코치 답 대기')
     hold.release(); pg.wait_for_timeout(3000)
     capture(pg, 'goal-new-normal-chat')
+    if pg.get_by_role('button', name='이 응답 신고하기').count():
+        pg.get_by_role('button', name='이 응답 신고하기').last.click(); pg.wait_for_timeout(800)
+        capture(pg, 'goal-new-report', '코치 답 신고 창')
+        pg.get_by_role('button', name='부적절한 내용').last.click(); pg.wait_for_timeout(2000)
+        capture(pg, 'goal-new-report-done', '신고 뒤')
     lib.fail_server(pg, '/functions/v1/goal-setup')
     pg.locator('textarea').last.fill('카페')
     click(pg, '보내기', wait=2500)
@@ -722,10 +795,25 @@ def goal_new(b):
     ctx.close()
     ctx, pg = page(b, U, '/goal/new', 5000)
     lib.fail_network(pg)
-    pg.locator('textarea').last.fill('카페')
+    pg.locator('textarea').last.fill('해외 출장 때 카페에서 주문을 못 해서 동료에게 부탁했습니다')  # 첫 답은 20자 이상
     click(pg, '보내기', wait=2500)
     capture(pg, 'goal-new-offline', '채팅 끊김')
     ctx.close()
+    # 앞말이 붙은 코치 질문의 선택 칩(결함 3). 가짜 AI는 이런 문장을 내지 않아 초안에 넣는다
+    for name, q in [('goal-new-chips-prefix', '말을 주고받을 상대는 바리스타, 계산대 점원, 옆자리 손님 중 누구입니까?'),
+                    ('goal-new-chips-prefix2', '카페에서는 주문하는 손님이 됩니다. 바리스타, 계산대 점원, 옆자리 손님 중 누구와 말합니까?')]:
+        lines = [('coach', '영어를 하려는 이유를 20자 이상 써 주십시오. 처음 이유는 나중에 바꿀 수 없습니다.'),
+                 ('user', '해외 출장 때 카페에서 주문을 못 해서 동료에게 부탁했습니다'),
+                 ('coach', '분명한 이유입니다. 영어로 말할 장소는 카페, 호텔 프런트, 회의실 중 어디입니까?'),
+                 ('user', '카페'), ('coach', q)]
+        d = {'state': {'userId': U.uid, 'lines': [{'id': f'l{i}', 'role': r, 'text': t} for i, (r, t) in enumerate(lines)],
+                       'fields': {'reason': lines[1][1], 'place': '카페', 'my_role': '손님'}, 'done': False, 'subsituations': [], 'manual': False,
+                       'stage': 'chat', 'plan': {'periodDays': 14, 'weekdays': [1, 2, 3, 4, 5], 'startMinutes': 1320, 'targetMinutes': 15}}, 'version': 0}
+        ctx, pg = page(b, U, None)
+        pg.add_init_script("localStorage.setItem('graego-goal-setup-v1', %s)" % json.dumps(json.dumps(d)))
+        pg.goto(lib.BASE + '/goal/new'); pg.wait_for_timeout(5000)
+        capture(pg, name, '앞말 붙은 질문의 칩')
+        ctx.close()
     # 2/3, 3/3: 초안을 기기 저장소에 넣어 연다
     draft = {'state': {'userId': U.uid, 'lines': [{'id': 'l1', 'role': 'coach', 'text': '영어를 하려는 이유를 20자 이상 써 주십시오. 처음 이유는 나중에 바꿀 수 없습니다.'}],
                        'fields': {'reason': '해외 출장 때 카페에서 주문을 못 해서 동료에게 부탁했습니다', 'place': '카페', 'my_role': '손님', 'partner': '바리스타',
@@ -770,6 +858,10 @@ def auth(b):
     for cb in pg.get_by_role('checkbox').all():
         cb.click()
     capture(pg, 'auth-normal-email', '입력 후')
+    if pg.get_by_role('button', name='국외 이전 보기').count():
+        click(pg, '국외 이전 보기', wait=800)
+        capture(pg, 'auth-normal-transfer', '국외 이전 펼침')
+        click(pg, '국외 이전 닫기', wait=500)
     hold = lib.Hold(pg)
     click(pg, '코드 받기', wait=800)
     capture(pg, 'auth-loading', '요청 대기')
@@ -853,7 +945,7 @@ def banned(b):
     lib.sql(f"update public.profiles set banned = true, giveup_confirmed_count = 3 where user_id = '{BAN.uid}'")
     ctx, pg = page(b, BAN, '/', 5000)
     capture(pg, 'banned-normal')
-    pg.get_by_role('button', name='계정 삭제').first.click(); pg.wait_for_timeout(1000)
+    pg.get_by_role('button', name='계정 삭제하기').first.click(); pg.wait_for_timeout(1000)
     lib.fail_server(pg, '/functions/v1/delete-account')
     pg.get_by_role('button', name='삭제하기').last.click()
     capture(pg, 'banned-error', '계정 삭제 500', wait=2500)

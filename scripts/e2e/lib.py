@@ -2,7 +2,7 @@
 
 - sql(): supabase_db_yourtime 컨테이너의 psql로 SQL을 실행한다(UTF-8 stdin).
 - make_user(): 시드와 같은 방식으로 비밀번호 사용자를 만든다. 가입 트리거가 프로필을 만든다.
-- session_for(): GoTrue 비밀번호 로그인으로 세션을 받는다. 앱 화면의 비밀번호 입력은 심사 계정에만 보이므로
+- session_for(): 관리자 매직링크(generate_link → verify)로 세션을 받는다. 비밀번호 로그인은 심사 계정만 된다.
   테스트는 세션을 localStorage에 직접 넣는다(supabase-js 웹 기본 저장소).
 - open_app(): 390px 폭, Asia/Seoul 시간대 브라우저 컨텍스트에 세션과 온보딩 완료 표시를 넣고 연다.
 - latest_otp(): Mailpit에서 그 주소로 온 마지막 6자리 코드를 읽는다.
@@ -123,8 +123,18 @@ def _post(url: str, body: dict, token: str | None = None) -> dict:
         return json.loads(r.read())
 
 
-def session_for(email: str, password: str = 'local-e2e-only') -> dict:
-    return _post(f"{env()['API_URL']}/auth/v1/token?grant_type=password", {'email': email, 'password': password})
+def session_for(email: str) -> dict:
+    """비밀번호 로그인은 심사 계정만 된다(마이그레이션 000700). 관리자 매직링크 토큰으로 세션을 받는다(ui-lib.py session과 같은 방식)"""
+    e = env()
+    req = urllib.request.Request(f"{e['API_URL']}/auth/v1/admin/generate_link",
+                                 data=json.dumps({'type': 'magiclink', 'email': email}).encode(), method='POST')
+    req.add_header('content-type', 'application/json')
+    req.add_header('apikey', e['SERVICE_ROLE_KEY'])
+    req.add_header('Authorization', f"Bearer {e['SERVICE_ROLE_KEY']}")
+    with urllib.request.urlopen(req) as r:
+        link = json.loads(r.read())
+    th = link.get('hashed_token') or link.get('properties', {}).get('hashed_token')
+    return _post(f"{e['API_URL']}/auth/v1/verify", {'type': 'magiclink', 'token_hash': th})
 
 
 def latest_otp(email: str, after: float = 0, timeout: float = 30) -> str:

@@ -23,6 +23,9 @@ from playwright.sync_api import sync_playwright  # noqa: E402
 
 RESULTS = Path(__file__).resolve().parent / 'results.json'
 EMAIL = '{}@scenario.test'
+AGREE = '알림 켜기'  # 온보딩 마지막 버튼
+CONSENTS = ['[필수] 만 18세 이상입니다', '[필수] 이용약관과 개인정보처리방침에 동의합니다',
+            '[필수] Google Gemini API로 학습 내용을 처리하고 국외로 이전하는 데 동의합니다']
 
 
 class Check:
@@ -66,16 +69,16 @@ def s1(b, c: Check):
     c.ok('첫 실행은 온보딩', '/onboarding' in page.url, page.url)
     c.shot(page, '온보딩')
     for _ in range(5):
-        if page.get_by_role('button', name='동의하고 켜기').count() or page.get_by_role('button', name='규칙에 동의하고 알림 켜기').count():
+        if page.get_by_role('button', name=AGREE, exact=True).count():
             break
         click(page, '다음 보기')
         page.wait_for_timeout(400)
-    page.get_by_role('button', name='규칙에 동의하고 알림 켜기').first.click()
+    c.ok('온보딩 마지막 장: 동의 문장이 버튼 위에', has(page, '알림 켜기를 누르면 위 규칙에 동의한 것으로 봅니다.'), '')
+    click(page, AGREE)
     settle(page)
     c.ok('온보딩 뒤 로그인 화면', '/auth' in page.url, page.url)
     page.get_by_placeholder('name@example.com').fill(email)
-    for label in ['만 18세 이상입니다', '이용약관과 개인정보처리방침에 동의합니다',
-                  'Google Gemini API로 학습 내용을 처리하고 국외로 이전하는 데 동의합니다']:
+    for label in CONSENTS:
         page.get_by_text(label, exact=True).first.click()
     c.shot(page, '가입')
     sent = time.time()
@@ -93,9 +96,14 @@ def s1(b, c: Check):
     answers = ['해외 출장 때 카페에서 주문을 못 해서 동료에게 부탁했습니다. 혼자 하고 싶습니다.',
                '카페', '손님', '바리스타', '원하는 음료를 주문하고 받기', '좋습니다']
     for a in answers:
+        if not page.get_by_placeholder('한국어로 답하셔도 됩니다.').count():
+            break  # 항목이 다 차면 2/3 학습 약속으로 넘어간다
         fill_send(page, '한국어로 답하셔도 됩니다.', a, '보내기')
         page.wait_for_timeout(1800)
-    c.shot(page, '목표채팅')
+        # 1/3 채팅이 보이는 마지막 모습을 남긴다(넘어간 뒤에 찍으면 학습약속과 같은 사진이 된다)
+        if page.get_by_placeholder('한국어로 답하셔도 됩니다.').count():
+            c.ok('목표 채팅 화면', has(page, '1 / 3'), '') if a == answers[0] else None
+            c.shot(page, '목표채팅')
     if page.get_by_role('button', name='이어서 정하기').count():
         click(page, '이어서 정하기')
         settle(page, 800)
@@ -372,10 +380,12 @@ def s8(b, c: Check):
            values ('{gid}', app_private.day_key(now(), 'Asia/Seoul') - 1, '{uid}', 'done', 10, now() - interval '1 day');
            update public.goals set coupon_progress_days = 1 where id = '{gid}';""")
     ctx, page = session_page(b, email)
-    page.get_by_text('쿠폰 3장').first.click()
-    settle(page)
-    c.shot(page, '1시트')
+    c.ok('홈 글자 버튼 "쿠폰 쓰기"와 "남은 쿠폰 3장"', page.get_by_role('button', name='쿠폰 쓰기', exact=True).count() > 0 and has(page, '남은 쿠폰 3장'), '')
     click(page, '쿠폰 쓰기')
+    settle(page)
+    c.ok('쿠폰 시트 열림', '/coupon' in page.url, page.url)
+    c.shot(page, '1시트')
+    page.get_by_role('button', name='쿠폰 쓰기', exact=True).last.click()
     settle(page, 2000)
     body = text(page)
     c.ok('쿠폰 문구(오늘은 쉬십시오)', '오늘은 쉬십시오' in body, body[:200].replace('\n', ' / '))
@@ -441,15 +451,15 @@ def s11(b, c: Check):
     page.goto(APP + '/settings/giveup')
     settle(page)
     c.shot(page, '1신청')
-    click(page, '포기 신청')
+    click(page, '포기 신청하기')
     settle(page, 800)
-    if page.get_by_role('button', name='포기 신청하기').count():
-        click(page, '포기 신청하기')
+    c.ok('마지막 확인 화면', has(page, '마지막으로 묻습니다.'), '')
+    click(page, '포기 신청하기')
     settle(page, 2500)
     if '/settings' in page.url and page.get_by_role('button', name='홈으로 가기').count():
         click(page, '홈으로 가기')
         settle(page)
-    if not page.url.rstrip('/').endswith('8101'):
+    if page.url.rstrip('/') != APP.rstrip('/'):
         page.goto(APP + '/')
         settle(page)
     body = text(page)
@@ -457,7 +467,7 @@ def s11(b, c: Check):
     c.shot(page, '2대기')
     req = sql1(f"select giveup_requested_at is not null from public.goals where id = '{gid}';")
     c.ok('DB 포기 신청 기록', req == 't', req)
-    click(page, '포기 철회')
+    click(page, '포기 철회하기')
     settle(page, 2500)
     body = text(page)
     c.ok('원래 홈(시작까지)', '시작까지' in body and '포기 확정까지' not in body, body[:200].replace('\n', ' / '))
@@ -597,7 +607,7 @@ def s16(b, c: Check):
     until = sql1(f"select suspended_until from public.profiles where user_id = '{uid}';")
     ctx, page = session_page(b, email)
     c.ok('삭제 전: 반성문 화면', '/suspended' in page.url, page.url)
-    page.get_by_text('계정 삭제', exact=True).first.click()
+    page.get_by_text('계정 삭제하기', exact=True).first.click()
     settle(page, 800)
     c.shot(page, '1삭제확인')
     click(page, '삭제하기')
@@ -610,14 +620,13 @@ def s16(b, c: Check):
     # 같은 이메일로 OTP 재가입
     if '/onboarding' in page.url:
         for _ in range(5):
-            if page.get_by_role('button', name='규칙에 동의하고 알림 켜기').count():
+            if page.get_by_role('button', name=AGREE, exact=True).count():
                 break
             click(page, '다음 보기')
-        page.get_by_role('button', name='규칙에 동의하고 알림 켜기').first.click()
+        click(page, AGREE)
         settle(page)
     page.get_by_placeholder('name@example.com').fill(email)
-    for label in ['만 18세 이상입니다', '이용약관과 개인정보처리방침에 동의합니다',
-                  'Google Gemini API로 학습 내용을 처리하고 국외로 이전하는 데 동의합니다']:
+    for label in CONSENTS:
         page.get_by_text(label, exact=True).first.click()
     sent = time.time()
     click(page, '코드 받기')
