@@ -152,7 +152,9 @@ export async function gradeAnswer(
   const verdict = (correct: boolean) => ({ correct, feedback: correct ? QUIZ_COPY.correct : QUIZ_COPY.wrong(q.answer_en) });
   if (q.type === 'meaning_choice') {
     const right = q.choices?.[q.answer_index ?? -1];
-    return verdict(answer === right || answer === String(q.answer_index));
+    const correct = answer === right || answer === String(q.answer_index);
+    // 뜻 선택의 정답은 영어 항목이 아니라 고를 수 있었던 한국어 뜻이다
+    return { correct, feedback: correct ? QUIZ_COPY.correct : QUIZ_COPY.wrong(right ?? q.answer_en) };
   }
   if (hasHangul(answer)) return { correct: false, feedback: QUIZ_COPY.koreanAnswer };
   if (q.type === 'word_recall' && normalizeAnswer(answer) === normalizeAnswer(q.answer_en)) return verdict(true);

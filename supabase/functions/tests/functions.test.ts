@@ -6,7 +6,7 @@ import { checkTurn, finalizeTurn, NOT_ENGLISH_NOTE } from '../lesson-turn/core.t
 import { handle as lessonTurn } from '../lesson-turn/handler.ts';
 import { handle as reflection } from '../reflection/handler.ts';
 import { handle as retro } from '../retro/handler.ts';
-import { handle as reviewQuiz } from '../review-quiz/handler.ts';
+import { gradeAnswer, handle as reviewQuiz } from '../review-quiz/handler.ts';
 import { RETRO_Q1, RETRO_Q2 } from '../_shared/copy.ts';
 import { fakeTransport, type Transport } from '../_shared/gemini.ts';
 import type { TurnContext, TurnOutput } from '../_shared/prompts/lesson-turn.ts';
@@ -466,4 +466,14 @@ Deno.test('AI_FAKE: 함수별 고정 응답이 스키마와 내용 검사를 통
   const records = { goalName: 'g', reason: '주문이 어려워요', targetMinutes: 15, done: 1, failed: 2, coupon: 0, todayReasons: [], giveupCount: 1 };
   pass(rf.SCHEMA, fakeResponse('reflection', { records, conversation: [] }), checkReflection);
   pass(rf.SCHEMA, fakeResponse('reflection', { records, conversation: [{ role: 'user', text: '바빴습니다' }] }), checkReflection);
+});
+
+Deno.test('review-quiz: 뜻 선택 오답의 정답 안내는 고를 수 있었던 한국어 뜻이다', async () => {
+  const noAi = () => Promise.reject(new Error('뜻 선택은 모델을 부르지 않는다'));
+  const q = { type: 'meaning_choice' as const, choices: ['대신', '항상', '먼저'], answer_index: 0, answer_en: 'instead', prompt: 'instead', item: null };
+  const wrong = await gradeAnswer(noAi, q, '항상');
+  assert.equal(wrong.correct, false);
+  assert.ok(wrong.feedback.includes('대신'));
+  assert.ok(!wrong.feedback.includes('instead'));
+  assert.equal((await gradeAnswer(noAi, q, '대신')).correct, true);
 });
