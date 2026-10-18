@@ -69,3 +69,18 @@
 2. AI 평가 합격(16번).
 3. 0절 가입 연령 결정.
 4. 운영 Supabase와 EAS 환경변수 설정 뒤 다시 빌드(2~7번).
+
+## 5. UX 고도화 뒤 사람 확인
+
+`feat/ux-polish` 작업(2026-10-19) 뒤 실기기에서만 볼 수 있는 것과 사람이 해야 하는 일이다. 웹 빌드는 네이티브 화면 전환, 스와이프 뒤로, 햅틱, 시스템 시각 선택기를 보여 주지 않는다.
+
+### 5.1 개발 빌드를 다시 만든다
+- 새 네이티브 의존성 `@react-native-community/datetimepicker`(9.1.0, app.json 플러그인), `expo-clipboard`가 들어갔다. 기존 개발 빌드와 Expo Go로는 열리지 않는다. `npx eas-cli@latest build --profile development --platform android`(iOS는 Apple 계정 뒤).
+- 옛 개발 빌드는 이제 없는 `set_timezone`을 부른다(PGRST202). 새 빌드를 받아야 한다.
+
+### 5.2 실기기 확인 목록
+
+| 영역 | 확인할 것 |
+|---|---|
+| 한국 시간 | 기기 시간대를 뉴욕 등으로 바꾸고 홈, 목표 정하기 2/3, 목표 관리에 "한국 시간"이 보이는지. 알림이 한국 시각에 맞춰 울리는지(현지 시각으로는 다른 때). release Hermes `Intl.formatToParts`가 Asia/Seoul로 맞는지 |
+| Sentry 시간대 | 해외 시간대 기기에서 Sentry를 켠 빌드로 테스트 오류를 보내고 이벤트 contexts에 `device.timezone`이나 `culture.timezone`이 들어가는지. 들어가면 privacy-labels 47행을 고치거나 beforeSend로 지운다(JS 층에는 채우는 코드가 없고 네이티브 SDK 소스는 node_modules에 없어 미검증) |

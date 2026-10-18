@@ -8,6 +8,7 @@ import { TextButton } from '@/components/TextButton';
 import { Body, Button, Card, H1, Label, Screen, Stepper } from '@/components/ui';
 import { copy } from '@/lib/copy';
 import { crossesBoundary, fmtClock } from '@/lib/rules';
+import { showsKstLabel } from '@/lib/selectors';
 import { useApp } from '@/lib/store';
 import { useAction } from '@/lib/useAction';
 import { C, S, T } from '@/lib/theme';
@@ -131,6 +132,7 @@ export default function GoalSettings() {
             />
           ))}
         </View>
+        {showsKstLabel(new Date().getTimezoneOffset()) ? <Text style={[T.small, { color: C.sub }]}>{copy.unit.kst}</Text> : null}
       </View>
 
       <Stepper

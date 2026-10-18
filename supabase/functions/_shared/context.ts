@@ -2,6 +2,7 @@
 import { assertActiveAccount } from './auth.ts';
 import { HttpError } from './errors.ts';
 import { type Ai, createAi } from './gemini.ts';
+import { APP_TIME_ZONE } from './rules.ts';
 import type { Ctx } from './server.ts';
 import type { DayRow, GoalRow, MessageRow, Profile } from './types.ts';
 import { learningDay, usageMeter } from './usage.ts';
@@ -57,7 +58,7 @@ export async function loadSession(ctx: Ctx, goalId: string, dayKey: string): Pro
   const goal = await ctx.repo.getGoal(goalId);
   if (!goal || goal.user_id !== ctx.userId) throw new HttpError('not_found', 'goal');
   if (goal.status !== 'active') throw new HttpError('closed', 'goal not active');
-  const today = learningDay(ctx.now(), profile.timezone);
+  const today = learningDay(ctx.now(), APP_TIME_ZONE);
   if (dayKey !== today) throw new HttpError('closed', 'not today');
   const day = await ctx.repo.getDay(goalId, dayKey);
   if (!day || day.user_id !== ctx.userId) throw new HttpError('closed', 'day not started');
@@ -67,7 +68,7 @@ export async function loadSession(ctx: Ctx, goalId: string, dayKey: string): Pro
 
 /** 모델 호출기를 만든다. 호출마다(재시도 포함) 상한을 세고 사용량을 기록한다. 상한 종류는 요청의 fn으로 정한다. */
 export function aiFor(ctx: Ctx, profile: Profile): Promise<Ai> {
-  const day = learningDay(ctx.now(), profile.timezone);
+  const day = learningDay(ctx.now(), APP_TIME_ZONE);
   return Promise.resolve(createAi({
     config: ctx.config,
     transport: ctx.transport,

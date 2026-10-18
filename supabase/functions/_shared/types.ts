@@ -2,7 +2,6 @@
 
 export type Profile = {
   user_id: string;
-  timezone: string;
   suspended_until: string | null;
   suspended_goal_id: string | null;
   /** 포기 확정 때 그 목표의 시작 시각과 학습 분을 복사해 둔다. 재가입으로 이어 붙은 정지에도 있다. */

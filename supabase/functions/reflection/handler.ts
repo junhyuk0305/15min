@@ -1,6 +1,6 @@
 // POST {message?: {id, text}} → {messages} (명세 4절 reflection)
 // 정지 중이고, 포기한 목표의 원래 시작 시각부터 원래 학습 분 동안만 열린다. 아니면 closed. 영구 정지는 banned.
-// 시각은 profiles.suspended_start_minutes, suspended_target_minutes(포기 확정 때 복사)와 profiles.timezone으로 잰다.
+// 시각은 profiles.suspended_start_minutes, suspended_target_minutes(포기 확정 때 복사)와 한국 시간(APP_TIME_ZONE)으로 잰다.
 // 재가입으로 이어 붙은 정지는 목표 행이 없다(suspended_goal_id null). 그때 재료는 비어 있다.
 // 첫 호출은 그날의 첫 말(하루 한 번 생성). 기록은 reflections 표에 쌓는다.
 import { isSuspended } from '../_shared/auth.ts';
@@ -8,7 +8,7 @@ import { aiFor, loadProfile, messageField, stamps } from '../_shared/context.ts'
 import { HttpError } from '../_shared/errors.ts';
 import type { Ai } from '../_shared/gemini.ts';
 import { buildInput, PROMPT_VERSION, type ReflectionContext, type ReflectionOutput, SCHEMA, SYSTEM } from '../_shared/prompts/reflection.ts';
-import { addDays, cycleOf } from '../_shared/rules.ts';
+import { addDays, APP_TIME_ZONE, cycleOf } from '../_shared/rules.ts';
 import type { Ctx } from '../_shared/server.ts';
 import { charCount, forbiddenJudgment, hasHangul, toneProblems } from '../_shared/text.ts';
 import type { GoalRow, ReflectionRow } from '../_shared/types.ts';
@@ -63,7 +63,7 @@ export async function handle(ctx: Ctx, body: Record<string, unknown>): Promise<{
   const start = profile.suspended_start_minutes;
   const target = profile.suspended_target_minutes;
   if (start === null || target === null) throw new HttpError('closed', 'no window');
-  const day = openWindowDay(start, target, profile.timezone, ctx.now());
+  const day = openWindowDay(start, target, APP_TIME_ZONE, ctx.now());
   if (!day) throw new HttpError('closed', 'outside window');
   const found = profile.suspended_goal_id ? await ctx.repo.getGoal(profile.suspended_goal_id) : null;
   const goal: GoalRow | null = found && found.user_id === ctx.userId ? found : null;

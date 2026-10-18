@@ -1,13 +1,13 @@
 /// <reference types="node" />
 // 로컬 Supabase에 앱 api 계층(src/lib/api.ts)을 그대로 붙여 끝에서 끝까지 확인한다.
-// 심사용 데모 계정(supabase/seed.sql)으로 비밀번호 로그인 → server_now → set_timezone → settle_me → 읽기 → start_day → save_progress.
+// 심사용 데모 계정(supabase/seed.sql)으로 비밀번호 로그인 → server_now → settle_me → 읽기 → start_day → save_progress.
 // 실행: SMOKE_EMAIL=review@graego.app SMOKE_PASSWORD=<seed 비밀번호> npx tsx scripts/smoke-auth.ts
 // 값은 .env.local(EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY)에서 읽는다. 키를 출력하지 않는다.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import { createApi, isApiError } from '../src/lib/api';
-import { dayKeyOf } from '../src/lib/rules';
+import { APP_TIME_ZONE, dayKeyOf } from '../src/lib/rules';
 
 function env(): Record<string, string> {
   const out: Record<string, string> = {};
@@ -37,9 +37,6 @@ async function main() {
   const server = await api.serverNow();
   step('server_now', `offset ${Math.round(server - (t0 + Date.now()) / 2)}ms`);
 
-  const profile = await api.setTimezone('Asia/Seoul');
-  step('set_timezone', { timezone: profile.timezone, pending: profile.pendingTimezone, banned: profile.banned });
-
   await api.settleMe();
   step('settle_me', 'void');
 
@@ -51,7 +48,7 @@ async function main() {
   const reason = `스모크 확인 ${new Date().toISOString()} 오늘도 영어 주문을 연습합니다`;
   const day = await api.startDay(goal.id, reason);
   step('start_day', { day: day.day, status: day.status, phase: day.phase, startedAt: day.sessionStartedAt !== null });
-  const today = dayKeyOf(server, profile.timezone);
+  const today = dayKeyOf(server, APP_TIME_ZONE);
   if (day.day !== today) throw new Error(`하루 키가 다릅니다: 서버 ${day.day}, 앱 ${today}`);
 
   // 서버 경과 시간보다 큰 값을 보내면 서버가 자른다(MP 4절)
@@ -76,13 +73,13 @@ async function main() {
   // 2부: 이메일 코드 가입. 동의 메타데이터가 가입 트리거까지 가서 프로필이 생기는지 본다(Mailpit에서 코드를 읽는다)
   const mailpit = process.env.SMOKE_MAILPIT ?? 'http://127.0.0.1:54624';
   const fresh = `smoke-${Date.now()}@test.local`;
-  await api.sendCode(fresh, { age_confirmed: true, ai_consent: true, terms_version: 'smoke', timezone: 'Asia/Seoul' });
+  await api.sendCode(fresh, { age_confirmed: true, ai_consent: true, terms_version: 'smoke' });
   step('sendCode', fresh);
   const code = await readCode(mailpit, fresh);
   const s2 = await api.verifyCode(fresh, code);
   step('verifyCode', `user ${s2.user.id.slice(0, 8)}…`);
   const p2 = await api.fetchProfile();
-  step('fetchProfile(가입 트리거)', { timezone: p2?.timezone, giveups: p2?.giveupConfirmedCount });
+  step('fetchProfile(가입 트리거)', { giveups: p2?.giveupConfirmedCount });
   if (!p2) throw new Error('가입 트리거가 프로필을 만들지 않았습니다');
   await api.deleteAccount().then(
     () => step('delete-account', 'ok'),

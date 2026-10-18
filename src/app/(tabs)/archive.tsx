@@ -8,7 +8,7 @@ import { TextButton } from '@/components/TextButton';
 import { Body, Button, Card, H1, Screen, useNow } from '@/components/ui';
 import { archiveCards, calendarMark, charsByDay, dayId, learnedTotals, monthGrid, shiftMonth, statusByDay, type CalendarMark } from '@/lib/archive';
 import { copy } from '@/lib/copy';
-import { deviceTz, todayKeyOf, useApp } from '@/lib/store';
+import { todayKeyOf, useApp } from '@/lib/store';
 import { useAction } from '@/lib/useAction';
 import { C, S, T } from '@/lib/theme';
 
@@ -78,7 +78,7 @@ function Calendar({ today }: { today: string }) {
 export default function Archive() {
   const now = useNow(60_000);
   const state = useApp();
-  const today = todayKeyOf(state, now, deviceTz);
+  const today = todayKeyOf(now);
   const extra = useAction();
   const [chars, setChars] = useState<Map<string, number> | null>(null);
   const [learned, setLearned] = useState<{ words: number; expressions: number } | null>(null);

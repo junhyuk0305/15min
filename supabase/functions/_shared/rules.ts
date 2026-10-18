@@ -6,7 +6,8 @@
 
 // ---------- 정책 숫자 ----------
 
-export const DAY_BOUNDARY_HOUR = 4; // 하루의 경계. 자정이 아니라 현지 04:00
+export const APP_TIME_ZONE = 'Asia/Seoul'; // 앱 전체 시간대. 기기 시간대는 읽지 않는다
+export const DAY_BOUNDARY_HOUR = 4; // 하루의 경계. 자정이 아니라 한국 시간 04:00
 export const PRE_REMIND_MIN = 30; // 사전 알림: 시작 30분 전
 export const NAG_COUNT = 60; // 독촉 60회
 export const NAG_INTERVAL_MS = 60_000; // 1분 간격

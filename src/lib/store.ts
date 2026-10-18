@@ -46,9 +46,6 @@ export const GOAL_DRAFT_KEY = 'graego-goal-setup-v1';
 /** 이 코드로 실패하면 목표 상태가 바뀐 것이다(포기 확정, 지워진 목표). 다시 읽어 화면을 맞춘다 */
 const STALE_CODES = ['not_active', 'not_found'];
 
-/** 기기 시간대. 서버 프로필에 시작할 때마다 알린다(set_timezone) */
-export const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
 type Flags = {
   /** 이 기기에서 온보딩을 끝냈나 (저장) */
   onboarded: boolean;
@@ -139,7 +136,7 @@ export const useApp = create<AppState>()(
   persist(
     (set, get) => {
       const now = () => nowMs();
-      const today = () => todayKeyOf(get(), now(), deviceTz);
+      const today = () => todayKeyOf(now());
       const requireGoal = () => {
         const g = get().goal;
         if (!g) throw new ApiError('invalid', 'not_found');
@@ -157,13 +154,13 @@ export const useApp = create<AppState>()(
         }
       }
 
-      /** 로그인 뒤 서버 시각, 시간대, 첫 읽기까지 마친다. 그동안 라우팅을 멈춘다 */
+      /** 로그인 뒤 서버 시각, 첫 읽기까지 마친다. 그동안 라우팅을 멈춘다 */
       async function signIn(run: () => Promise<Session>) {
         set({ signingIn: true });
         try {
           const session = await act(run);
           get().onSession(session);
-          await Promise.allSettled([get().syncTime(), api.setTimezone(deviceTz).then((profile) => set({ profile }))]);
+          await Promise.allSettled([get().syncTime()]);
           await get().refresh();
         } finally {
           set({ signingIn: false });
@@ -209,11 +206,6 @@ export const useApp = create<AppState>()(
             get().onSession(session);
             if (!session) return;
             await Promise.allSettled([get().syncTime()]);
-            // 기기 시간대를 알린다. 다르면 서버가 다음 학습일부터 적용한다(명세 1절)
-            await api.setTimezone(deviceTz).then(
-              (profile) => set({ profile }),
-              (e: unknown) => set({ error: toApiError(e) }),
-            );
             await get().refresh();
           } catch (e) {
             set({ loadFailed: true, error: toApiError(e) });
@@ -288,7 +280,7 @@ export const useApp = create<AppState>()(
         loginMethod: (email) => act(() => api.loginMethod(email)),
 
         sendCode: (email) =>
-          act(() => api.sendCode(email, { age_confirmed: true, ai_consent: true, terms_version: TERMS_VERSION, timezone: deviceTz })),
+          act(() => api.sendCode(email, { age_confirmed: true, ai_consent: true, terms_version: TERMS_VERSION })),
 
         verifyCode: (email, code) => signIn(() => api.verifyCode(email, code)),
 
@@ -512,8 +504,8 @@ export function nowMs(): number {
 
 // ---------- 화면용 도우미 ----------
 
-export const todayKey = (s: AppState = useApp.getState()) => todayKeyOf(s, nowMs(), deviceTz);
-export const todayRow = (s: AppState = useApp.getState()) => todayRowOf(s, nowMs(), deviceTz);
-export const tzOf = (s: Pick<AppState, 'profile'>) => s.profile?.timezone ?? deviceTz;
+/** 하루 키는 한국 시간으로 정해져 상태가 필요 없다. 인자는 기존 호출부 호환용 */
+export const todayKey = (_s?: AppState) => todayKeyOf(nowMs());
+export const todayRow = (s: AppState = useApp.getState()) => todayRowOf(s, nowMs());
 export { goalDaysOf, todayRowOf, todayKeyOf };
 export const messagesOf = (s: AppState, goalId: string, day: string): Message[] => s.messages[dayKeyId(goalId, day)] ?? [];

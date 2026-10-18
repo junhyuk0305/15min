@@ -24,7 +24,7 @@ export const config: Config = {
 };
 
 export function profile(p: Partial<Profile> = {}): Profile {
-  return { user_id: USER, timezone: 'Asia/Seoul', suspended_until: null, suspended_goal_id: null, suspended_start_minutes: null, suspended_target_minutes: null, banned: false, giveup_confirmed_count: 0, ...p };
+  return { user_id: USER, suspended_until: null, suspended_goal_id: null, suspended_start_minutes: null, suspended_target_minutes: null, banned: false, giveup_confirmed_count: 0, ...p };
 }
 
 export function goal(g: Partial<GoalRow> = {}): GoalRow {

@@ -43,7 +43,7 @@ def sql(q):
 
 
 def ensure_user(email, pw='ui-qa-local-pw-1'):
-    meta = {'age_confirmed': True, 'ai_consent': True, 'terms_version': '2026-10-18', 'timezone': 'Asia/Seoul'}
+    meta = {'age_confirmed': True, 'ai_consent': True, 'terms_version': '2026-10-18'}
     http('POST', '/auth/v1/admin/users', {'email': email, 'password': pw, 'email_confirm': True, 'user_metadata': meta}, key=keys()['SERVICE_ROLE_KEY'])
     return sql(f"select id from auth.users where email = '{email}';")
 
@@ -137,7 +137,7 @@ class User:
 
 
 def context(browser, user=None, w=390, h=844, scale=1, onboarded=True, extra_cache=None):
-    ctx = browser.new_context(viewport={'width': w, 'height': h}, device_scale_factor=scale, locale='ko-KR', timezone_id='Asia/Seoul')
+    ctx = browser.new_context(viewport={'width': w, 'height': h}, device_scale_factor=scale, locale='ko-KR', timezone_id='Asia/Seoul', reduced_motion='reduce')
     init = ''
     if user is not None:
         sess = session(user.email)

@@ -15,7 +15,7 @@ import { dayEnded, OVERLAY_MS, overlayFor, phaseEnd, phaseName, phaseRemaining, 
 import { reportError } from '@/lib/report';
 import { RETRO_PATH } from '@/lib/route';
 import { phaseAt, type DayRow, type Phase } from '@/lib/rules';
-import { deviceTz, todayKey, todayKeyOf, todayRow, useApp } from '@/lib/store';
+import { todayKey, todayKeyOf, todayRow, useApp } from '@/lib/store';
 
 const t = copy.learn;
 
@@ -29,7 +29,7 @@ export default function Learn() {
   const [day] = useState(() => todayKey());
   const now = useNow(5000);
   const rec = useApp((s) => (s.goal ? s.days.find((d) => d.goalId === s.goal?.id && d.day === day) : undefined));
-  const current = useApp((s) => todayKeyOf(s, now, deviceTz));
+  const current = todayKeyOf(now);
   const [gone, setGone] = useState(false);
   // 매 렌더마다 새 함수를 넘기면 이 함수에 걸린 요청 콜백이 5초마다 다시 만들어져 문항과 대화를 다시 불러온다
   const onGone = useCallback(() => setGone(true), []);

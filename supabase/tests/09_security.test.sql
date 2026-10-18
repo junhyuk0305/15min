@@ -1,8 +1,8 @@
 -- 보안 보강: 비밀번호는 심사용 계정만, 이메일 별칭 정규화와 HMAC 해시, 입력 길이와 개수, 04:00 경계 일정,
--- 서쪽 시간대 변경, AI 호출 자리 잡기, 신고 보존과 AI 글 신고, 인증 기록 보관 기간, 기본 권한
+-- AI 호출 자리 잡기, 신고 보존과 AI 글 신고, 인증 기록 보관 기간, 기본 권한
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(68);
+select plan(64);
 
 create function pg_temp.at(p text, p_tz text) returns timestamptz language sql as $$
   select p::timestamp at time zone p_tz
@@ -142,22 +142,6 @@ select throws_ok($$select app_private.change_schedule('00000000-0000-4000-8000-0
 select is((app_private.change_schedule('00000000-0000-4000-8000-000000000911',
   (select id from public.goals where user_id = '00000000-0000-4000-8000-000000000911' and status = 'active'),
   1430, 30, '{0,1,2,3,4,5,6}', pg_temp.at('2026-03-03 12:00', 'Asia/Seoul'))).pending_change ->> 'start_minutes', '1430', '23:50 시작 30분은 04:00 전에 끝나 통과');
-
--- ───────── L1. 서쪽으로 크게 옮기는 시간대 변경 ─────────
-
-select pg_temp.new_user('00000000-0000-4000-8000-000000000912', 'tzwest9@test.local', 'Pacific/Kiritimati');
-select is((app_private.set_timezone('00000000-0000-4000-8000-000000000912', 'Etc/GMT+12', pg_temp.at('2026-03-02 22:00', 'Pacific/Kiritimati'))).pending_timezone_from,
-  '2026-03-03'::date, '+14에서 -12로 변경 예약(옛 시간대 기준 내일)');
--- 옛 시간대로는 03-03 05:00이지만 새 시간대(-12)로는 03-02 03:00(하루 키 03-01)
-select app_private.settle_user('00000000-0000-4000-8000-000000000912', pg_temp.at('2026-03-03 05:00', 'Pacific/Kiritimati'));
-select is((pg_temp.p('00000000-0000-4000-8000-000000000912')).timezone, 'Pacific/Kiritimati', '새 시간대가 아직 적용일 전이면 바꾸지 않는다(지난 날을 다시 받지 않음)');
-select app_private.settle_user('00000000-0000-4000-8000-000000000912', pg_temp.at('2026-03-03 05:00', 'Etc/GMT+12'));
-select is((pg_temp.p('00000000-0000-4000-8000-000000000912')).timezone, 'Etc/GMT+12', '새 시간대로도 적용일이 되면 바꾼다');
-
-select pg_temp.new_user('00000000-0000-4000-8000-000000000913', 'tzwest9b@test.local', 'Pacific/Kiritimati');
-select app_private.set_timezone('00000000-0000-4000-8000-000000000913', 'Etc/GMT+12', pg_temp.at('2026-03-02 22:00', 'Pacific/Kiritimati'));
-select app_private.settle_all(pg_temp.at('2026-03-03 05:00', 'Pacific/Kiritimati'));
-select is((pg_temp.p('00000000-0000-4000-8000-000000000913')).timezone, 'Pacific/Kiritimati', 'cron(settle_all)도 같은 조건');
 
 -- ───────── H2. AI 호출 자리 잡기 ─────────
 

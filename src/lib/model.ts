@@ -4,9 +4,6 @@ import type { DayRow, DayStatus, Goal, Item, ItemEvent, Phase, PendingChange, Qu
 
 export type Profile = {
   userId: string;
-  timezone: string;
-  pendingTimezone: string | null;
-  pendingTimezoneFrom: string | null;
   giveupConfirmedCount: number;
   suspendedUntil: number | null;
   suspendedGoalId: string | null;
@@ -102,9 +99,6 @@ const numOrNull = (v: unknown): number | null => (typeof v === 'number' && Numbe
 export function profileFromRow(r: Row): Profile {
   return {
     userId: str(r.user_id),
-    timezone: str(r.timezone, 'Asia/Seoul'),
-    pendingTimezone: strOrNull(r.pending_timezone),
-    pendingTimezoneFrom: strOrNull(r.pending_timezone_from),
     giveupConfirmedCount: num(r.giveup_confirmed_count),
     suspendedUntil: ts(r.suspended_until),
     suspendedGoalId: strOrNull(r.suspended_goal_id),

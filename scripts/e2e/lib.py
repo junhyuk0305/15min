@@ -4,7 +4,8 @@
 - make_user(): 시드와 같은 방식으로 비밀번호 사용자를 만든다. 가입 트리거가 프로필을 만든다.
 - session_for(): 관리자 매직링크(generate_link → verify)로 세션을 받는다. 비밀번호 로그인은 심사 계정만 된다.
   테스트는 세션을 localStorage에 직접 넣는다(supabase-js 웹 기본 저장소).
-- open_app(): 390px 폭, Asia/Seoul 시간대 브라우저 컨텍스트에 세션과 온보딩 완료 표시를 넣고 연다.
+- open_app(): 390px 폭, 줄인 움직임, E2E_TZ(기본 Asia/Seoul) 시간대 브라우저 컨텍스트에 세션과 온보딩 완료 표시를 넣고 연다.
+  앱은 기기 시간대와 상관없이 한국 시간으로 돈다. E2E_TZ=America/New_York으로 해외 기기를 흉내 낸다.
 - latest_otp(): Mailpit에서 그 주소로 온 마지막 6자리 코드를 읽는다.
 키는 `npx supabase status -o env`에서 읽고 출력하지 않는다.
 """
@@ -25,6 +26,7 @@ DB_CONTAINER = 'supabase_db_yourtime'
 STORAGE_KEY = 'sb-127-auth-token'
 CACHE_KEY = 'graego-cache-v3'
 VIEWPORT = {'width': 390, 'height': 844}
+BROWSER_TZ = os.environ.get('E2E_TZ', 'Asia/Seoul')
 
 _env: dict[str, str] | None = None
 
@@ -67,7 +69,7 @@ def make_user(email: str, password: str = 'local-e2e-only') -> str:
           '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated', '{email}',
           extensions.crypt('{password}', extensions.gen_salt('bf')), now(),
           '{{"provider": "email", "providers": ["email"]}}',
-          '{{"age_confirmed": true, "ai_consent": true, "timezone": "Asia/Seoul", "terms_version": "2026-10-18"}}',
+          '{{"age_confirmed": true, "ai_consent": true, "terms_version": "2026-10-18"}}',
           now(), now(), '', '', '', '', '', '', '', ''
         ) returning id
       ), i as (
@@ -158,7 +160,7 @@ def latest_otp(email: str, after: float = 0, timeout: float = 30) -> str:
 
 
 def new_context(browser, session: dict | None = None, onboarded: bool = True):
-    ctx = browser.new_context(viewport=VIEWPORT, timezone_id='Asia/Seoul', locale='ko-KR', device_scale_factor=1)
+    ctx = browser.new_context(viewport=VIEWPORT, timezone_id=BROWSER_TZ, locale='ko-KR', device_scale_factor=1, reduced_motion='reduce')
     seed = {}
     if session is not None:
         seed[STORAGE_KEY] = json.dumps(session)

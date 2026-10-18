@@ -25,8 +25,8 @@ import { TextButton } from '@/components/TextButton';
 import { Body, Button, Field, Row, useNow } from '@/components/ui';
 import { toApiError } from '@/lib/api';
 import { copy, errorText } from '@/lib/copy';
-import { crossesBoundary, fmtClock, MIN_NOTE_CHARS } from '@/lib/rules';
-import { tzOf, useApp } from '@/lib/store';
+import { APP_TIME_ZONE, crossesBoundary, fmtClock, MIN_NOTE_CHARS } from '@/lib/rules';
+import { useApp } from '@/lib/store';
 import { useAction } from '@/lib/useAction';
 import { B, C, HIT, R, S, T } from '@/lib/theme';
 
@@ -310,12 +310,11 @@ function ConfirmStage() {
   const subs = useGoalDraft((s) => s.subsituations);
   const setField = useGoalDraft((s) => s.setField);
   const createGoal = useApp((s) => s.createGoal);
-  const tz = useApp(tzOf);
   const now = useNow(30_000);
   const create = useAction();
 
   const scenes = subs.length ? subs : g.defaultScenes;
-  const first = firstStart(now, tz, plan);
+  const first = firstStart(now, APP_TIME_ZONE, plan);
   const clock = first.clock;
   const when =
     first.rel === 'today' ? g.today(clock) : first.rel === 'tomorrow' ? g.tomorrow(clock) : g.onDate(first.month, first.date, g.weekdayNames[first.weekday], clock);

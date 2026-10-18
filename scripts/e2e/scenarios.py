@@ -8,6 +8,7 @@ SQL로 과거로 옮겨 그 순간을 만든다. 결과는 docs/시나리오/*.p
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import time
@@ -22,7 +23,7 @@ from lib import (  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 
 RESULTS = Path(__file__).resolve().parent / 'results.json'
-EMAIL = '{}@scenario.test'
+EMAIL = os.environ.get('E2E_EMAIL_PREFIX', '') + '{}@scenario.test'  # 여러 에이전트가 같은 DB를 쓸 때 접두사로 나눈다
 AGREE = '알림 켜기'  # 온보딩 마지막 버튼
 CONSENTS = ['[필수] 만 18세 이상입니다', '[필수] 이용약관과 개인정보처리방침에 동의합니다',
             '[필수] Google Gemini API로 학습 내용을 처리하고 국외로 이전하는 데 동의합니다']

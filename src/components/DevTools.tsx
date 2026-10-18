@@ -3,18 +3,18 @@
 import { Text, View } from 'react-native';
 import { Row, useNow } from '@/components/ui';
 import { buildPlan } from '@/lib/plan';
-import { fmtClock } from '@/lib/rules';
+import { APP_TIME_ZONE, fmtClock, localParts } from '@/lib/rules';
 import { planInputOf } from '@/lib/selectors';
-import { deviceTz, useApp } from '@/lib/store';
+import { useApp } from '@/lib/store';
 import { C, S, T } from '@/lib/theme';
 
 export function DevTools() {
   const now = useNow();
   const state = useApp();
-  const plan = buildPlan(planInputOf(state, now, deviceTz));
+  const plan = buildPlan(planInputOf(state, now));
   const fmt = (ms: number) => {
-    const d = new Date(ms);
-    return `${d.getMonth() + 1}/${d.getDate()} ${fmtClock(d.getHours() * 60 + d.getMinutes())}`;
+    const p = localParts(ms, APP_TIME_ZONE);
+    return `${p.month}/${p.day} ${fmtClock(p.hour * 60 + p.minute)}`;
   };
   return (
     <View style={{ gap: S.xs, marginTop: S.lg }}>

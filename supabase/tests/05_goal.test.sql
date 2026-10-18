@@ -72,7 +72,7 @@ select is((app_private.declare_achievement('00000000-0000-4000-8000-0000000000a9
 select is((
   select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public'
-    and p.proname in ('set_timezone', 'create_goal', 'settle_me', 'start_day', 'save_progress', 'start_retro',
+    and p.proname in ('create_goal', 'settle_me', 'start_day', 'save_progress', 'start_retro',
                       'save_retro_progress', 'complete_day', 'use_coupon', 'request_giveup', 'withdraw_giveup',
                       'declare_achievement', 'change_schedule', 'report_message')
     and exists (select 1 from unnest(p.proargtypes::oid[]) a where a in ('timestamptz'::regtype, 'timestamp'::regtype, 'bigint'::regtype))

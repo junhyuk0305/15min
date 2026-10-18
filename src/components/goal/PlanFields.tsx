@@ -2,6 +2,7 @@ import { Pressable, Text, View } from 'react-native';
 import { Label, Stepper } from '@/components/ui';
 import { copy } from '@/lib/copy';
 import { MIN_WEEKDAYS, TARGET_MAX, TARGET_MIN } from '@/lib/rules';
+import { showsKstLabel } from '@/lib/selectors';
 import { B, C, HIT, R, S, T } from '@/lib/theme';
 import { Chip } from './Chip';
 import {
@@ -91,6 +92,7 @@ export function PlanFields({ plan, onChange }: { plan: Plan; onChange: (p: Plan)
             />
           ))}
         </View>
+        {showsKstLabel(new Date().getTimezoneOffset()) ? <Note>{copy.unit.kst}</Note> : null}
       </View>
 
       <View style={{ gap: S.sm }}>

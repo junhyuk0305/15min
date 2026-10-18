@@ -7,9 +7,9 @@ import { Body, Button, H1, Screen, styles, useNow } from '@/components/ui';
 import { toApiError } from '@/lib/api';
 import { copy, errorText } from '@/lib/copy';
 import { uuidv4, type ReflectionMessage } from '@/lib/model';
-import { canSend, fmtClock, localParts } from '@/lib/rules';
+import { APP_TIME_ZONE, canSend, fmtClock, localParts } from '@/lib/rules';
 import { reflectionWindow } from '@/lib/selectors';
-import { tzOf, useApp } from '@/lib/store';
+import { useApp } from '@/lib/store';
 import { useBlockBack } from '@/lib/useBlockBack';
 import { C, S, T } from '@/lib/theme';
 
@@ -62,7 +62,7 @@ export default function Suspended() {
   const cached = useApp((s) => s.suspendedGoal);
   const reflections = useApp((s) => s.reflections);
   const reflectionTurn = useApp((s) => s.reflectionTurn);
-  const tz = useApp(tzOf);
+  const tz = APP_TIME_ZONE;
   const [chat, setChat] = useState<'unknown' | 'open' | 'closed'>('unknown');
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);

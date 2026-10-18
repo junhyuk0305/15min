@@ -215,9 +215,6 @@ test('정지 중 알림: 프로필의 원래 시작 시각을 먼저 쓰고, 없
   const NOW = Date.UTC(2026, 9, 21, 3);
   const profile = {
     userId: 'u',
-    timezone: 'Asia/Seoul',
-    pendingTimezone: null,
-    pendingTimezoneFrom: null,
     giveupConfirmedCount: 1,
     suspendedUntil: NOW + 7 * 86400_000,
     suspendedGoalId: 'g0',
@@ -226,10 +223,10 @@ test('정지 중 알림: 프로필의 원래 시작 시각을 먼저 쓰고, 없
     banned: false,
   };
   const cached = { id: 'g0', startMinutes: 1320, targetMinutes: 15 };
-  assert.equal(planInputOf({ ...EMPTY_CACHE, profile, suspendedGoal: cached }, NOW, 'Asia/Seoul').suspension?.startMinutes, 1260);
+  assert.equal(planInputOf({ ...EMPTY_CACHE, profile, suspendedGoal: cached }, NOW).suspension?.startMinutes, 1260);
   const old = { ...profile, suspendedStartMinutes: null, suspendedTargetMinutes: null };
-  assert.equal(planInputOf({ ...EMPTY_CACHE, profile: old, suspendedGoal: cached }, NOW, 'Asia/Seoul').suspension?.startMinutes, 1320);
-  assert.equal(planInputOf({ ...EMPTY_CACHE, profile: old }, NOW, 'Asia/Seoul').suspension, null);
+  assert.equal(planInputOf({ ...EMPTY_CACHE, profile: old, suspendedGoal: cached }, NOW).suspension?.startMinutes, 1320);
+  assert.equal(planInputOf({ ...EMPTY_CACHE, profile: old }, NOW).suspension, null);
 });
 
 test('홈 카운트다운: 24시간 이상이면 일과 시간, 그보다 짧으면 null', () => {

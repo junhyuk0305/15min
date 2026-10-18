@@ -293,7 +293,7 @@ async function evalRetro() {
   const DAY = '2026-10-20';
   const rows = await pool(data.cases, CONCURRENCY, async (c) => {
     const repo = new MemoryRepo({
-      profiles: [{ user_id: USER, timezone: 'Asia/Seoul', suspended_until: null, suspended_goal_id: null, suspended_start_minutes: null, suspended_target_minutes: null, banned: false, giveup_confirmed_count: 0 }],
+      profiles: [{ user_id: USER, suspended_until: null, suspended_goal_id: null, suspended_start_minutes: null, suspended_target_minutes: null, banned: false, giveup_confirmed_count: 0 }],
       goals: [{
         id: GOAL, user_id: USER, name: 'g', reason: '평가용 목표 이유입니다. 스무 자를 넘깁니다.', period_days: 14, weekdays: [0, 1, 2, 3, 4, 5, 6],
         start_minutes: 1190, target_minutes: 15, situation: { place: '카페', my_role: '손님', partner: '직원', task: '주문' }, subsituations: ['주문'],

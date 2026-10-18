@@ -1,7 +1,7 @@
--- 계정: 가입 동의 검사, 탈퇴 기록 승계, 탈퇴 데이터 삭제, 신고, 보관 기간 삭제, 시간대 예약
+-- 계정: 가입 동의 검사, 탈퇴 기록 승계, 탈퇴 데이터 삭제, 신고, 보관 기간 삭제, 한국 시간 고정
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(33);
+select plan(32);
 
 create function pg_temp.kst(p text) returns timestamptz language sql as $$
   select p::timestamp at time zone 'Asia/Seoul'
@@ -30,7 +30,7 @@ select throws_ok($$select pg_temp.new_user(gen_random_uuid(), 'noai2@test.local'
 
 select pg_temp.new_user('00000000-0000-4000-8000-0000000000f1', 'Ny@Test.local',
   '{"age_confirmed": true, "ai_consent": true, "timezone": "America/New_York", "terms_version": "v1"}');
-select is((pg_temp.p('00000000-0000-4000-8000-0000000000f1')).timezone, 'America/New_York', '메타데이터 시간대 저장');
+select is((pg_temp.p('00000000-0000-4000-8000-0000000000f1')).timezone, 'Asia/Seoul', '메타데이터 시간대는 무시(America/New_York으로 가입해도 Asia/Seoul)');
 select is((pg_temp.p('00000000-0000-4000-8000-0000000000f1')).terms_version, 'v1', '약관 버전 저장');
 select isnt((pg_temp.p('00000000-0000-4000-8000-0000000000f1')).age_confirmed_at, null, 'age_confirmed_at 기록');
 select isnt((pg_temp.p('00000000-0000-4000-8000-0000000000f1')).ai_consent_at, null, 'ai_consent_at 기록');
@@ -122,16 +122,13 @@ select is((select count(*) from public.ai_usage where user_id = '00000000-0000-4
 select is((select array_agg(email_hash order by email_hash) from public.deleted_accounts where email_hash in ('old-hash', 'recent-hash')),
   array['recent-hash'], '1년 지난 탈퇴 기록 삭제');
 
--- 시간대 예약: 옛 시간대 기준 내일부터
-select pg_temp.new_user('00000000-0000-4000-8000-0000000000f7', 'tz@test.local', '{"age_confirmed": true, "ai_consent": true, "timezone": "Asia/Seoul"}');
-select is((app_private.set_timezone('00000000-0000-4000-8000-0000000000f7', 'America/New_York', pg_temp.kst('2026-03-02 22:00'))).pending_timezone_from,
-  '2026-03-03'::date, '시간대 변경은 내일부터 예약');
-select is((pg_temp.p('00000000-0000-4000-8000-0000000000f7')).timezone, 'Asia/Seoul', '오늘은 옛 시간대 유지');
-select app_private.settle_user('00000000-0000-4000-8000-0000000000f7', pg_temp.kst('2026-03-03 05:00'));
-select is((pg_temp.p('00000000-0000-4000-8000-0000000000f7')).timezone, 'Asia/Seoul', '새 시간대(뉴욕)가 아직 그날이 아니면 옛 시간대 유지');
-select app_private.settle_user('00000000-0000-4000-8000-0000000000f7', pg_temp.kst('2026-03-03 19:00'));
-select is((pg_temp.p('00000000-0000-4000-8000-0000000000f7')).timezone, 'America/New_York', '두 시간대 모두 그날이 되면 적용');
-select throws_ok($$select app_private.set_timezone('00000000-0000-4000-8000-0000000000f7', 'Not/AZone', now())$$, 'P0001', 'invalid', '잘못된 시간대 거부');
+-- 한국 시간 고정: 시간대를 바꾸는 입구가 없고, 직접 바꿔도 제약이 막는다
+select throws_ok($$update public.profiles set timezone = 'America/New_York' where user_id = '00000000-0000-4000-8000-0000000000f1'$$,
+  '23514', null, '프로필 시간대를 Asia/Seoul 밖으로 바꾸면 CHECK 위반');
+select throws_ok($$update public.profiles set pending_timezone = 'America/New_York', pending_timezone_from = current_date where user_id = '00000000-0000-4000-8000-0000000000f1'$$,
+  '23514', null, '시간대 예약을 넣어도 CHECK 위반');
+select hasnt_function('public'::name, 'set_timezone'::name, 'public.set_timezone 없음'::text);
+select hasnt_function('app_private'::name, 'set_timezone'::name, 'app_private.set_timezone 없음'::text);
 
 select * from finish();
 rollback;

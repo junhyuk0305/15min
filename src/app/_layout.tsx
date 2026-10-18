@@ -15,7 +15,7 @@ import { reportError } from '@/lib/report';
 import { redirectFor } from '@/lib/route';
 import { useRuntime } from '@/lib/runtime';
 import { planInputOf, routeInputOf, tapStateOf } from '@/lib/selectors';
-import { deviceTz, nowMs, todayKey, useApp } from '@/lib/store';
+import { nowMs, todayKey, useApp } from '@/lib/store';
 import { configMissing } from '@/lib/supabase';
 import { C, FRAME_MAX, S, T } from '@/lib/theme';
 
@@ -73,7 +73,7 @@ function useHydrated() {
 function replan() {
   if (useRuntime.getState().inSession) return;
   const s = useApp.getState();
-  const job = s.authed ? applyPlan(buildPlan(planInputOf(s, nowMs(), deviceTz))) : clearAll();
+  const job = s.authed ? applyPlan(buildPlan(planInputOf(s, nowMs()))) : clearAll();
   job.catch((e: unknown) => reportError(e, 'notify'));
 }
 
@@ -142,7 +142,7 @@ function useGuard(active: boolean) {
   }, []);
   // 문자열 하나만 고른다. 메시지가 늘 때마다 루트가 다시 그려지지 않는다
   const target = useApp((s) =>
-    active ? redirectFor(pathname, routeInputOf(s, s, now, deviceTz), typeof next === 'string' ? next : null) : null,
+    active ? redirectFor(pathname, routeInputOf(s, s, now), typeof next === 'string' ? next : null) : null,
   );
   useEffect(() => {
     if (target) router.replace(target as never);
@@ -155,7 +155,7 @@ function useGuard(active: boolean) {
  * 그 알림이 가리키는 상태가 이미 끝났으면(예: 완료한 날의 독촉) 홈으로 보내고 한 줄 안내를 띄운다(P8-5).
  */
 function openTap(tap: TapData) {
-  const target = tapTarget(tap, tapStateOf(useApp.getState(), nowMs(), deviceTz));
+  const target = tapTarget(tap, tapStateOf(useApp.getState(), nowMs()));
   if (target.stale) useRuntime.getState().setNotice(copy.notify.stale);
   router.navigate(target.path as never);
 }

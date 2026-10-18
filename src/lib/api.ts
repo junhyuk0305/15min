@@ -186,7 +186,7 @@ export async function withTimeout<T>(run: (signal: AbortSignal) => PromiseLike<T
 
 export type CompleteDayResult = { day: DayRow; couponEarned: boolean; coupons: number };
 export type LessonTurnResult = { messages: Message[]; modal: LessonModal; episode: Episode | null };
-export type SignupMeta = { age_confirmed: true; ai_consent: true; terms_version: string; timezone: string };
+export type SignupMeta = { age_confirmed: true; ai_consent: true; terms_version: string };
 export type LoginMethod = 'password' | 'otp';
 
 /** 가입 때 동의한 약관 판. 약관을 바꾸면 올린다. */
@@ -332,10 +332,6 @@ export function createApi(opts: ApiOptions) {
       const n = Date.parse(v);
       if (!Number.isFinite(n)) throw new ApiError('server', 'bad_time');
       return n;
-    },
-
-    async setTimezone(tz: string): Promise<Profile> {
-      return profileFromRow(await rpc<Raw>('set_timezone', { p_tz: tz }));
     },
 
     async settleMe(): Promise<void> {

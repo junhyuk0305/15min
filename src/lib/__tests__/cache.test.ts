@@ -70,26 +70,26 @@ test('upsertDay는 같은 날을 바꾸고 날짜 순으로 둔다', () => {
 test('routeInputOf: 오늘 행 상태를 학습 중, 끝남, 없음으로 접는다', () => {
   const flags = { authed: true, onboarded: true, loadFailed: false };
   const row = (status: string) => dayFromRow({ goal_id: 'g1', day: '2026-10-18', status });
-  assert.equal(routeInputOf(cache({ profile, goal, days: [row('progress')] }), flags, NOW, TZ).today, 'progress');
-  assert.equal(routeInputOf(cache({ profile, goal, days: [row('coupon')] }), flags, NOW, TZ).today, 'closed');
-  assert.equal(routeInputOf(cache({ profile, goal, days: [row('failed')] }), flags, NOW, TZ).today, 'none');
-  assert.equal(routeInputOf(cache({ profile, goal: null }), flags, NOW, TZ).hasActiveGoal, false);
-  assert.equal(todayRowOf(cache({ profile, goal, days: [row('progress')] }), NOW, TZ)?.day, '2026-10-18');
+  assert.equal(routeInputOf(cache({ profile, goal, days: [row('progress')] }), flags, NOW).today, 'progress');
+  assert.equal(routeInputOf(cache({ profile, goal, days: [row('coupon')] }), flags, NOW).today, 'closed');
+  assert.equal(routeInputOf(cache({ profile, goal, days: [row('failed')] }), flags, NOW).today, 'none');
+  assert.equal(routeInputOf(cache({ profile, goal: null }), flags, NOW).hasActiveGoal, false);
+  assert.equal(todayRowOf(cache({ profile, goal, days: [row('progress')] }), NOW)?.day, '2026-10-18');
 });
 
 test('planInputOf: 정지 중이면 목표 알림 대신 반성문 알림, 영구 정지면 아무것도', () => {
   const susp = { ...profile, suspendedUntil: NOW + 86400_000, suspendedGoalId: 'g0' };
-  const p = planInputOf(cache({ profile: susp, lastGoal: goal, suspendedGoal: { id: 'g0', startMinutes: 1320, targetMinutes: 15 } }), NOW, TZ);
+  const p = planInputOf(cache({ profile: susp, lastGoal: goal, suspendedGoal: { id: 'g0', startMinutes: 1320, targetMinutes: 15 } }), NOW);
   assert.deepEqual(p.suspension, { until: NOW + 86400_000, startMinutes: 1320 });
   assert.equal(p.lastGoal, null);
-  const banned = planInputOf(cache({ profile: { ...profile, banned: true }, lastGoal: goal }), NOW, TZ);
+  const banned = planInputOf(cache({ profile: { ...profile, banned: true }, lastGoal: goal }), NOW);
   assert.equal(banned.goal, null);
   assert.equal(banned.lastGoal, null);
   assert.equal(banned.suspension, null);
-  const normal = planInputOf(cache({ profile, goal, leftAt: { day: '2026-10-18', at: NOW - 5000 } }), NOW, TZ);
+  const normal = planInputOf(cache({ profile, goal, leftAt: { day: '2026-10-18', at: NOW - 5000 } }), NOW);
   assert.equal(normal.goal?.id, 'g1');
   assert.equal(normal.leftAt, NOW - 5000);
-  assert.equal(planInputOf(cache({ profile, goal, leftAt: { day: '2026-10-17', at: 1 } }), NOW, TZ).leftAt, null);
+  assert.equal(planInputOf(cache({ profile, goal, leftAt: { day: '2026-10-17', at: 1 } }), NOW).leftAt, null);
 });
 
 test('nextSuspendedGoal: 포기 확정된 목표의 시각을 확정 전 캐시에서 옮긴다', () => {

@@ -12,6 +12,7 @@ import { getExactAlarm, openExactAlarmSettings, openSystemSettings } from '@/lib
 import {
   achieveDay,
   addDays,
+  APP_TIME_ZONE,
   canAchieve,
   cycleOf,
   daysBetween,
@@ -28,8 +29,8 @@ import {
 } from '@/lib/rules';
 import { LEARN_PATH, RETRO_PATH } from '@/lib/route';
 import { useRuntime } from '@/lib/runtime';
-import { homeBanners, homeNoteOf, longWaitOf, nextStudyDay, retroFirstLine, type HomeBanner } from '@/lib/selectors';
-import { deviceTz, goalDaysOf, messagesOf, nowMs, todayKeyOf, todayRowOf, tzOf, useApp } from '@/lib/store';
+import { homeBanners, homeNoteOf, longWaitOf, nextStudyDay, retroFirstLine, showsKstLabel, type HomeBanner } from '@/lib/selectors';
+import { goalDaysOf, messagesOf, nowMs, todayKeyOf, todayRowOf, useApp } from '@/lib/store';
 import { useAction } from '@/lib/useAction';
 import { C, PALETTES, S, T } from '@/lib/theme';
 
@@ -102,9 +103,11 @@ export default function Home() {
   const exactAlarm = useRuntime((s) => s.exactAlarm);
   const withdraw = useAction();
   const goal = state.goal;
-  const tz = tzOf(state);
-  const today = todayKeyOf(state, now, deviceTz);
-  const rec = todayRowOf(state, now, deviceTz);
+  const tz = APP_TIME_ZONE;
+  const today = todayKeyOf(now);
+  const rec = todayRowOf(state, now);
+  // 기기가 한국 시간이 아니면 화면 시각이 한국 시간이라고 알린다(알림도 한국 시각에 울린다)
+  const kst = showsKstLabel(new Date().getTimezoneOffset()) ? <Text style={[T.small, { color: C.sub }]}>{copy.unit.kst}</Text> : null;
   const st = homeState(goal, rec, now, tz);
   const flash = useFlash(st === 'nag', today);
   const giveupEnd = goal ? giveupEndsAt(goal) : null;
@@ -158,6 +161,7 @@ export default function Home() {
           <Label>{h.beforeFirstLabel}</Label>
           <Big>{countdown(fc.start - now)}</Big>
           <Body serif>{h.beforeFirstBody(whenOf(goal, first, today), fs.targetMinutes)}</Body>
+          {kst}
         </>
       );
       break;
@@ -178,6 +182,7 @@ export default function Home() {
           <Label>{h.waitLabel}</Label>
           <Big>{countdown(c.start - now)}</Big>
           <Body serif>{h.waitBody(fmtClock(s.startMinutes), s.targetMinutes)}</Body>
+          {kst}
         </>
       );
       break;

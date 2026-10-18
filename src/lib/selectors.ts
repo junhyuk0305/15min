@@ -3,7 +3,7 @@ import { firstLine } from './archive';
 import type { AppGoal, Message, Profile } from './model';
 import type { PlanInput } from './plan';
 import type { RouteInput } from './route';
-import { addDays, cycleOf, dayKeyOf, isStudyDay, settingsFor, type DayRow, type DayStatus, type Goal } from './rules';
+import { addDays, APP_TIME_ZONE, cycleOf, dayKeyOf, isStudyDay, settingsFor, type DayRow, type DayStatus, type Goal } from './rules';
 
 /** store가 서버에서 받아 캐시하는 값 */
 export type Cache = {
@@ -40,18 +40,19 @@ export const EMPTY_CACHE: Cache = {
   leftAt: null,
 };
 
-export const timeZoneOf = (c: Pick<Cache, 'profile'>, deviceTz: string) => c.profile?.timezone ?? deviceTz;
+/** 하루 키. 한국 시간 기준(명세 1절) */
+export const todayKeyOf = (now: number) => dayKeyOf(now, APP_TIME_ZONE);
 
-/** 하루 키. 서버 프로필 시간대 기준(명세 1절) */
-export const todayKeyOf = (c: Pick<Cache, 'profile'>, now: number, deviceTz: string) => dayKeyOf(now, timeZoneOf(c, deviceTz));
+/** 기기 시간대가 UTC+9가 아니면 시각 옆에 한국 시간 표시를 붙인다. offsetMinutes는 Date#getTimezoneOffset() 값 */
+export const showsKstLabel = (offsetMinutes: number) => offsetMinutes !== -540;
 
 export function goalDaysOf(c: Pick<Cache, 'goal' | 'days'>): DayRow[] {
   const id = c.goal?.id;
   return id ? c.days.filter((d) => d.goalId === id) : [];
 }
 
-export function todayRowOf(c: Pick<Cache, 'goal' | 'days' | 'profile'>, now: number, deviceTz: string): DayRow | undefined {
-  const day = todayKeyOf(c, now, deviceTz);
+export function todayRowOf(c: Pick<Cache, 'goal' | 'days'>, now: number): DayRow | undefined {
+  const day = todayKeyOf(now);
   return goalDaysOf(c).find((d) => d.day === day);
 }
 
@@ -63,9 +64,8 @@ export function routeInputOf(
   c: Cache,
   s: { authed: boolean; onboarded: boolean; loadFailed: boolean },
   now: number,
-  deviceTz: string,
 ): RouteInput {
-  const row = todayRowOf(c, now, deviceTz);
+  const row = todayRowOf(c, now);
   const today = row?.status === 'progress' ? 'progress' : row?.status === 'done' || row?.status === 'coupon' ? 'closed' : 'none';
   return {
     authed: s.authed,
@@ -80,8 +80,8 @@ export function routeInputOf(
 }
 
 /** 알림 계획 입력 (plan.ts buildPlan) */
-export function planInputOf(c: Cache, now: number, deviceTz: string): PlanInput {
-  const timeZone = timeZoneOf(c, deviceTz);
+export function planInputOf(c: Cache, now: number): PlanInput {
+  const timeZone = APP_TIME_ZONE;
   const today = dayKeyOf(now, timeZone);
   const p = c.profile;
   const goal = c.goal?.status === 'active' ? c.goal : null;
@@ -206,13 +206,13 @@ export function retroFirstLine(messages: readonly Message[]): string | null {
 }
 
 /** 알림 탭 판단용 상태 (notifyTarget.tapTarget) */
-export function tapStateOf(c: Cache, now: number, deviceTz: string) {
-  const row = todayRowOf(c, now, deviceTz);
+export function tapStateOf(c: Cache, now: number) {
+  const row = todayRowOf(c, now);
   return {
     hasActiveGoal: c.goal?.status === 'active',
     giveupPending: c.goal?.giveupRequestedAt != null,
     suspended: isSuspended(c.profile, now),
-    today: todayKeyOf(c, now, deviceTz),
+    today: todayKeyOf(now),
     todayStatus: row?.status === 'progress' ? ('progress' as const) : row?.status === 'done' || row?.status === 'coupon' ? ('closed' as const) : ('none' as const),
   };
 }
