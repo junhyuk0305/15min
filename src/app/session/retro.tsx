@@ -11,7 +11,7 @@ import { useLearnClock, useOnline, useSessionPresence } from '@/components/learn
 import { Body, Button, useNow } from '@/components/ui';
 import { toApiError } from '@/lib/api';
 import { copy, errorText } from '@/lib/copy';
-import { dayEnded, leftMinutes, linesOf, retroAwaitsAnswer, retroClosing, saveFailure, sendId, type Line } from '@/lib/learn';
+import { dayEnded, leftMinutes, linesOf, phaseBar, retroAwaitsAnswer, retroClosing, saveFailure, sendId, type Line } from '@/lib/learn';
 import { dayKeyId, uuidv4, type Message } from '@/lib/model';
 import { reportError } from '@/lib/report';
 import { RETRO_SECONDS, type DayRow } from '@/lib/rules';
@@ -97,7 +97,7 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
   const clock = useLearnClock({
     initial: done ? RETRO_SECONDS : rec.retroSeconds,
     total: RETRO_SECONDS,
-    gates: { waiting, revealing: reveal.revealing, offline, failed: failed !== null || saveStuck, overlay: leaveOpen || menu.opened, blocked: done || blocked },
+    gates: { waiting, revealing: reveal.revealing, offline, failed: failed !== null || saveStuck, overlay: leaveOpen || menu.opened, tip: false, blocked: done || blocked },
     save,
   });
   const { touch, syncTo, current } = clock;
@@ -244,7 +244,9 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
     <ClockHeader
       label={t.phase.retro}
       remaining={RETRO_SECONDS - clock.secs}
-      ratio={clock.secs / RETRO_SECONDS}
+      // 학습 세 칸은 지났고 회고 칸이 줄어든다. 끝에 "3분" 눈금(갭분석 3.1-10)
+      cells={phaseBar(rec.targetMinutes, rec.targetMinutes * 60, clock.secs)}
+      tick={copy.unit.minutes(RETRO_SECONDS / 60)}
       paused={!clock.running && !filled}
       idle={clock.idle}
       onClose={done || blocked ? undefined : leave.ask}

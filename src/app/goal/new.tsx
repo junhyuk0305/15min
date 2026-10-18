@@ -1,6 +1,7 @@
 import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, BackHandler, Text, View } from 'react-native';
+import { ConfirmSheet } from '@/components/BottomSheet';
 import { Composer } from '@/components/Composer';
 import { ErrorLine } from '@/components/ErrorLine';
 import { Chip } from '@/components/goal/Chip';
@@ -30,6 +31,7 @@ import { copy, errorText } from '@/lib/copy';
 import type { Line } from '@/lib/learn';
 import { APP_TIME_ZONE, crossesBoundary, fmtClock, MIN_NOTE_CHARS } from '@/lib/rules';
 import { useApp } from '@/lib/store';
+import { markSeen, useTipSeen } from '@/lib/tips';
 import { useAction } from '@/lib/useAction';
 import { useReveal } from '@/lib/useReveal';
 import { B, C, S, T } from '@/lib/theme';
@@ -41,6 +43,8 @@ import { B, C, S, T } from '@/lib/theme';
 // 만들면 route.ts가 /goal/new를 홈으로 보낸다.
 
 const g = copy.goalSetup;
+const INTRO_TIP = 'goal-intro';
+const startIntro = () => markSeen(INTRO_TIP);
 
 function useDraftHydrated() {
   const [done, setDone] = useState(useGoalDraft.persist.hasHydrated());
@@ -112,6 +116,8 @@ function ChatStage() {
   );
   const reveal = useReveal(view.map((l) => ({ id: l.id, text: l.text, ai: l.kind !== 'me' })));
   const menu = useLineMenu();
+  // 처음 들어오면 어떻게 정하는지 시트 한 장(갭분석 3.1-2). 닫아도 시작이다
+  const introSeen = useTipSeen(INTRO_TIP);
   const { open: openMenu, setLatest } = menu;
   const targetOf = (l: Line): LineTarget => ({
     id: l.id,
@@ -209,6 +215,7 @@ function ChatStage() {
         onLine={(l) => openMenu(targetOf(l))}
       />
       {menu.sheets}
+      <ConfirmSheet visible={!introSeen} onClose={startIntro} title={copy.tips.goalIntroTitle} body={copy.tips.goalIntroBody} primary={copy.tips.start} onPrimary={startIntro} />
     </Frame>
   );
 }
@@ -298,6 +305,12 @@ function ConfirmStage() {
   const createGoal = useApp((s) => s.createGoal);
   const now = useNow(30_000);
   const create = useAction();
+  // 만드는 중에는 Android 뒤로도 막는다(헤더 chevron과 같게). 나중에 단 듣기가 먼저 불려 위의 단계 이동보다 앞선다
+  useEffect(() => {
+    if (!create.busy) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => sub.remove();
+  }, [create.busy]);
 
   const scenes = subs.length ? subs : g.defaultScenes;
   const first = firstStart(now, APP_TIME_ZONE, plan);

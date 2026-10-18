@@ -5,17 +5,23 @@ import {
   coachModalOf,
   dayEnded,
   dismissIdle,
+  fmtLeft,
   hiddenUntilClosed,
   linesOf,
+  OVERLAY,
   overlayFor,
+  overlayMs,
+  phaseBar,
   phaseEnd,
   phaseName,
   phasePlan,
   phaseRemaining,
+  phaseTipId,
   quizModalOf,
   quizStep,
   retroAwaitsAnswer,
   retroClosing,
+  revealedChoice,
   saveFailure,
   savePhase,
   sendId,
@@ -28,14 +34,14 @@ import {
 import { copy } from '../copy';
 import type { Message } from '../model';
 
-const open: ClockGates = { appActive: true, focused: true, waiting: false, revealing: false, offline: false, failed: false, overlay: false, blocked: false };
+const open: ClockGates = { appActive: true, focused: true, waiting: false, revealing: false, offline: false, failed: false, overlay: false, tip: false, blocked: false };
 const start: ClockState = { secs: 0, quietMs: 0, idle: false };
 
 // 시계 멈춤 조건 (기획서 11.2, MP 7.3)
 
 test('시계: 모든 조건이 맞을 때만 돈다', () => {
   assert.equal(clockRunning(open), true);
-  for (const k of ['waiting', 'revealing', 'offline', 'failed', 'overlay', 'blocked'] as const) assert.equal(clockRunning({ ...open, [k]: true }), false, k);
+  for (const k of ['waiting', 'revealing', 'offline', 'failed', 'overlay', 'tip', 'blocked'] as const) assert.equal(clockRunning({ ...open, [k]: true }), false, k);
   for (const k of ['appActive', 'focused'] as const) assert.equal(clockRunning({ ...open, [k]: false }), false, k);
 });
 
@@ -44,6 +50,19 @@ test('글자 표시 중에는 시계가 멈추고 시간도 딴짓 판정도 늘
   assert.equal(running, false);
   const s: ClockState = { secs: 40, quietMs: 0, idle: false };
   assert.deepEqual(tick(s, 600, running).state, s);
+});
+
+test('처음 안내가 떠 있으면 시계가 멈추고 시간도 딴짓 판정도 늘지 않는다 (UXP 3절 "처음 안내")', () => {
+  const running = clockRunning({ ...open, tip: true });
+  assert.equal(running, false);
+  let s: ClockState = { secs: 0, quietMs: 0, idle: false };
+  // 첫 학습 규칙 모달을 3분 동안 읽어도 0초이고 딴짓 팝업도 없다
+  for (let i = 0; i < 180; i++) {
+    const r = tick(s, 900, running);
+    assert.equal(r.becameIdle, false);
+    s = r.state;
+  }
+  assert.deepEqual(s, { secs: 0, quietMs: 0, idle: false });
 });
 
 test('딴짓 2분은 글자 표시가 끝난 뒤부터 센다', () => {
@@ -247,12 +266,62 @@ test('학습 순서: 15분은 3분, 9분, 3분, 회고 3분. 나누어떨어지�
   assert.equal(copy.session.planTime(p13[0].seconds), '2분 36초');
 });
 
+test('단계 전환 안내: 들어옴 250 + 유지 1000 + 나감 250. 처음 안내가 붙으면 유지 2000 (갭분석 M4)', () => {
+  assert.equal(overlayMs(false), 1250);
+  assert.equal(overlayMs(true), 2250);
+  assert.equal(overlayMs(false) + OVERLAY.out, 1500);
+  assert.equal(overlayMs(true) + OVERLAY.out, 2500);
+  assert.equal(phaseTipId('A'), null, 'A는 진행 막대가 대신한다');
+  assert.equal(phaseTipId('B'), 'phase-b');
+  assert.equal(phaseTipId('C'), 'phase-c');
+  assert.equal(phaseTipId('retro'), null);
+});
+
+test('진행 막대: 칸 길이는 phasePlan 비율, 지금 칸만 남은 만큼 차 있다 (갭분석 V5)', () => {
+  const at0 = phaseBar(15, 0);
+  assert.deepEqual(
+    at0.map((c) => [c.phase, c.share, c.fill, c.state]),
+    [
+      ['A', 3 / 18, 1, 'now'],
+      ['B', 9 / 18, 1, 'next'],
+      ['C', 3 / 18, 1, 'next'],
+      ['retro', 3 / 18, 1, 'next'],
+    ],
+  );
+  // B 시작 90초 뒤: A는 지났고 B는 450/540 남았다
+  const b = phaseBar(15, 270);
+  assert.deepEqual(b.map((c) => c.state), ['done', 'now', 'next', 'next']);
+  assert.equal(b[0].fill, 0);
+  assert.equal(b[1].fill, 450 / 540);
+  // 회고 90초: 앞 세 칸은 지났고 회고 칸이 반 남았다
+  const r = phaseBar(15, 900, 90);
+  assert.deepEqual(r.map((c) => [c.state, c.fill]), [['done', 0], ['done', 0], ['done', 0], ['now', 0.5]]);
+  // 학습 분이 15가 아니어도 그 비율대로 나뉜다
+  const p13 = phaseBar(13, 0);
+  assert.equal(p13.reduce((n, c) => n + c.share, 0), 1);
+  assert.equal(p13[0].share, 156 / (780 + 180));
+});
+
+test('단계 남은 시간: 분 앞에 0을 붙이지 않는다', () => {
+  assert.equal(fmtLeft(273), '4:33');
+  assert.equal(fmtLeft(540), '9:00');
+  assert.equal(fmtLeft(5), '0:05');
+  assert.equal(fmtLeft(-3), '0:00');
+});
+
 // 복습 채점 (첫 사용 F3)
 
 test('채점 뒤: 맞으면 right, 정답을 감춘 첫 오답은 retry, 정답을 보이면 revealed', () => {
   assert.equal(quizStep({ correct: true, answerEn: 'instead' }), 'right');
   assert.equal(quizStep({ correct: false, answerEn: '' }), 'retry');
   assert.equal(quizStep({ correct: false, answerEn: 'instead' }), 'revealed');
+});
+
+test('뜻 고르기 정답 공개: 채점 문장에 따옴표로 든 보기가 정답이다', () => {
+  const choices = ['대신', '항상', '먼저'];
+  assert.equal(revealedChoice(choices, '정답은 "항상"입니다.'), 1);
+  assert.equal(revealedChoice(choices, '맞았습니다.'), -1);
+  assert.equal(revealedChoice(undefined, '정답은 "항상"입니다.'), -1);
 });
 
 // 회고 마무리 (첫 사용 F9)

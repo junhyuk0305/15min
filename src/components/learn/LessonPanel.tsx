@@ -10,15 +10,18 @@ import { copy } from '@/lib/copy';
 import { coachModalOf, hiddenUntilClosed, linesOf, sendId, type CoachModalView, type Line } from '@/lib/learn';
 import { dayKeyId, uuidv4, type Message } from '@/lib/model';
 import { todayKey, useApp } from '@/lib/store';
+import { markSeen, useTipSeen } from '@/lib/tips';
 import { useReveal } from '@/lib/useReveal';
 
 const t = copy.learn;
 const NONE: Message[] = [];
+const COACH_TIP = 'coach-modal';
 
 /**
  * B 상황 대화(기획서 11.5). 처음에는 lesson-turn을 문장 없이 불러 되짚기와 첫 질문, 또는 오늘 대화를 받는다(결정안 7).
  * 교정이 필요하면 코치 모달이 상대의 새 질문보다 먼저 뜨고, 닫으면 새 질문이 보인다(결정안 10).
  * 새로 온 마지막 상대, 코치 줄은 글자 단위로 보이고 그동안 시계를 멈춘다(UXP 3절). 줄을 길게 누르면 신고, 복사 시트.
+ * 첫 코치 모달 아래에는 닫으면 무엇이 오는지 한 줄 안내한다(갭분석 3.1-7). 모달을 읽는 시간은 활동으로 본다(UXP 3절).
  */
 export function LessonPanel({ header, banner, overlay, request, setFailed, touch, offline, setRevealing, menu }: PanelProps) {
   const goal = useApp((s) => s.goal);
@@ -31,6 +34,7 @@ export function LessonPanel({ header, banner, overlay, request, setFailed, touch
   const [failed, setSendFailed] = useState(false);
   const [modal, setModal] = useState<{ view: CoachModalView; note: string } | null>(null);
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const coachTipSeen = useTipSeen(COACH_TIP);
   const pending = useRef<{ id: string; text: string } | null>(null);
   const lines = useMemo(() => linesOf(messages, 'B', hidden), [messages, hidden]);
   const reveal = useReveal(lines.map((l) => ({ id: l.id, text: l.text, ai: l.kind !== 'me' })));
@@ -101,6 +105,7 @@ export function LessonPanel({ header, banner, overlay, request, setFailed, touch
 
   const closeModal = () => {
     touch();
+    if (!coachTipSeen) markSeen(COACH_TIP);
     setModal(null);
     setHidden(new Set());
   };
@@ -149,7 +154,7 @@ export function LessonPanel({ header, banner, overlay, request, setFailed, touch
         isNew={reveal.isNew}
         onLine={onLine}
       />
-      <CoachModal modal={modal?.view ?? null} note={modal?.note} onClose={closeModal} />
+      <CoachModal modal={modal?.view ?? null} note={modal?.note} tip={coachTipSeen ? null : copy.tips.coachModal} onClose={closeModal} />
     </LearnShell>
   );
 }

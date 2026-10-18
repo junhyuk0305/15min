@@ -10,7 +10,7 @@ export type PanelProps = {
   header: ReactNode;
   /** 연결 끊김 배너 */
   banner: ReactNode;
-  /** 단계 전환 안내, 딴짓 팝업 */
+  /** 딴짓 팝업, 나가기와 신고 시트. 단계 전환 안내는 학습 화면이 단계 화면 밖에 그린다 */
   overlay: ReactNode;
   /** 서버 요청. 기다리는 동안 시계를 멈추고, 연결 끊김과 한도 초과를 화면 상태로 옮긴다 */
   request: <T>(job: () => Promise<T>) => Promise<Result<T>>;

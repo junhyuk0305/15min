@@ -1,33 +1,122 @@
 import { router, useNavigation } from 'expo-router';
 import { usePreventRemove, type NavigationAction } from 'expo-router/react-navigation';
-import { useCallback, useRef, type ReactNode } from 'react';
-import { Modal, StyleSheet, Text, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { ConfirmSheet } from '@/components/BottomSheet';
 import { CoachNote } from '@/components/CoachNote';
 import { LearnShell } from '@/components/learn/LearnShell';
 import { useSurface } from '@/components/surface';
 import { Body, Button, H1 } from '@/components/ui';
 import { copy } from '@/lib/copy';
-import { phaseName, type CoachModalView, type ModalEntry, type Overlay } from '@/lib/learn';
+import { OVERLAY, phaseName, type CoachModalView, type ModalEntry, type Overlay } from '@/lib/learn';
+import { DUR, EASE } from '@/lib/motion';
 import { fmtDuration, type Phase } from '@/lib/rules';
 import { B, F, PALETTES, R, S, T, type ThemeName } from '@/lib/theme';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 
 const t = copy.learn;
 
 /** 단계별 테마: A 화이트, B 다크, C 화이트(기획서 11.4). 회고도 화이트 */
 export const themeOf = (phase: Phase): ThemeName => (phase === 'B' ? 'dark' : 'white');
 
-/** 단계 전환 안내. 다음 단계 테마로 화면을 덮고 이름과 남은 시간을 1초 보인다. 첫날 A는 수준 확인 */
-export function PhaseOverlay({ overlay, levelCheck }: { overlay: Overlay | null; levelCheck?: boolean }) {
-  if (!overlay) return null;
-  const p = PALETTES[themeOf(overlay.phase)];
+/** 바탕색이 다음 단계 색으로 섞이는 시간(갭분석 M4) */
+const BLEND_MS = 400;
+
+type Held = { overlay: Overlay; from: ThemeName; levelCheck: boolean; tip: string | null };
+
+/**
+ * 단계 전환 안내(갭분석 M4). 화면을 덮고 다음 단계 이름과 남은 시간을 보인다. 첫날 A는 수준 확인.
+ * 들어올 때 250ms 페이드, 바탕은 지금 화면 색(from)에서 다음 단계 색으로 400ms 섞이고, 이름은 8px 올라오며 나타난다.
+ * overlay가 null이 되면(부르는 쪽이 단계를 바꾸면) 250ms 흐려지며 사라진다. 그동안 마지막 안내를 붙잡아 그린다.
+ * tip은 그 단계를 처음 안내하는 한 줄(갭분석 3.1-6, 9). 있으면 눌러서 넘길 수 있다(onSkip).
+ * 줄인 움직임이면 색은 바로 바뀌고 글자만 150ms 페이드한다.
+ * 단계 화면이 바뀌어도 이어 그려지도록 단계 화면 밖(학습 화면 맨 위)에 둔다.
+ */
+export function PhaseOverlay({
+  overlay,
+  from,
+  levelCheck = false,
+  tip,
+  onSkip,
+}: {
+  overlay: Overlay | null;
+  /** 안내 아래 지금 화면의 테마. 바탕색이 여기서 다음 단계 색으로 섞인다 */
+  from: ThemeName;
+  levelCheck?: boolean;
+  tip: string | null;
+  /** 고정된 함수를 넘긴다(1초마다 다시 그려져도 바뀌지 않게, UXP 9.3) */
+  onSkip: () => void;
+}) {
+  const reduced = useReducedMotion();
+  const [held, setHeld] = useState<Held | null>(null);
+  // 새 안내가 오면 그때의 화면 색과 문구를 붙잡는다(렌더 중 상태 맞추기). 단계를 바꾼 뒤에도 사라지는 동안 같은 글을 그린다
+  if (overlay && held?.overlay.phase !== overlay.phase) setHeld({ overlay, from, levelCheck, tip });
+  const showing = !!overlay;
+  const showingRef = useRef(showing);
+  useEffect(() => {
+    showingRef.current = showing;
+  }, [showing]);
+  const heldPhase = held?.overlay.phase ?? null;
+  const shown = useSharedValue(0);
+  const blend = useSharedValue(0);
+  const rise = useSharedValue(0);
+
+  useEffect(() => {
+    if (!heldPhase) return;
+    if (showing) {
+      const fade = reduced ? DUR.reduced : OVERLAY.in;
+      shown.value = reduced ? 1 : 0;
+      if (!reduced) shown.value = withTiming(1, { duration: fade, easing: EASE });
+      blend.value = reduced ? 1 : 0;
+      if (!reduced) blend.value = withTiming(1, { duration: BLEND_MS, easing: EASE });
+      rise.value = 0;
+      rise.value = withTiming(1, { duration: fade, easing: EASE });
+      return;
+    }
+    const clear = () => {
+      if (!showingRef.current) setHeld(null);
+    };
+    shown.value = withTiming(0, { duration: reduced ? DUR.reduced : OVERLAY.out, easing: EASE }, (done) => {
+      if (done) scheduleOnRN(clear);
+    });
+  }, [showing, heldPhase, reduced, shown, blend, rise]);
+
+  const fromP = PALETTES[held?.from ?? 'white'];
+  const toP = PALETTES[themeOf(heldPhase ?? 'A')];
+  const box = useAnimatedStyle(() => ({
+    opacity: shown.value,
+    backgroundColor: interpolateColor(blend.value, [0, 1], [fromP.bg, toP.bg]),
+  }));
+  const ink = useAnimatedStyle(() => ({ color: interpolateColor(blend.value, [0, 1], [fromP.ink, toP.ink]) }));
+  const words = useAnimatedStyle(() => ({
+    opacity: rise.value,
+    transform: [{ translateY: reduced ? 0 : (1 - rise.value) * 8 }],
+  }));
+
+  if (!held) return null;
+  const skippable = showing && !!held.tip;
   return (
-    <View accessibilityLiveRegion="assertive" style={[StyleSheet.absoluteFill, s.center, { backgroundColor: p.bg, gap: S.sm }]}>
-      <Text accessibilityRole="header" style={[T.h1Serif, { color: p.ink }]}>
-        {phaseName(overlay.phase, levelCheck)}
-      </Text>
-      <Text style={[T.hero, { color: p.ink }]}>{fmtDuration(overlay.remaining * 1000)}</Text>
-    </View>
+    <Animated.View pointerEvents={showing ? 'auto' : 'none'} style={[StyleSheet.absoluteFill, box]}>
+      <StatusBar style={themeOf(held.overlay.phase) === 'dark' ? 'light' : 'dark'} />
+      <Pressable
+        accessibilityLiveRegion="assertive"
+        accessibilityRole={skippable ? 'button' : undefined}
+        disabled={!skippable}
+        onPress={onSkip}
+        style={[s.center, { flex: 1, padding: S.lg }]}
+      >
+        <Animated.View style={[s.center, { gap: S.sm, maxWidth: 412 }, words]}>
+          <Animated.Text accessibilityRole="header" style={[T.h1Serif, ink]}>
+            {phaseName(held.overlay.phase, held.levelCheck)}
+          </Animated.Text>
+          <Animated.Text style={[T.hero, ink]}>{fmtDuration(held.overlay.remaining * 1000)}</Animated.Text>
+          {held.tip ? <Animated.Text style={[T.body, { textAlign: 'center', marginTop: S.sm }, ink]}>{held.tip}</Animated.Text> : null}
+        </Animated.View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -67,11 +156,14 @@ function Entry({ kind, e }: { kind: string; e: ModalEntry }) {
 export function CoachModal({
   modal,
   note,
+  tip,
   onClose,
 }: {
   modal: CoachModalView | null;
   /** 코치 안내 한 문장 */
   note?: string;
+  /** 모달 아래 한 줄 처음 안내(갭분석 3.1-7) */
+  tip?: string | null;
   onClose: () => void;
 }) {
   return (
@@ -83,6 +175,7 @@ export function CoachModal({
             {modal?.words.map((w) => <Entry key={w.en} kind={t.word} e={w} />)}
             <Button title={t.close} onPress={onClose} style={{ marginTop: S.xs }} />
           </CoachNote>
+          {tip ? <Text style={[T.small, { color: PALETTES.dark.ink, textAlign: 'center', marginTop: S.md }]}>{tip}</Text> : null}
         </View>
       </View>
     </Modal>

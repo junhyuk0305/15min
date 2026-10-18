@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 import { ErrorLine } from '@/components/ErrorLine';
 import { CoachModal, themeOf } from '@/components/learn/parts';
 import { LearnShell } from '@/components/learn/LearnShell';
@@ -8,10 +9,13 @@ import { useSurface } from '@/components/surface';
 import { TextButton } from '@/components/TextButton';
 import { Body, Button, Label } from '@/components/ui';
 import { copy } from '@/lib/copy';
-import { FEEDBACK_MS, quizModalOf, quizStep, type CoachModalView } from '@/lib/learn';
+import * as haptics from '@/lib/haptics';
+import { FEEDBACK_MS, quizModalOf, quizStep, revealedChoice, type CoachModalView } from '@/lib/learn';
 import type { QuizGrade, QuizQuestion } from '@/lib/model';
+import { DUR, EASE } from '@/lib/motion';
 import { useApp } from '@/lib/store';
 import { B, R, S, T } from '@/lib/theme';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 
 const t = copy.learn;
 
@@ -22,6 +26,8 @@ type Failure = 'next' | 'grade' | 'skip';
  * 정답과 설명은 가린 채 먼저 답한다. 첫 오답이면 서버가 정답을 감추고(answer_en 빈 값) 한 번 더 받는다.
  * 그때 다시 답하거나, 설명을 보거나(상황 적용만), 정답을 본다(skip). 두 번째 오답이나 정답 보기면 정답을 보이고
  * 사용자가 다음 문제 보기를 누른다. 맞으면 잠깐 안내하고 다음 문항. 첫날 A는 수준 확인이다.
+ * 피드백(갭분석 F3, M18, V6): 고른 보기는 검정 바탕. 정답은 체크가 튀고 success 햅틱, 오답은 고른 보기 테두리 빨강과 흔들림, error 햅틱.
+ * 정답을 보이면 정답 보기에 검정 테두리. 줄인 움직임이면 색만 바뀐다.
  */
 export function QuizPanel({
   phase,
@@ -46,6 +52,8 @@ export function QuizPanel({
   /** 'next': 문항을 못 받음, 'grade': 채점을 못 받음, 'skip': 정답을 못 받음 */
   const [failure, setFailure] = useState<Failure | null>(null);
   const [netFail, setNetFail] = useState(false);
+  /** 틀린 답. 뜻 고르기면 고른 보기 번호(index), n은 틀릴 때마다 늘어 흔들림을 다시 시작한다 */
+  const [wrong, setWrong] = useState<{ index: number | null; n: number } | null>(null);
   const advance = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 상황 적용 문항의 상대 대사는 AI가 쓴다. 길게 누르기와 헤더 "⋯"로 신고한다(Play AI 생성 콘텐츠 정책, UXP 3절)
   const { open: openMenu, setLatest } = menu;
@@ -79,6 +87,7 @@ export function QuizPanel({
     setGrade(null);
     setAttempts(0);
     setAided(false);
+    setWrong(null);
     onLevelCheck?.(r.value.levelCheck);
   }, [phase, request, fail, onLevelCheck]);
 
@@ -117,6 +126,11 @@ export function QuizPanel({
     if (!r.ok) return fail('grade');
     fail(null);
     setAttempts(attempts + 1);
+    if (r.value.correct) haptics.success();
+    else {
+      haptics.error();
+      setWrong((w) => ({ index: q.type === 'meaning_choice' ? choice : null, n: (w?.n ?? 0) + 1 }));
+    }
     show(r.value);
   };
 
@@ -205,8 +219,11 @@ export function QuizPanel({
           q={q}
           choice={choice}
           locked={busy || settled}
+          wrong={wrong}
+          right={step === 'revealed' ? revealedChoice(q.choices, grade?.feedback ?? '') : -1}
           onChoose={(i) => {
             touch();
+            haptics.select();
             setChoice(i);
           }}
           onLongPress={situation ? () => openMenu(situation) : undefined}
@@ -214,7 +231,7 @@ export function QuizPanel({
       ) : busy ? (
         <Body muted>{t.preparing}</Body>
       ) : null}
-      {grade ? <Feedback grade={grade} /> : null}
+      {grade ? <Feedback grade={grade} shakeKey={q?.type !== 'meaning_choice' && wrong ? wrong.n : 0} /> : null}
       <CoachModal
         modal={explain}
         onClose={() => {
@@ -229,12 +246,17 @@ export function QuizPanel({
 function Question({
   q,
   choice,
+  wrong,
+  right,
   locked,
   onChoose,
   onLongPress,
 }: {
   q: QuizQuestion;
   choice: number | null;
+  wrong: { index: number | null; n: number } | null;
+  /** 정답을 보였을 때 정답 보기 번호. 없으면 -1 */
+  right: number;
   locked: boolean;
   onChoose: (i: number) => void;
   /** 상황 적용 문항만. 상대 대사를 AI가 써서 신고할 수 있어야 한다(Play AI 생성 콘텐츠 정책). 나머지 유형은 서버가 만든 글이다 */
@@ -250,28 +272,31 @@ function Question({
       </Pressable>
       {rest.join('\n').trim() ? <Text style={[T.body, { color: p.sub }]}>{rest.join('\n').trim()}</Text> : null}
       {q.choices?.map((c, i) => {
-        const on = choice === i;
+        // 틀린 보기는 빨강 테두리가 고른 상태보다 앞선다. 정답 보기는 검정 테두리
+        const missed = wrong?.index === i;
+        const on = choice === i && !missed;
         return (
-          <Pressable
-            key={`${i}:${c}`}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: on, disabled: locked }}
-            accessibilityLabel={`${t.choiceLabel(i + 1)} ${c}`}
-            disabled={locked}
-            onPress={() => onChoose(i)}
-            style={{
-              minHeight: 48,
-              justifyContent: 'center',
-              borderWidth: B.base,
-              borderRadius: R.md,
-              paddingHorizontal: 12,
-              paddingVertical: 9,
-              borderColor: on ? p.ink : p.line,
-              backgroundColor: on ? p.card : 'transparent',
-            }}
-          >
-            <Text style={[T.body, { color: p.ink }]}>{c}</Text>
-          </Pressable>
+          <Shake key={`${i}:${c}`} shakeKey={missed ? wrong.n : 0}>
+            <Pressable
+              accessibilityRole="radio"
+              accessibilityState={{ selected: choice === i, disabled: locked }}
+              accessibilityLabel={`${t.choiceLabel(i + 1)} ${c}`}
+              disabled={locked}
+              onPress={() => onChoose(i)}
+              style={{
+                minHeight: 48,
+                justifyContent: 'center',
+                borderWidth: missed || right === i ? 2 : B.base,
+                borderRadius: R.md,
+                paddingHorizontal: 12,
+                paddingVertical: 9,
+                borderColor: missed ? p.redText : on || right === i ? p.ink : p.line,
+                backgroundColor: on ? p.ink : 'transparent',
+              }}
+            >
+              <Text style={[T.body, { color: on ? p.onInk : p.ink }]}>{c}</Text>
+            </Pressable>
+          </Shake>
         );
       })}
     </View>
@@ -299,11 +324,43 @@ function AnswerInput({ value, onChange, onSubmit, editable }: { value: string; o
   );
 }
 
-function Feedback({ grade }: { grade: QuizGrade }) {
+/** 가로 흔들림 1회 240ms(갭분석 M18). shakeKey가 0보다 크고 바뀔 때마다 한 번. 줄인 움직임이면 흔들지 않는다 */
+function Shake({ shakeKey, children }: { shakeKey: number; children: ReactNode }) {
+  const reduced = useReducedMotion();
+  const x = useSharedValue(0);
+  useEffect(() => {
+    if (!shakeKey || reduced) return;
+    x.value = withSequence(withTiming(-6, { duration: 40 }), withTiming(6, { duration: 60 }), withTiming(-4, { duration: 60 }), withTiming(0, { duration: 80 }));
+  }, [shakeKey, reduced, x]);
+  const style = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
+  return <Animated.View style={style}>{children}</Animated.View>;
+}
+
+/** 정답 체크. 크기 0.8에서 1로 튄다(갭분석 F3). 줄인 움직임이면 바로 1 */
+function CheckMark({ color }: { color: string }) {
+  const reduced = useReducedMotion();
+  const k = useSharedValue(reduced ? 1 : 0.8);
+  useEffect(() => {
+    if (!reduced) k.value = withSequence(withTiming(1.08, { duration: DUR.fast, easing: EASE }), withTiming(1, { duration: DUR.fast - 40 }));
+  }, [reduced, k]);
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: k.value }] }));
+  return (
+    <Animated.View accessible={false} importantForAccessibility="no-hide-descendants" style={[{ width: 24, height: 24, alignItems: 'center', justifyContent: 'center' }, style]}>
+      <View style={{ width: 9, height: 16, borderRightWidth: 3, borderBottomWidth: 3, borderColor: color, transform: [{ translateY: -2 }, { rotate: '45deg' }] }} />
+    </Animated.View>
+  );
+}
+
+function Feedback({ grade, shakeKey }: { grade: QuizGrade; shakeKey: number }) {
   const { p } = useSurface();
   return (
     <View accessibilityLiveRegion="polite" style={{ gap: S.xs, borderTopWidth: B.hair, borderTopColor: p.line, paddingTop: S.md }}>
-      <Text style={[T.h2, { color: grade.correct ? p.ink : p.redText }]}>{grade.correct ? t.right : t.wrong}</Text>
+      <Shake shakeKey={shakeKey}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: S.xs }}>
+          {grade.correct ? <CheckMark color={p.ink} /> : null}
+          <Text style={[T.h2, { color: grade.correct ? p.ink : p.redText }]}>{grade.correct ? t.right : t.wrong}</Text>
+        </View>
+      </Shake>
       {grade.feedback ? <Body>{grade.feedback}</Body> : null}
     </View>
   );

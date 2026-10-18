@@ -6,8 +6,13 @@ import { isIdle, phaseAt, phaseBounds, RETRO_SECONDS, type DayRow, type Phase } 
 
 /** 진행 저장 간격(초). 나갈 때도 바로 저장한다 */
 export const SAVE_EVERY = 5;
-/** 단계가 바뀔 때 다음 단계 이름과 남은 시간을 보여 주는 시간 */
-export const OVERLAY_MS = 1000;
+/**
+ * 단계 전환 안내(갭분석 M4). 들어옴 250, 유지 1000, 나감 250(ms).
+ * 그 단계를 처음 안내하는 한 줄(phaseTipId)이 붙으면 유지가 2000이다(갭분석 3.1-6, 9).
+ */
+export const OVERLAY = { in: 250, hold: 1000, holdFirst: 2000, out: 250 } as const;
+/** 안내를 띄우고 다음 단계로 바꾸기까지(들어옴 + 유지). 바꾼 뒤 OVERLAY.out 동안 안내가 흐려지며 사라진다 */
+export const overlayMs = (firstVisit: boolean) => OVERLAY.in + (firstVisit ? OVERLAY.holdFirst : OVERLAY.hold);
 /** 복습 정답 안내를 보여 주고 다음 문항으로 넘어가기까지 */
 export const FEEDBACK_MS = 1200;
 /** 연결이 끊겼을 때 다시 확인하는 간격 */
@@ -31,14 +36,16 @@ export type ClockGates = {
   offline: boolean;
   /** 응답 실패 안내가 떠 있다 */
   failed: boolean;
-  /** 단계 전환 안내가 떠 있다 */
+  /** 시트나 메뉴가 떠 있다 */
   overlay: boolean;
+  /** 처음 안내가 떠 있다(첫 학습 규칙 모달 등, UXP 3절 "처음 안내") */
+  tip: boolean;
   /** 한도 초과처럼 학습을 이어 갈 수 없다 */
   blocked: boolean;
 };
 
 export function clockRunning(g: ClockGates): boolean {
-  return g.appActive && g.focused && !g.waiting && !g.revealing && !g.offline && !g.failed && !g.overlay && !g.blocked;
+  return g.appActive && g.focused && !g.waiting && !g.revealing && !g.offline && !g.failed && !g.overlay && !g.tip && !g.blocked;
 }
 
 /**
@@ -132,6 +139,36 @@ export function phaseRemaining(phase: Phase, secs: number, targetMinutes: number
   return Math.max(0, RETRO_SECONDS - retroSeconds);
 }
 
+/** 학습 머리의 단계 남은 시간 "4:33"(갭분석 V5). 분은 앞에 0을 붙이지 않는다 */
+export const fmtLeft = (seconds: number) => {
+  const s = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
+
+export type BarCell = { phase: Phase; share: number; fill: number; state: 'done' | 'now' | 'next' };
+
+/**
+ * 학습 머리 진행 막대(갭분석 V5). A, B, C, 회고 칸의 길이는 phasePlan 비율이다.
+ * fill은 그 칸에 남은 비율이다. 지난 칸은 0, 앞으로 올 칸은 1. 회고 화면이면 retroSeconds를 넘긴다.
+ */
+export function phaseBar(targetMinutes: number, secs: number, retroSeconds?: number): BarCell[] {
+  const plan = phasePlan(targetMinutes);
+  const sum = plan.reduce((n, p) => n + p.seconds, 0);
+  const current: Phase = retroSeconds === undefined ? phaseAt(secs, targetMinutes) : 'retro';
+  const at = plan.findIndex((p) => p.phase === current);
+  return plan.map((p, i) => ({
+    phase: p.phase,
+    share: sum ? p.seconds / sum : 0,
+    fill: i < at ? 0 : i > at || !p.seconds ? 1 : phaseRemaining(p.phase, secs, targetMinutes, retroSeconds ?? 0) / p.seconds,
+    state: i < at ? 'done' : i === at ? 'now' : 'next',
+  }));
+}
+
+/** 그 단계에 처음 들어갈 때 전환 안내에 붙이는 한 줄의 처음 안내 id(갭분석 3.1-6, 9). A는 진행 막대가 대신한다(3.1-5) */
+export function phaseTipId(phase: Phase): 'phase-b' | 'phase-c' | null {
+  return phase === 'B' ? 'phase-b' : phase === 'C' ? 'phase-c' : null;
+}
+
 /** 학습 나가기 시트의 "남은 N분". 남은 초를 분으로 올림한다. 독촉 알림의 남은 분(plan.ts)처럼 0분이 되면 1분으로 보인다 */
 export const leftMinutes = (seconds: number) => Math.max(1, Math.ceil(seconds / 60));
 
@@ -162,6 +199,14 @@ export function overlayFor(shown: Phase | null, secs: number, targetMinutes: num
 export function quizStep(grade: Pick<QuizGrade, 'correct' | 'answerEn'>): 'right' | 'retry' | 'revealed' {
   if (grade.correct) return 'right';
   return grade.answerEn === '' ? 'retry' : 'revealed';
+}
+
+/**
+ * 뜻 고르기에서 정답을 보였을 때 정답 보기의 번호(갭분석 F3 "정답 보기에 검정 테두리"). 없으면 -1.
+ * 서버는 정답 번호를 주지 않고 채점 문장 'QUIZ_COPY.wrong'에 정답 뜻을 따옴표로 넣는다(review-quiz handler).
+ */
+export function revealedChoice(choices: readonly string[] | undefined, feedback: string): number {
+  return choices?.findIndex((c) => feedback.includes(`"${c}"`)) ?? -1;
 }
 
 // ---------- 회고 ----------
