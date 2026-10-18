@@ -26,11 +26,11 @@ export default function Done() {
         <View style={{ flexDirection: 'row', gap: S.lg }}>
           <View>
             <Label>{copy.home.total}</Label>
-            <Text style={T.big}>{`${total.toLocaleString()}분`}</Text>
+            <Text style={T.big}>{copy.unit.minutes(total)}</Text>
           </View>
           <View>
             <Label>{copy.home.streakLabel}</Label>
-            <Text style={T.big}>{`${streak}일`}</Text>
+            <Text style={T.big}>{copy.unit.days(streak)}</Text>
           </View>
         </View>
         {earned === '1' ? <Body>{t.couponEarned}</Body> : null}

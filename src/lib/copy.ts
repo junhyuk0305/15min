@@ -20,6 +20,13 @@ export type NagMaterial = {
 export const copy = {
   appName: '그래고',
 
+  // 숫자와 단위는 붙여 쓴다. 15분, 3장, 7일.
+  unit: {
+    minutes: (n: number) => `${n.toLocaleString()}분`,
+    days: (n: number) => `${n}일`,
+    sheets: (n: number) => `${n}장`,
+  },
+
   onboarding: {
     hookTitle: '하루 15분',
     hookRows: [
@@ -35,11 +42,11 @@ export const copy = {
     goalTitle: '무엇을 해내실 겁니까?',
     scheduleTitle: '매일 언제, 몇 분 하시겠습니까?',
     scheduleNote: '매일 합니다. 쉬는 요일은 없습니다.',
-    methodTitle: 'AI 코치와 대화하며 미션을 해결합니다.',
+    methodTitle: '코치와 영어로 대화하며 배웁니다.',
     methodSub: '100자를 넘겨야 보낼 수 있습니다. 생각하는 시간만 차감됩니다.',
     warnTitle: '명심하십시오.',
     warnBody: '약속한 시간에 오지 않으면 1분마다 연락합니다. 최대 1시간 동안.',
-    warnCoupon: '예외 쿠폰은 3장뿐입니다. 이후에는 연속으로 해내야 받습니다.',
+    warnCoupon: '쿠폰은 3장뿐입니다. 이후에는 연속으로 해내야 받습니다.',
     warnAgree: '동의하고 알림 켜기',
     permissionDenied: '알림이 꺼져 있으면 시작할 수 없습니다.',
     openSettings: '설정 열기',
@@ -50,7 +57,7 @@ export const copy = {
   goalForm: {
     nameLabel: '목표',
     namePlaceholder: '예: 영어 이메일을 막힘없이 쓰기',
-    reasonLabel: '나의 이유',
+    reasonLabel: '처음 이유',
     reasonPlaceholder: '왜 이걸 하려고 합니까? 나중에 이 문장을 다시 보게 됩니다.',
     reasonLocked: '처음 쓴 이유는 바꿀 수 없습니다.',
     startLabel: '매일 시작',
@@ -114,11 +121,11 @@ export const copy = {
     idleBody: '입력이 없는 동안 시간이 멈춰 있습니다.',
     idleContinue: '계속하기',
     filled: '오늘의 시간을 채웠습니다.',
-    toReview: '소감 쓰기',
-    stubNote: 'AI 연결 전 시험용 응답입니다.',
+    toReview: '회고하기',
+    stubNote: '연결 전 시험용 응답입니다.',
     reviewTitle: '오늘 무엇을 느끼셨습니까?',
     reviewSub: '이 문장은 언젠가 당신에게 돌아갑니다.',
-    reviewPlaceholder: '오늘의 소감을 쓰십시오.',
+    reviewPlaceholder: '오늘의 회고를 쓰십시오.',
     finish: '완료',
     doneTitle: (m: number) => `오늘 ${m}분 채웠습니다.`,
     doneShake: '내일도 하실 수 있겠습니까?',
@@ -128,7 +135,7 @@ export const copy = {
   },
 
   coupon: {
-    title: '예외 쿠폰',
+    title: '쿠폰',
     left: (n: number) => `${n}장 남음`,
     next: (d: number) => `다음 쿠폰까지 ${d}일 연속`,
     warn: '쓰면 연속이 0일로 돌아갑니다.',
@@ -167,23 +174,16 @@ export const copy = {
     deleted: '목표와 기록이 삭제되었습니다.',
   },
 
-  tabs: { home: '홈', bots: '코치', archive: '기록', settings: '설정' },
+  tabs: { home: '홈', archive: '기록', settings: '설정' },
 
   bots: {
-    title: '코치',
-    builtin: '기본',
-    mine: '내 코치',
-    mineEmpty: '직접 만든 코치가 없습니다.',
     minChars: (n: number) => `최소 ${n}자`,
-    add: '새 코치',
-    name: '이름',
-    role: '역할',
-    rolePlaceholder: '예: 나는 면접관이다. 영어 면접 질문을 하나씩 하고 답을 고쳐 준다.',
-    opening: '첫 메시지',
-    openingPlaceholder: '코치가 처음 건넬 말',
-    min: '최소 글자 수',
-    save: '저장',
-    remove: '삭제',
+    builtinNames: {
+      email: '비즈니스 이메일',
+      freetalk: '원어민 프리토킹',
+      summary: 'IT 기사 3문장 요약',
+      vocab: '필수 영단어 퀴즈',
+    },
   },
 
   archive: {
@@ -195,7 +195,7 @@ export const copy = {
     minutes: (m: number) => `${m}분`,
     chars: (n: number) => `${n.toLocaleString()}자`,
     reason: '오늘의 이유',
-    review: '소감',
+    review: '회고',
     chat: '대화',
     achieved: '달성한 목표',
   },
@@ -216,6 +216,13 @@ export const copy = {
     saved: '저장됨',
     giveup: '포기',
     dev: '개발용 시간 이동',
+    devStatus: (now: string, count: number, next: string | null) =>
+      `지금 ${now}   예약 알림 ${count}개${next ? `   다음 ${next}` : ''}`,
+    devPlus10Min: '+10분',
+    devPlus1Hour: '+1시간',
+    devPlus1Day: '+1일',
+    devPlus30Days: '+30일',
+    devReset: '시간 되돌리기',
   },
 
   error: {
@@ -224,6 +231,7 @@ export const copy = {
 
   notify: {
     title: '그래고',
+    channel: '독촉',
     pre: (m: number) => `30분 뒤 시작입니다. 오늘의 ${m}분을 준비하십시오.`,
     devil: [
       '오늘은 쉬셔도 됩니다. 원래 그러셨잖아요.',

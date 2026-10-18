@@ -19,8 +19,8 @@ export default function Achieve() {
     return (
       <Screen footer={<Button title={t.next} onPress={() => router.replace('/goal/new')} />}>
         <View style={{ flex: 1, justifyContent: 'center', gap: S.lg, minHeight: 420 }}>
-          <Text style={T.hero}>{`${done.days}일`}</Text>
-          <Text style={T.big}>{`${done.total.toLocaleString()}분`}</Text>
+          <Text style={T.hero}>{copy.unit.days(done.days)}</Text>
+          <Text style={T.big}>{copy.unit.minutes(done.total)}</Text>
           <H1>{t.doneTitle(done.days)}</H1>
           <Text style={T.h2}>{t.doneShake}</Text>
         </View>
@@ -63,11 +63,11 @@ export default function Achieve() {
         </View>
         <View>
           <Label>{t.elapsed}</Label>
-          <Text style={T.big}>{`${days}일`}</Text>
+          <Text style={T.big}>{copy.unit.days(days)}</Text>
         </View>
         <View>
           <Label>{t.total}</Label>
-          <Text style={T.big}>{`${total.toLocaleString()}분`}</Text>
+          <Text style={T.big}>{copy.unit.minutes(total)}</Text>
         </View>
         <View>
           <Label>{t.reason}</Label>

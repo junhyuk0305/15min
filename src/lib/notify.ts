@@ -19,7 +19,7 @@ export async function setupNotifications() {
   });
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync(CHANNEL, {
-      name: '독촉',
+      name: copy.notify.channel,
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 400, 200, 400],
     });

@@ -105,7 +105,7 @@ export default function Home() {
       middle = (
         <>
           <Label>{h.doneTitle}</Label>
-          <Big hero>{`${Math.floor(rec!.activeSeconds / 60)}분`}</Big>
+          <Big hero>{copy.unit.minutes(Math.floor(rec!.activeSeconds / 60))}</Big>
           <Body>{h.doneBody}</Body>
         </>
       );
@@ -147,7 +147,7 @@ export default function Home() {
 
       <View style={{ gap: S.xs }}>
         <Text style={[T.label, { color: sub }]}>{h.total}</Text>
-        <Text style={[T.hero, { color: ink }]}>{`${total.toLocaleString()}분`}</Text>
+        <Text style={[T.hero, { color: ink }]}>{copy.unit.minutes(total)}</Text>
         <Gauge ratio={ms.ratio} inverse={red} />
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
           <Text style={[T.small, { color: sub }]}>{h.milestone(ms.next - total, ms.next)}</Text>

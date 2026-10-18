@@ -16,7 +16,6 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: copy.tabs.home }} />
-      <Tabs.Screen name="bots" options={{ title: copy.tabs.bots }} />
       <Tabs.Screen name="archive" options={{ title: copy.tabs.archive }} />
       <Tabs.Screen name="settings" options={{ title: copy.tabs.settings }} />
     </Tabs>

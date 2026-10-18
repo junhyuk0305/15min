@@ -57,7 +57,7 @@ export function ScheduleFields({
       />
       <Stepper
         label={copy.goalForm.minutesLabel}
-        display={`${targetMinutes}분`}
+        display={copy.unit.minutes(targetMinutes)}
         onMinus={() => onChange({ startMinutes, targetMinutes: Math.max(MIN_TARGET, targetMinutes - 1) })}
         onPlus={() => onChange({ startMinutes, targetMinutes: Math.min(MAX_TARGET, targetMinutes + 1) })}
       />
