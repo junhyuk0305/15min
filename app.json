@@ -61,6 +61,12 @@
         }
       ]
     ],
-    "scheme": "timebulldog"
+    "scheme": "timebulldog",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1f231b9e-4033-4310-a5d2-a16be9ec40f1"
+      }
+    }
   }
 }
