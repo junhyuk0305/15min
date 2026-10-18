@@ -163,7 +163,8 @@ def latest_otp(email: str, after: float = 0, timeout: float = 30) -> str:
     raise TimeoutError(f'OTP for {email} not found')
 
 
-def new_context(browser, session: dict | None = None, onboarded: bool = True, tips: bool = TIPS_SEEN):
+def new_context(browser, session: dict | None = None, onboarded: bool = True, tips: bool | list[str] = TIPS_SEEN):
+    """tips: True면 처음 안내를 모두 본 것으로, 목록이면 그 id만 본 것으로 넣는다"""
     ctx = browser.new_context(viewport=VIEWPORT, timezone_id=BROWSER_TZ, locale='ko-KR', device_scale_factor=1, reduced_motion='reduce')
     seed = {}
     if session is not None:
@@ -171,7 +172,7 @@ def new_context(browser, session: dict | None = None, onboarded: bool = True, ti
     if onboarded:
         seed[CACHE_KEY] = json.dumps({'state': {'onboarded': True}, 'version': 0})
     if tips:
-        seed[TIPS_KEY] = json.dumps({'state': {'seenTips': TIP_IDS}, 'version': 0})
+        seed[TIPS_KEY] = json.dumps({'state': {'seenTips': TIP_IDS if tips is True else list(tips)}, 'version': 0})
     if seed:
         # 첫 로드에만 넣는다. 새로고침(강제 종료 흉내)은 앱이 저장한 값을 그대로 쓴다.
         ctx.add_init_script(f"""
@@ -186,7 +187,7 @@ def new_context(browser, session: dict | None = None, onboarded: bool = True, ti
     return ctx
 
 
-def open_app(browser, session: dict | None = None, path: str = '/', onboarded: bool = True, tips: bool = TIPS_SEEN):
+def open_app(browser, session: dict | None = None, path: str = '/', onboarded: bool = True, tips: bool | list[str] = TIPS_SEEN):
     ctx = new_context(browser, session, onboarded, tips)
     page = ctx.new_page()
     page.console_errors = []  # type: ignore[attr-defined]

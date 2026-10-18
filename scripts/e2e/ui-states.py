@@ -836,7 +836,7 @@ def goal_new(b):
     pg.goto(lib.BASE + '/goal/new'); pg.wait_for_timeout(5000)
     capture(pg, 'goal-new-normal-confirm')
     lib.fail_server(pg, '/rest/v1/rpc/create_goal')
-    pg.get_by_role('button').filter(has_text='시작').last.click(); pg.wait_for_timeout(2500)
+    pg.get_by_role('button', name='목표 만들기').last.click(); pg.wait_for_timeout(2500)  # U9 D3: '시작하기' → '목표 만들기'
     capture(pg, 'goal-new-error-create', '만들기 500')
     ctx.close()
 
@@ -856,6 +856,19 @@ def tips(b):
     LEARN.day(g, 0, 'progress', 30, reason='처음이라 긴장되지만 오늘부터 시작해 보려고 합니다', phase='A', started_min=30, target=10)
     ctx, pg = page(b, LEARN, '/session/learn', 6000, ctx_kw={'tips': False})
     capture(pg, 'tips-first-rules', '첫 학습 규칙 모달')
+    ctx.close()
+    # 첫 B 전환 한 줄(U9 D1)과 첫 코치 모달 한 줄(U9 D11): 이 둘만 안 본 것으로 넣는다
+    learn_setup(200)
+    seen = [t for t in lib.TIP_IDS if t not in ('phase-b', 'coach-modal')]
+    ctx, pg = page(b, LEARN, None, ctx_kw={'tips': False})
+    pg.add_init_script("localStorage.setItem('graego-tips-v1', %s)" % json.dumps(json.dumps({'state': {'seenTips': seen}, 'version': 0})))
+    pg.goto(lib.BASE + '/session/learn')
+    pg.get_by_text('상대와 영어로 대화합니다', exact=False).first.wait_for(timeout=20000)
+    capture(pg, 'tips-phase-b', '첫 B 전환 한 줄', wait=500)
+    pg.wait_for_timeout(6000)
+    pg.locator('textarea').last.fill('I want order a large latte.')
+    click(pg, '보내기', wait=3500)
+    capture(pg, 'tips-coach-modal', '첫 코치 모달 한 줄')
     ctx.close()
 
 
@@ -882,6 +895,11 @@ def onboarding(b):
 def auth(b):
     ctx, pg = page(b, None, '/auth', 4000)
     capture(pg, 'auth-normal-email-blank', '입력 전(비활성 이유)')
+    # U9 D7: 형식 오류 빨강은 칸을 벗어난 뒤에만
+    pg.get_by_label('이메일').fill('ui-qa-new@graego')
+    capture(pg, 'auth-normal-email-typing', '형식 틀림, 쓰는 중(빨강 없음)', wait=300)
+    pg.get_by_label('이메일').press('Tab')
+    capture(pg, 'auth-error-email', '형식 틀림, 칸을 벗어난 뒤', wait=300)
     pg.get_by_label('이메일').fill('ui-qa-new@graego.local')
     agree_all(pg)
     capture(pg, 'auth-normal-email', '입력 후')

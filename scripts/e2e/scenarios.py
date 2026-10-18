@@ -17,7 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lib import (  # noqa: E402
-    APP, ROOT, clear_deleted, has, latest_otp, make_goal, make_user, new_context, now_minutes, open_app,
+    APP, ROOT, TIP_IDS, clear_deleted, has, latest_otp, make_goal, make_user, new_context, now_minutes, open_app,
     session_for, settle, shot, sql, sql1, text, today, wait_text,
 )
 from playwright.sync_api import sync_playwright  # noqa: E402
@@ -145,7 +145,8 @@ def s2(b, c: Check):
     first = body.split('시작까지')[1].split('\n')[1] if '시작까지' in body else ''
     page.wait_for_timeout(2200)
     second = text(page).split('시작까지')[1].split('\n')[1] if '시작까지' in text(page) else ''
-    c.ok('카운트다운이 줄어듦', first != second and ':' in first, f'{first} → {second}')
+    # U9 D10: 1시간 미만은 "59분 49초"(시각과 헷갈리는 "59:49" 대신)
+    c.ok('카운트다운이 줄어듦', first != second and re.fullmatch(r'\d+분 \d+초', first) is not None, f'{first} → {second}')
     c.shot(page, '대기')
     n = sql1(f"select count(*) from public.days where user_id = '{uid}';")
     c.ok('DB days 없음', n == '0', f'days={n}')
@@ -686,7 +687,33 @@ def s17(b, c: Check):
     ctx.close()
 
 
+# ───────── T1: 길게 누르기 안내를 안 본 기기에서도 학습 시계가 돈다 ─────────
+# 3b892f2 회귀(A·C 시계가 영영 멈춤)를 막는다. S1~S17은 안내를 모두 본 것으로 넣어 이 길을 타지 않는다.
+def t1(b, c: Check):
+    email, uid, gid = user_with_goal('T1', -1)
+    seen = [t for t in TIP_IDS if t != 'report-longpress']
+    ctx, page = open_app(b, session_for(email), tips=seen)
+    start_today(page, '출장 전에 카페 주문 한 문장이라도 더 말해 보려고 합니다.')
+    settle(page, 3000)
+    a = []
+    for _ in range(3):
+        a.append(remaining(page))
+        page.wait_for_timeout(2500)
+    c.ok('A: 안내를 안 봐도 시계가 줄어든다', len(set(a)) == 3 and '' not in a, ' → '.join(a))
+    sql(f"update public.days set session_started_at = now() - interval '3 minutes', active_seconds = 150, phase = 'B' where goal_id = '{gid}' and day = app_private.day_key(now(), 'Asia/Seoul');")
+    page.reload()
+    on, off = [], []
+    for _ in range(30):
+        (on if has(page, '길게 눌러') else off).append(remaining(page))
+        page.wait_for_timeout(500)
+    c.ok('B: 말풍선이 떠 있는 동안 시계가 멈춘다', len(on) >= 2 and len(set(x for x in on if x)) == 1, ' / '.join(on))
+    c.ok('B: 말풍선이 닫힌 뒤 시계가 다시 준다', len(set(x for x in off[-6:] if x)) >= 2, ' / '.join(off[-6:]))
+    c.shot(page, 'B말풍선뒤')
+    ctx.close()
+
+
 ALL = {f'S{i}': f for i, f in enumerate([s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14, s15, s16, s17], start=1)}
+ALL['T1'] = t1
 
 
 def main():
