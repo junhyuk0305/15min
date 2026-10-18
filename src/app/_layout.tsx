@@ -5,8 +5,9 @@ import { AppState, Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { applyPlan, getPermission, onNotificationTap, setupNotifications } from '@/lib/notify';
 import { buildPlan } from '@/lib/plan';
+import { dayKeyOf } from '@/lib/rules';
 import { useRuntime } from '@/lib/runtime';
-import { activeGoalOf, lastEndedGoal, nowMs, useApp } from '@/lib/store';
+import { activeGoalOf, deviceTz, keyOf, lastEndedGoal, lastRetroOf, nowMs, recordsOf, useApp } from '@/lib/store';
 import { C, FRAME_MAX } from '@/lib/theme';
 
 function useHydrated() {
@@ -20,11 +21,16 @@ function replan() {
   if (useRuntime.getState().inSession) return;
   const s = useApp.getState();
   const goal = activeGoalOf(s);
+  const now = nowMs();
   const plan = buildPlan({
     goal,
     lastGoal: goal ? null : lastEndedGoal(s),
-    records: Object.values(s.records),
-    now: nowMs(),
+    days: goal ? recordsOf(s, goal.id) : [],
+    leftAt: goal ? (s.records[keyOf(goal.id, dayKeyOf(now, deviceTz))]?.leftAt ?? null) : null,
+    lastRetro: goal ? lastRetroOf(s, goal.id) : null,
+    suspension: null,
+    now,
+    timeZone: deviceTz,
   });
   void applyPlan(plan);
 }

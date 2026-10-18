@@ -3,8 +3,8 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { Body, Button, H1, Label, Screen } from '@/components/ui';
 import { copy } from '@/lib/copy';
-import { canAchieve, daysSinceStart, totalMinutes, type Goal } from '@/lib/rules';
-import { activeGoalOf, nowMs, recordsOf, useApp } from '@/lib/store';
+import { canAchieve, dayKeyOf, daysBetween, totalMinutes } from '@/lib/rules';
+import { activeGoalOf, deviceTz, nowMs, recordsOf, useApp, type AppGoal } from '@/lib/store';
 import { S, T } from '@/lib/theme';
 
 const t = copy.achieve;
@@ -13,7 +13,7 @@ export default function Achieve() {
   const state = useApp();
   const goal = activeGoalOf(state);
   // 선언 뒤에는 활성 목표가 사라지므로 달성 화면에 보일 값을 붙잡아 둔다
-  const [done, setDone] = useState<{ goal: Goal; days: number; total: number } | null>(null);
+  const [done, setDone] = useState<{ goal: AppGoal; days: number; total: number } | null>(null);
 
   if (done) {
     return (
@@ -28,7 +28,8 @@ export default function Achieve() {
     );
   }
 
-  if (!goal || !canAchieve(goal, nowMs())) {
+  const today = dayKeyOf(nowMs(), deviceTz);
+  if (!goal || !canAchieve(goal, today)) {
     return (
       <Screen footer={<Button title={t.cancel} kind="secondary" onPress={() => router.back()} />}>
         {null}
@@ -36,12 +37,11 @@ export default function Achieve() {
     );
   }
 
-  const days = daysSinceStart(goal, nowMs());
+  const days = daysBetween(goal.firstDay, today);
   const total = totalMinutes(recordsOf(state, goal.id));
-  const start = new Date(goal.createdAt);
 
   const declare = () => {
-    setDone({ goal, days, total });
+    setDone({ goal, days: goal.periodDays, total });
     state.achieve();
   };
 
@@ -59,7 +59,7 @@ export default function Achieve() {
       <View style={{ gap: S.md }}>
         <View>
           <Label>{t.startDate}</Label>
-          <Text style={T.h2}>{`${start.getFullYear()}.${start.getMonth() + 1}.${start.getDate()}`}</Text>
+          <Text style={T.h2}>{goal.firstDay.replace(/-/g, '.')}</Text>
         </View>
         <View>
           <Label>{t.elapsed}</Label>

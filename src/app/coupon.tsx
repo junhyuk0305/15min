@@ -4,7 +4,7 @@ import { Text, View } from 'react-native';
 import { Body, Button, H1, Screen } from '@/components/ui';
 import { copy } from '@/lib/copy';
 import { dayKeyOf, daysToNextCoupon } from '@/lib/rules';
-import { activeGoalOf, keyOf, nowMs, useApp } from '@/lib/store';
+import { activeGoalOf, deviceTz, keyOf, nowMs, useApp } from '@/lib/store';
 import { S, T } from '@/lib/theme';
 
 const t = copy.coupon;
@@ -14,8 +14,8 @@ export default function Coupon() {
   const goal = activeGoalOf(state);
   const [used, setUsed] = useState(false);
   if (!goal) return null;
-  const rec = state.records[keyOf(goal.id, dayKeyOf(nowMs()))];
-  const closed = rec?.status === 'done' || rec?.status === 'coupon' || goal.giveupSince !== null;
+  const rec = state.records[keyOf(goal.id, dayKeyOf(nowMs(), deviceTz))];
+  const closed = rec?.status === 'done' || rec?.status === 'coupon' || goal.giveupRequestedAt !== null;
 
   if (used) {
     return (

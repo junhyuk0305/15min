@@ -17,9 +17,9 @@ import { Body, Button, Gauge, H1 } from '@/components/ui';
 import { AI_IS_STUB, reply } from '@/lib/ai';
 import { copy } from '@/lib/copy';
 import { clearAll } from '@/lib/notify';
-import { dayKeyOf, fmtDuration, IDLE_MS } from '@/lib/rules';
+import { canSend, dayKeyOf, fmtDuration, isIdle } from '@/lib/rules';
 import { useRuntime } from '@/lib/runtime';
-import { activeGoalOf, findBot, keyOf, nowMs, useApp } from '@/lib/store';
+import { activeGoalOf, deviceTz, findBot, keyOf, nowMs, useApp } from '@/lib/store';
 import { C, S, T } from '@/lib/theme';
 
 const t = copy.session;
@@ -29,7 +29,7 @@ export default function Chat() {
   const insets = useSafeAreaInsets();
   const state = useApp();
   const goal = activeGoalOf(state);
-  const rec = goal ? state.records[keyOf(goal.id, dayKeyOf(nowMs()))] : undefined;
+  const rec = goal ? state.records[keyOf(goal.id, dayKeyOf(nowMs(), deviceTz))] : undefined;
   const bot = findBot(state.customBots, rec?.botId ?? goal?.botId ?? '');
   const setInSession = useRuntime((s) => s.setInSession);
 
@@ -80,7 +80,7 @@ export default function Chat() {
       save();
       const r = useApp.getState();
       const g = activeGoalOf(r);
-      const cur = g ? r.records[keyOf(g.id, dayKeyOf(nowMs()))] : undefined;
+      const cur = g ? r.records[keyOf(g.id, dayKeyOf(nowMs(), deviceTz))] : undefined;
       if (cur?.status === 'progress') r.setLeftAt(nowMs());
       setInSession(false);
     };
@@ -97,7 +97,7 @@ export default function Chat() {
   useEffect(() => {
     const id = setInterval(() => {
       if (!active || filled) return;
-      if (!idle && nowMs() - lastInput.current > IDLE_MS) {
+      if (!idle && isIdle(lastInput.current, nowMs())) {
         setIdle(true);
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         return;
@@ -113,7 +113,7 @@ export default function Chat() {
 
   const send = async () => {
     const body = text.trim();
-    if (body.length < bot.minChars || typing || !rec) return;
+    if (!canSend(body) || typing || !rec) return;
     touch();
     setText('');
     const store = useApp.getState();
@@ -132,7 +132,6 @@ export default function Chat() {
   };
 
   if (!valid || !rec) return null;
-  const n = text.trim().length;
 
   return (
     <KeyboardAvoidingView
@@ -197,12 +196,8 @@ export default function Chat() {
               multiline
               style={{ minHeight: 88, maxHeight: 160, borderWidth: 2, borderColor: C.ink, borderRadius: 12, padding: S.md, fontSize: 16, color: C.ink, backgroundColor: C.card, textAlignVertical: 'top' }}
             />
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: S.md }}>
-              <View style={{ flex: 1, gap: S.xs }}>
-                <Gauge ratio={n / bot.minChars} />
-                <Text style={[T.small, { color: n >= bot.minChars ? C.ink : C.red }]}>{t.charCount(n, bot.minChars)}</Text>
-              </View>
-              <Button title={t.send} onPress={send} disabled={n < bot.minChars || typing} style={{ minWidth: 120 }} />
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+              <Button title={t.send} onPress={send} disabled={!canSend(text) || typing} style={{ minWidth: 120 }} />
             </View>
           </>
         )}

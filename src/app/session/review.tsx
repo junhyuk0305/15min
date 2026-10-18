@@ -5,14 +5,14 @@ import { copy } from '@/lib/copy';
 import { clearAll } from '@/lib/notify';
 import { useRuntime } from '@/lib/runtime';
 import { dayKeyOf, MIN_NOTE_CHARS, noteValid } from '@/lib/rules';
-import { activeGoalOf, keyOf, nowMs, useApp } from '@/lib/store';
+import { activeGoalOf, deviceTz, keyOf, nowMs, useApp } from '@/lib/store';
 
 const t = copy.session;
 
 export default function Review() {
   const state = useApp();
   const goal = activeGoalOf(state);
-  const rec = goal ? state.records[keyOf(goal.id, dayKeyOf(nowMs()))] : undefined;
+  const rec = goal ? state.records[keyOf(goal.id, dayKeyOf(nowMs(), deviceTz))] : undefined;
   const [text, setText] = useState('');
   const filled = !!rec && rec.status === 'progress' && rec.activeSeconds >= rec.targetMinutes * 60;
 

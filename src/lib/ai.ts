@@ -1,5 +1,5 @@
 import type { Bot } from './bots';
-import type { Msg } from './rules';
+import type { Msg } from './store';
 
 // MVP: 서버(Supabase Edge Function) 연결 전 시험용 응답이다.
 // 연결할 때는 이 함수 본문만 서버 호출로 바꾼다. 모델 키는 앱에 두지 않는다.

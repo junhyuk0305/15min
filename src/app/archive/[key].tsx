@@ -12,7 +12,7 @@ export default function ArchiveDetail() {
   const state = useApp();
   const rec = state.records[decodeURIComponent(key ?? '')];
   const goal = rec ? state.goals.find((g) => g.id === rec.goalId) : undefined;
-  if (!rec || !goal || goal.status === 'deleted') {
+  if (!rec || !goal || goal.status === 'given_up') {
     return <Screen footer={<Button title={copy.coupon.back} kind="secondary" onPress={() => router.back()} />}>{null}</Screen>;
   }
 

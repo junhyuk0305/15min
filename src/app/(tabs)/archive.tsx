@@ -2,8 +2,8 @@ import { router } from 'expo-router';
 import { Text, View } from 'react-native';
 import { Body, Card, H1, Label, Screen, useNow } from '@/components/ui';
 import { copy } from '@/lib/copy';
-import { addDays, dayKeyOf } from '@/lib/rules';
-import { activeGoalOf, findBot, keyOf, useApp, visibleRecords } from '@/lib/store';
+import { addDays, dayKeyOf, isStudyDay } from '@/lib/rules';
+import { activeGoalOf, deviceTz, findBot, keyOf, useApp, visibleRecords } from '@/lib/store';
 import { C, S, T } from '@/lib/theme';
 
 const t = copy.archive;
@@ -14,8 +14,8 @@ function Calendar() {
   const state = useApp();
   const goal = activeGoalOf(state);
   if (!goal) return null;
-  const today = dayKeyOf(now);
-  const first = dayKeyOf(goal.createdAt);
+  const today = dayKeyOf(now, deviceTz);
+  const first = goal.firstDay;
   const days = Array.from({ length: 35 }, (_, i) => addDays(today, i - 34));
   return (
     <View style={{ gap: S.sm }}>
@@ -23,7 +23,7 @@ function Calendar() {
         {days.map((d) => {
           const st = state.records[keyOf(goal.id, d)]?.status;
           const before = d < first;
-          const missed = !before && d < today && st !== 'done' && st !== 'coupon' && st !== 'paused';
+          const missed = st === 'failed' || (!before && d < today && st === undefined && isStudyDay(d, goal.weekdays));
           const bg = st === 'done' ? C.ink : missed ? C.red : 'transparent';
           return (
             <View

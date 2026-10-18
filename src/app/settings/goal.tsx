@@ -37,7 +37,7 @@ export default function GoalSettings() {
       footer={
         <>
           <Button title={confirmShrink ? t.shrinkYes : saved && !changed ? t.saved : t.save} onPress={save} disabled={!changed && !confirmShrink} kind={confirmShrink ? 'danger' : 'primary'} />
-          <Button title={t.giveup} kind="secondary" onPress={() => router.push('/settings/giveup')} disabled={goal.giveupSince !== null} />
+          <Button title={t.giveup} kind="secondary" onPress={() => router.push('/settings/giveup')} disabled={goal.giveupRequestedAt !== null} />
         </>
       }
     >

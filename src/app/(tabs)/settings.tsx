@@ -6,7 +6,7 @@ import { openSystemSettings } from '@/lib/notify';
 import { buildPlan } from '@/lib/plan';
 import { fmtClock } from '@/lib/rules';
 import { useRuntime } from '@/lib/runtime';
-import { activeGoalOf, lastEndedGoal, useApp } from '@/lib/store';
+import { activeGoalOf, deviceTz, lastEndedGoal, lastRetroOf, recordsOf, useApp } from '@/lib/store';
 import { C, S, T } from '@/lib/theme';
 
 const t = copy.settings;
@@ -16,7 +16,16 @@ function DevTools() {
   const now = useNow();
   const state = useApp();
   const goal = activeGoalOf(state);
-  const plan = buildPlan({ goal, lastGoal: goal ? null : lastEndedGoal(state), records: Object.values(state.records), now });
+  const plan = buildPlan({
+    goal,
+    lastGoal: goal ? null : lastEndedGoal(state),
+    days: goal ? recordsOf(state, goal.id) : [],
+    leftAt: null,
+    lastRetro: goal ? lastRetroOf(state, goal.id) : null,
+    suspension: null,
+    now,
+    timeZone: deviceTz,
+  });
   const fmt = (ms: number) => {
     const d = new Date(ms);
     return `${d.getMonth() + 1}/${d.getDate()} ${fmtClock(d.getHours() * 60 + d.getMinutes())}`;

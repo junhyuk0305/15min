@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { copy } from '@/lib/copy';
-import { MAX_TARGET, MIN_NOTE_CHARS, MIN_TARGET, fmtClock } from '@/lib/rules';
+import { MIN_NOTE_CHARS, TARGET_MAX, TARGET_MIN, fmtClock } from '@/lib/rules';
 import { allBots, useApp } from '@/lib/store';
 import { C, S, T } from '@/lib/theme';
 import { Field, Label, Stepper } from './ui';
@@ -58,8 +58,8 @@ export function ScheduleFields({
       <Stepper
         label={copy.goalForm.minutesLabel}
         display={copy.unit.minutes(targetMinutes)}
-        onMinus={() => onChange({ startMinutes, targetMinutes: Math.max(MIN_TARGET, targetMinutes - 1) })}
-        onPlus={() => onChange({ startMinutes, targetMinutes: Math.min(MAX_TARGET, targetMinutes + 1) })}
+        onMinus={() => onChange({ startMinutes, targetMinutes: Math.max(TARGET_MIN, targetMinutes - 1) })}
+        onPlus={() => onChange({ startMinutes, targetMinutes: Math.min(TARGET_MAX, targetMinutes + 1) })}
       />
     </View>
   );

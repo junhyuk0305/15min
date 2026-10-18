@@ -4,30 +4,60 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { BUILTIN_BOTS, type Bot } from './bots';
 import {
   addDays,
-  completeDay,
+  completeDayCoupon,
   dayKeyOf,
-  giveupAction,
+  FIRST_COUPON_WEEKS,
+  firstDayFor,
   giveupExpired,
-  newGoal,
+  INITIAL_COUPONS,
+  PERIOD_DEFAULT,
+  settingsFor,
   settle,
   spendCoupon,
-  type DayRecord,
+  type DayStatus,
   type Goal,
-  type Msg,
 } from './rules';
 
-// MVP는 기기에 저장한다. 삭제된 목표는 화면에서만 숨기고 데이터는 남긴다(status 'deleted').
-// 서버를 붙이면 이 보관분이 서버로 간다. 개인정보처리방침에 보관 사실과 기간을 적어야 한다.
+// MVP는 기기에 저장한다. 포기 확정된 목표는 화면에서만 숨기고 데이터는 남긴다(status 'given_up').
+// 다음 단계에서 서버 데이터 계층으로 바뀐다. 그때까지 v9 규칙을 기기에서 따르는 임시 저장소다.
+
+export type Msg = { role: 'user' | 'bot'; text: string; at: number };
+
+/** 기기에 저장하는 하루 기록 */
+export type DayRecord = {
+  goalId: string;
+  day: string;
+  status: DayStatus;
+  reason: string;
+  review: string;
+  activeSeconds: number;
+  targetMinutes: number;
+  botId: string;
+  messages: Msg[];
+  chars: number;
+  leftAt: number | null;
+};
+
+/** 기기에 저장하는 목표. 서버 Goal 모양에 봇 선택만 더했다 */
+export type AppGoal = Goal & { botId: string };
+
+/** 기기 시간대. 서버 계층에서는 profiles.timezone을 쓴다 */
+export const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+// [가정] 요일 선택 화면이 생기기 전까지 기기 저장 목표는 7일 모두 학습 요일로 둔다
+const ALL_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
 
 type GoalInput = { name: string; reason: string; startMinutes: number; targetMinutes: number; botId: string };
 
 type State = {
   onboarded: boolean;
-  goals: Goal[];
+  goals: AppGoal[];
   activeGoalId: string | null;
   records: Record<string, DayRecord>;
   customBots: Bot[];
   devOffsetMs: number;
+  /** 계정당 포기 확정 횟수 */
+  giveupConfirmedCount: number;
 };
 
 type Actions = {
@@ -39,7 +69,7 @@ type Actions = {
   setLeftAt: (t: number | null) => void;
   finishDay: (review: string) => boolean;
   takeCoupon: () => boolean;
-  requestGiveup: () => 'wait' | 'deleted';
+  requestGiveup: () => void;
   withdrawGiveup: () => void;
   achieve: () => void;
   changeSchedule: (startMinutes: number, targetMinutes: number) => void;
@@ -53,21 +83,64 @@ type Actions = {
 const keyOf = (goalId: string, day: string) => `${goalId}:${day}`;
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
+function newGoal(input: GoalInput, id: string, now: number): AppGoal {
+  const firstDay = firstDayFor(now, deviceTz);
+  return {
+    id,
+    name: input.name.trim(),
+    reason: input.reason.trim(),
+    periodDays: PERIOD_DEFAULT,
+    weekdays: ALL_WEEKDAYS,
+    startMinutes: input.startMinutes,
+    targetMinutes: input.targetMinutes,
+    situation: { place: '', myRole: '', partner: '', task: '' },
+    firstDay,
+    status: 'active',
+    coupons: INITIAL_COUPONS,
+    couponStreakGoalWeeks: FIRST_COUPON_WEEKS,
+    couponProgressDays: 0,
+    settledDay: addDays(firstDay, -1),
+    pendingChange: null,
+    giveupRequestedAt: null,
+    createdAt: now,
+    endedAt: null,
+    botId: input.botId,
+  };
+}
+
+const blankRec = (g: AppGoal, day: string, status: DayStatus): DayRecord => ({
+  goalId: g.id,
+  day,
+  status,
+  reason: '',
+  review: '',
+  activeSeconds: 0,
+  targetMinutes: settingsFor(g, day).targetMinutes,
+  botId: g.botId,
+  messages: [],
+  chars: 0,
+  leftAt: null,
+});
+
 export const useApp = create<State & Actions>()(
   persist(
     (set, get) => {
       const now = () => Date.now() + get().devOffsetMs;
+      const today = () => dayKeyOf(now(), deviceTz);
       const active = () => get().goals.find((g) => g.id === get().activeGoalId) ?? null;
-      const updateGoal = (g: Goal) => set({ goals: get().goals.map((x) => (x.id === g.id ? g : x)) });
+      const updateGoal = (g: AppGoal) => set({ goals: get().goals.map((x) => (x.id === g.id ? g : x)) });
       const todayRec = () => {
         const g = active();
-        return g ? get().records[keyOf(g.id, dayKeyOf(now()))] : undefined;
+        return g ? get().records[keyOf(g.id, today())] : undefined;
       };
       const putRec = (r: DayRecord) => set({ records: { ...get().records, [keyOf(r.goalId, r.day)]: r } });
-      const recordOf = (goalId: string) => (d: string) => get().records[keyOf(goalId, d)];
-      const removeGoal = (g: Goal) => {
-        updateGoal({ ...g, status: 'deleted', endedAt: now(), giveupSince: null });
-        set({ activeGoalId: null });
+      /** 끝난 날을 판정하고 그 결과를 기록에 남긴다 */
+      const settleGoal = (g: AppGoal): AppGoal => {
+        const r = settle(g, recordsOf(get(), g.id), today(), deviceTz);
+        for (const w of r.writes) {
+          putRec({ ...(get().records[keyOf(g.id, w.day)] ?? blankRec(g, w.day, w.status)), status: w.status, leftAt: null });
+        }
+        return { ...g, ...r.goal };
       };
 
       return {
@@ -77,9 +150,10 @@ export const useApp = create<State & Actions>()(
         records: {},
         customBots: [],
         devOffsetMs: 0,
+        giveupConfirmedCount: 0,
 
         createGoal: (input) => {
-          const g = newGoal({ ...input, id: uid(), now: now() });
+          const g = newGoal(input, uid(), now());
           set({ goals: [...get().goals, g], activeGoalId: g.id, onboarded: true });
         },
 
@@ -91,10 +165,10 @@ export const useApp = create<State & Actions>()(
         startDay: (reason) => {
           const g = active();
           if (!g) return;
-          const day = dayKeyOf(now());
+          const day = today();
+          if (day < g.firstDay) return;
           const existing = get().records[keyOf(g.id, day)];
           if (existing && existing.status !== 'progress') return;
-          const s = g.pendingChange && day >= g.pendingChange.fromDay ? g.pendingChange : g;
           putRec({
             goalId: g.id,
             day,
@@ -102,7 +176,7 @@ export const useApp = create<State & Actions>()(
             reason: reason.trim(),
             review: '',
             activeSeconds: existing?.activeSeconds ?? 0,
-            targetMinutes: s.targetMinutes,
+            targetMinutes: settingsFor(g, day).targetMinutes,
             botId: g.botId,
             messages: existing?.messages ?? [],
             chars: existing?.chars ?? 0,
@@ -130,8 +204,8 @@ export const useApp = create<State & Actions>()(
           const r = todayRec();
           if (!g || !r || r.status !== 'progress') return false;
           putRec({ ...r, status: 'done', review: review.trim(), leftAt: null });
-          const res = completeDay(g);
-          updateGoal(res.goal);
+          const res = completeDayCoupon(g);
+          updateGoal({ ...g, ...res.goal });
           return res.earned;
         },
 
@@ -140,57 +214,39 @@ export const useApp = create<State & Actions>()(
           if (!g) return false;
           const spent = spendCoupon(g);
           if (!spent) return false;
-          const day = dayKeyOf(now());
+          const day = today();
           const r = get().records[keyOf(g.id, day)];
           if (r?.status === 'done') return false;
-          putRec({
-            goalId: g.id, day, status: 'coupon', reason: r?.reason ?? '', review: '', activeSeconds: r?.activeSeconds ?? 0,
-            targetMinutes: g.targetMinutes, botId: g.botId, messages: r?.messages ?? [], chars: r?.chars ?? 0, leftAt: null,
-          });
-          updateGoal(spent);
+          putRec({ ...(r ?? blankRec(g, day, 'coupon')), status: 'coupon', leftAt: null });
+          updateGoal({ ...g, ...spent });
           return true;
         },
 
         requestGiveup: () => {
           const g = active();
-          if (!g) return 'deleted';
-          if (giveupAction(g) === 'delete') {
-            removeGoal(g);
-            return 'deleted';
-          }
-          updateGoal({ ...g, giveupCount: g.giveupCount + 1, giveupSince: now() });
-          return 'wait';
+          if (g && g.giveupRequestedAt === null) updateGoal({ ...g, giveupRequestedAt: now() });
         },
 
         withdrawGiveup: () => {
           const g = active();
-          if (!g || g.giveupSince === null) return;
-          // 대기 중이던 날은 실패로 세지 않는다. 오늘은 아직 열려 있으니 그대로 둔다.
-          const today = dayKeyOf(now());
-          for (let d = dayKeyOf(g.giveupSince); d < today; d = addDays(d, 1)) {
-            const r = get().records[keyOf(g.id, d)];
-            if (!r || r.status === 'progress') {
-              putRec({
-                goalId: g.id, day: d, status: 'paused', reason: r?.reason ?? '', review: '', activeSeconds: r?.activeSeconds ?? 0,
-                targetMinutes: g.targetMinutes, botId: g.botId, messages: r?.messages ?? [], chars: r?.chars ?? 0, leftAt: null,
-              });
-            }
-          }
-          updateGoal({ ...g, giveupSince: null });
+          if (!g || g.giveupRequestedAt === null) return;
+          // 대기 중이던 지난 날은 판정에서 giveup_wait로 남는다. 오늘은 아직 열려 있으니 그대로 둔다.
+          updateGoal({ ...settleGoal(g), giveupRequestedAt: null });
         },
 
         achieve: () => {
           const g = active();
           if (!g) return;
-          updateGoal({ ...g, status: 'achieved', endedAt: now(), giveupSince: null });
+          updateGoal({ ...g, status: 'achieved', endedAt: now(), giveupRequestedAt: null });
           set({ activeGoalId: null });
         },
 
         changeSchedule: (startMinutes, targetMinutes) => {
           const g = active();
           if (!g) return;
-          const fromDay = addDays(dayKeyOf(now()), 1);
-          updateGoal({ ...g, pendingChange: { startMinutes, targetMinutes, fromDay } });
+          const fromDay = addDays(today(), 1);
+          const weekdays = (g.pendingChange ?? g).weekdays;
+          updateGoal({ ...g, pendingChange: { startMinutes, targetMinutes, weekdays, fromDay } });
         },
 
         saveBot: (bot) => {
@@ -209,10 +265,12 @@ export const useApp = create<State & Actions>()(
           const g = active();
           if (!g) return;
           if (giveupExpired(g, now())) {
-            removeGoal(g);
+            // 포기 확정. 이용 정지 화면은 서버 계층과 함께 붙는다
+            updateGoal({ ...settleGoal(g), status: 'given_up', endedAt: now() });
+            set({ activeGoalId: null, giveupConfirmedCount: get().giveupConfirmedCount + 1 });
             return;
           }
-          const s = settle(g, recordOf(g.id), now());
+          const s = settleGoal(g);
           if (JSON.stringify(s) !== JSON.stringify(g)) updateGoal(s);
         },
 
@@ -221,7 +279,8 @@ export const useApp = create<State & Actions>()(
       };
     },
     {
-      name: 'graego-v1',
+      // v9에서 목표와 기록 모양이 바뀌어 새 키를 쓴다
+      name: 'graego-v2',
       storage: createJSONStorage(() => AsyncStorage),
     },
   ),
@@ -237,11 +296,11 @@ export function findBot(custom: Bot[], id: string): Bot {
   return allBots(custom).find((b) => b.id === id) ?? BUILTIN_BOTS[0];
 }
 
-export function activeGoalOf(s: State): Goal | null {
+export function activeGoalOf(s: State): AppGoal | null {
   return s.goals.find((g) => g.id === s.activeGoalId) ?? null;
 }
 
-export function lastEndedGoal(s: State): Goal | null {
+export function lastEndedGoal(s: State): AppGoal | null {
   const ended = s.goals.filter((g) => g.status === 'achieved').sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0));
   return ended[0] ?? null;
 }
@@ -251,8 +310,14 @@ export function recordsOf(s: State, goalId: string): DayRecord[] {
 }
 
 export function visibleRecords(s: State): DayRecord[] {
-  const visible = new Set(s.goals.filter((g) => g.status !== 'deleted').map((g) => g.id));
+  const visible = new Set(s.goals.filter((g) => g.status !== 'given_up').map((g) => g.id));
   return Object.values(s.records).filter((r) => visible.has(r.goalId));
+}
+
+/** 가장 최근 회고. 기기 저장 단계에서는 회고 글 하나를 쓴다 */
+export function lastRetroOf(s: State, goalId: string): string | null {
+  const withReview = recordsOf(s, goalId).filter((r) => r.review).sort((a, b) => (a.day < b.day ? 1 : -1));
+  return withReview[0]?.review ?? null;
 }
 
 export { keyOf };

@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { Body, Button, Card, Field, H1, Label, Screen } from '@/components/ui';
 import { copy } from '@/lib/copy';
 import { addDays, dayKeyOf, MIN_NOTE_CHARS, noteValid } from '@/lib/rules';
-import { activeGoalOf, keyOf, nowMs, useApp } from '@/lib/store';
+import { activeGoalOf, deviceTz, keyOf, nowMs, useApp } from '@/lib/store';
 import { S } from '@/lib/theme';
 
 const t = copy.session;
@@ -12,15 +12,15 @@ const t = copy.session;
 export default function Reason() {
   const state = useApp();
   const goal = activeGoalOf(state);
-  const today = dayKeyOf(nowMs());
+  const today = dayKeyOf(nowMs(), deviceTz);
   const rec = goal ? state.records[keyOf(goal.id, today)] : undefined;
   const [text, setText] = useState('');
 
   // 오늘 이유를 이미 썼으면 채팅으로, 이미 끝난 날이면 홈으로
   useEffect(() => {
-    if (!goal || goal.giveupSince !== null || (rec && rec.status !== 'progress')) router.replace('/');
+    if (!goal || goal.giveupRequestedAt !== null || today < goal.firstDay || (rec && rec.status !== 'progress')) router.replace('/');
     else if (rec?.reason) router.replace('/session/chat');
-  }, [goal, rec]);
+  }, [goal, rec, today]);
 
   if (!goal) return null;
 

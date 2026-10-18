@@ -27,8 +27,10 @@
   "devDependencies": {
     "@types/node": "^26.6.5",
     "@types/react": "~19.2.2",
+    "deno": "^2.9.6",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~57.0.2",
+    "supabase": "^2.121.0",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3"
   },
@@ -40,7 +42,11 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/lib/__tests__/*.test.ts",
-    "check:static": "tsx scripts/check-static.ts"
+    "check:static": "tsx scripts/check-static.ts",
+    "test:db": "supabase test db",
+    "test:functions": "deno test -A supabase/functions",
+    "eval": "deno run -A evals/run.ts",
+    "sync:rules": "tsx scripts/sync-rules.ts"
   },
   "private": true
 }

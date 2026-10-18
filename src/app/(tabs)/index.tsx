@@ -4,21 +4,22 @@ import { Big, Body, Button, Gauge, Label, Screen, useNow } from '@/components/ui
 import { copy } from '@/lib/copy';
 import { openSystemSettings } from '@/lib/notify';
 import {
+  achieveDay,
   canAchieve,
   cycleOf,
   dayKeyOf,
-  daysSinceStart,
+  daysBetween,
   daysToNextCoupon,
+  fmtClock,
   fmtDuration,
   GIVEUP_WAIT_MS,
   homeState,
   settingsFor,
   streakOf,
   totalMinutes,
-  ACHIEVE_MIN_DAYS,
 } from '@/lib/rules';
 import { useRuntime } from '@/lib/runtime';
-import { activeGoalOf, allBots, keyOf, recordsOf, useApp } from '@/lib/store';
+import { activeGoalOf, allBots, deviceTz, keyOf, recordsOf, useApp } from '@/lib/store';
 import { C, S, T } from '@/lib/theme';
 
 const h = copy.home;
@@ -37,24 +38,41 @@ export default function Home() {
   const goal = activeGoalOf(state);
   if (!goal) return <Screen>{null}</Screen>;
 
-  const today = dayKeyOf(now);
+  const today = dayKeyOf(now, deviceTz);
   const rec = state.records[keyOf(goal.id, today)];
   const mine = recordsOf(state, goal.id);
   const total = totalMinutes(mine);
-  const streak = streakOf(goal, (d) => state.records[keyOf(goal.id, d)], today);
-  const st = homeState(goal, rec, now);
   const s = settingsFor(goal, today);
-  const c = cycleOf(today, s.startMinutes, s.targetMinutes);
+  const streak = streakOf(mine, goal.firstDay, today, s.weekdays);
+  const st = homeState(goal, rec, now, deviceTz);
+  const c = cycleOf(today, s.startMinutes, s.targetMinutes, deviceTz);
   const red = st === 'nag' || st === 'resume' || st === 'giveup';
   const ms = nextMilestone(total);
   const bots = allBots(state.customBots);
-  const elapsedDays = daysSinceStart(goal, now);
 
   const start = () => router.push('/session/reason');
 
   let middle: React.ReactNode;
   let primary: React.ReactNode = null;
   switch (st) {
+    case 'none':
+      break;
+    case 'before_first':
+      middle = (
+        <>
+          <Label>{h.beforeFirstTitle}</Label>
+          <Body>{h.beforeFirstBody(fmtClock(settingsFor(goal, goal.firstDay).startMinutes))}</Body>
+        </>
+      );
+      break;
+    case 'rest':
+      middle = (
+        <>
+          <Label>{h.restTitle}</Label>
+          <Body>{h.restBody}</Body>
+        </>
+      );
+      break;
     case 'waiting':
     case 'soon':
       middle = (
@@ -122,7 +140,7 @@ export default function Home() {
       middle = (
         <>
           <Label inverse>{h.giveupTitle}</Label>
-          <Big hero inverse>{fmtDuration(goal.giveupSince! + GIVEUP_WAIT_MS - now)}</Big>
+          <Big hero inverse>{fmtDuration(goal.giveupRequestedAt! + GIVEUP_WAIT_MS - now)}</Big>
           <Body inverse>{h.giveupBody}</Body>
           <View style={{ gap: S.xs, marginTop: S.sm }}>
             <Label inverse>{h.giveupReason}</Label>
@@ -164,12 +182,12 @@ export default function Home() {
         <Pressable accessibilityRole="button" onPress={() => router.push('/coupon')} style={{ minHeight: 48, justifyContent: 'center' }}>
           <Text style={[T.h2, { color: ink, textDecorationLine: 'underline' }]}>{h.coupons(goal.coupons)}</Text>
         </Pressable>
-        {canAchieve(goal, now) ? (
+        {canAchieve(goal, today) ? (
           <Pressable accessibilityRole="button" onPress={() => router.push('/goal/achieve')} style={{ minHeight: 48, justifyContent: 'center' }}>
             <Text style={[T.h2, { color: ink, textDecorationLine: 'underline' }]}>{h.achieve}</Text>
           </Pressable>
         ) : (
-          <Text style={[T.small, { color: sub }]}>{h.achieveIn(ACHIEVE_MIN_DAYS - elapsedDays)}</Text>
+          <Text style={[T.small, { color: sub }]}>{h.achieveIn(daysBetween(today, achieveDay(goal)))}</Text>
         )}
       </View>
 
