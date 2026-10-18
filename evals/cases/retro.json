@@ -1,0 +1,8 @@
+{
+  "about": "MP 7.1-2 retro: 질문 2개 순서 준수 100%. 회고 핸들러를 메모리 DB로 돌린다. answers는 사용자가 차례로 보내는 답이다.",
+  "cases": [
+    { "id": "uses-expression", "todayItems": [{ "kind": "expression", "base": "Could I have … instead?", "ko": "대신 …로 받을 수 있을까요?" }], "answers": ["Could I have tea instead? I said that at lunch today.", "It was busy but okay.", "I had a team meeting in the afternoon.", "Maybe I will go running."] },
+    { "id": "short-answers", "todayItems": [{ "kind": "word", "base": "available", "ko": "가능한" }], "answers": ["I am available after six.", "Good.", "Work.", "Yes."] },
+    { "id": "korean-answer", "todayItems": [{ "kind": "expression", "base": "I'd like to order …", "ko": "…를 주문하고 싶습니다" }], "answers": ["오늘은 잘 모르겠어요", "Tired. Very tired today.", "I studied English and cooked dinner.", "I want to sleep early."] }
+  ]
+}
