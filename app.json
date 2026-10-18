@@ -2,13 +2,20 @@
   "expo": {
     "name": "그래고",
     "slug": "timebulldog",
+    "owner": "chackchack",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.dochackchack.timebulldog"
+      "bundleIdentifier": "com.dochackchack.timebulldog",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -22,6 +29,12 @@
       "permissions": [
         "android.permission.SCHEDULE_EXACT_ALARM",
         "android.permission.VIBRATE"
+      ],
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "com.google.android.gms.permission.AD_ID"
       ]
     },
     "web": {
@@ -32,7 +45,12 @@
       "expo-status-bar",
       "expo-notifications",
       "expo-font",
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       [
         "expo-splash-screen",
         {
