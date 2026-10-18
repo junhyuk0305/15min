@@ -44,6 +44,11 @@ export function BottomSheet({
   // 내용 높이. 잰 뒤에 올린다
   const [h, setH] = useState(0);
   const shown = useRef(false);
+  // 닫힘 완료가 JS로 넘어온 뒤 다시 열렸으면 내리지 않는다
+  const visibleRef = useRef(visible);
+  useEffect(() => {
+    visibleRef.current = visible;
+  }, [visible]);
   const y = useSharedValue(FAR);
   const dim = useSharedValue(0);
 
@@ -62,6 +67,7 @@ export function BottomSheet({
     }
     shown.current = false;
     const finish = () => {
+      if (visibleRef.current) return;
       setMounted(false);
       setH(0);
     };
@@ -97,19 +103,21 @@ export function BottomSheet({
 
   if (!mounted) return null;
   return (
-    <Modal transparent visible animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={dismissible ? onClose : () => undefined}>
+    <Modal transparent visible animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={dismissible && visible ? onClose : () => undefined}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end' }}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }, dimStyle]}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={copy.ux.close}
-            disabled={!dismissible}
+            accessibilityLabel={dismissible ? copy.ux.close : undefined}
+            disabled={!dismissible || !visible}
             onPress={onClose}
             style={StyleSheet.absoluteFill}
           />
         </Animated.View>
+        {/* 닫히는 동안에는 안을 누를 수 없다. 나가기 같은 동작이 두 번 불리지 않게 */}
         <Animated.View
           accessibilityViewIsModal
+          pointerEvents={visible ? 'auto' : 'none'}
           onLayout={(e) => {
             const next = Math.round(e.nativeEvent.layout.height);
             if (next !== h) setH(next);
