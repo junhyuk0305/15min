@@ -50,3 +50,4 @@ google-service-account*.json
 # supabase local
 supabase/.temp/
 supabase/.branches/
+scripts/e2e/results.json

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildPlan, MAX_PENDING, type PlanDay, type PlanInput } from '../plan';
-import type { DayStatus, Goal } from '../rules';
+import { streakOf, type DayStatus, type Goal } from '../rules';
 
 const SEOUL = 'Asia/Seoul';
 const H = 3600_000;
@@ -154,4 +154,35 @@ test('달성 후 새 목표가 없으면 다음 날 같은 시각부터 독촉 6
 test('어떤 경우에도 iOS 대기 상한 안', () => {
   const cases = [input({}), input({ now: seoul(2026, 10, 19, 1) }), input({ goal: null, lastGoal: mkGoal() })];
   for (const c of cases) assert.ok(buildPlan(c).length <= MAX_PENDING);
+});
+
+// ---------- MP 7.2 시나리오: 알림은 웹에서 못 보니 plan 출력으로 확인한다 ----------
+
+test('S2 첫 학습일 사전 알림 전: 첫 알림은 그날 21:30 사전 알림이고 독촉은 22:15부터', () => {
+  const p = buildPlan(input({ now: seoul(2026, 10, 19, 12) }));
+  assert.equal(p[0].kind, 'pre');
+  assert.equal(p[0].day, '2026-10-19');
+  assert.equal(hm(p[0].at), '21:30');
+  assert.equal(hm(p[1].at), '22:00');
+  assert.equal(hm(p.find((x) => x.kind === 'nag')!.at), '22:15');
+});
+
+test('S7 독촉 구간 진입(22:20, 시작 안 함): 남은 독촉이 1분 간격으로 23:14까지', () => {
+  const now = seoul(2026, 10, 20, 22, 20);
+  const p = buildPlan(input({ now }));
+  const nags = p.filter((x) => x.kind === 'nag' && x.day === '2026-10-20');
+  assert.equal(nags.length, 54);
+  assert.equal(hm(nags[0].at), '22:21');
+  assert.equal(hm(nags[nags.length - 1].at), '23:14');
+  for (let i = 1; i < nags.length; i++) assert.equal(nags[i].at - nags[i - 1].at, 60_000);
+  assert.ok(nags.every((x) => x.url === '/session/reason'));
+  assert.ok(p.every((x) => x.at > now));
+});
+
+test('S10 쉬는 요일: 토, 일에는 알림이 없고 주말을 건너도 연속이 유지된다', () => {
+  const p = buildPlan(input({ now: seoul(2026, 10, 24, 12) }));
+  assert.ok(p.every((x) => !['10-24', '10-25'].includes(md(x.at))));
+  const week = ['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23'].map((d) => ({ day: d, status: 'done' as DayStatus }));
+  const rest = [...week, { day: '2026-10-24', status: 'rest' as DayStatus }, { day: '2026-10-25', status: 'rest' as DayStatus }];
+  assert.equal(streakOf(rest, '2026-10-19', '2026-10-26', [1, 2, 3, 4, 5]), 5);
 });
