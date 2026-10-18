@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import type { AppGoal, Message } from '../model';
 import { tapTarget, type TapState } from '../notifyTarget';
 import type { DayStatus } from '../rules';
-import { EMPTY_CACHE, homeBanners, homeNoteOf, lastStudyResult, loadPhaseOf, nextStudyDay, planInputOf, retroFirstLine } from '../selectors';
+import { EMPTY_CACHE, homeBanners, homeNoteOf, lastStudyResult, loadPhaseOf, longWaitOf, nextStudyDay, planInputOf, retroFirstLine } from '../selectors';
 
 // 2026-10-19 월요일부터 월~금
 const goal = (over: Partial<AppGoal> = {}): AppGoal => ({
@@ -230,4 +230,13 @@ test('정지 중 알림: 프로필의 원래 시작 시각을 먼저 쓰고, 없
   const old = { ...profile, suspendedStartMinutes: null, suspendedTargetMinutes: null };
   assert.equal(planInputOf({ ...EMPTY_CACHE, profile: old, suspendedGoal: cached }, NOW, 'Asia/Seoul').suspension?.startMinutes, 1320);
   assert.equal(planInputOf({ ...EMPTY_CACHE, profile: old }, NOW, 'Asia/Seoul').suspension, null);
+});
+
+test('홈 카운트다운: 24시간 이상이면 일과 시간, 그보다 짧으면 null', () => {
+  const H = 3_600_000;
+  assert.equal(longWaitOf(23 * H + 59 * 60_000), null);
+  assert.deepEqual(longWaitOf(24 * H), { days: 1, hours: 0 });
+  // 33:33:17 → 1일 9시간
+  assert.deepEqual(longWaitOf(33 * H + 33 * 60_000 + 17_000), { days: 1, hours: 9 });
+  assert.deepEqual(longWaitOf(50 * H), { days: 2, hours: 2 });
 });

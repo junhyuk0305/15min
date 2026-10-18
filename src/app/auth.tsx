@@ -9,7 +9,7 @@ import { toApiError } from '@/lib/api';
 import { copy, errorText } from '@/lib/copy';
 import { MIN_AGE } from '@/lib/rules';
 import { useApp } from '@/lib/store';
-import { C, S, T } from '@/lib/theme';
+import { B, C, S, T } from '@/lib/theme';
 
 // 이메일 6자리 코드 로그인(가입 겸용). 심사용 데모 이메일은 비밀번호 입력으로 바뀐다(MP P2-4).
 // 로그인이 끝나면 route.ts가 원래 화면(?next=)이나 홈으로 보낸다.
@@ -28,7 +28,7 @@ function Input({ label, ...props }: TextInputProps & { label: string }) {
       <Label>{label}</Label>
       <TextInput
         accessibilityLabel={label}
-        placeholderTextColor={p.disabled}
+        placeholderTextColor={p.sub}
         autoCapitalize="none"
         autoCorrect={false}
         {...props}
@@ -46,6 +46,7 @@ export default function Auth() {
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [consent, setConsent] = useState({ age: false, terms: false, ai: false });
+  const [showTransfer, setShowTransfer] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -121,13 +122,30 @@ export default function Auth() {
           returnKeyType="done"
         />
         <View style={{ gap: S.xs }}>
-          <Checkbox label={t.age(MIN_AGE)} checked={consent.age} onChange={(age) => setConsent({ ...consent, age })} />
-          <Checkbox label={t.terms} checked={consent.terms} onChange={(terms) => setConsent({ ...consent, terms })} />
+          <Checkbox label={t.required(t.age(MIN_AGE))} checked={consent.age} onChange={(age) => setConsent({ ...consent, age })} />
+          <Checkbox label={t.required(t.terms)} checked={consent.terms} onChange={(terms) => setConsent({ ...consent, terms })} />
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: S.sm }}>
             <TextButton title={t.viewTerms} tone="sub" onPress={() => legal('terms')} />
             <TextButton title={t.viewPrivacy} tone="sub" onPress={() => legal('privacy')} />
           </View>
-          <Checkbox label={t.ai} checked={consent.ai} onChange={(ai) => setConsent({ ...consent, ai })} />
+          <Checkbox label={t.required(t.ai)} checked={consent.ai} onChange={(ai) => setConsent({ ...consent, ai })} />
+          {/* 국외 이전 동의에 알릴 다섯 가지(받는 자, 국가, 항목, 시기와 방법, 목적과 보유 기간). 처리방침 7절과 같다 */}
+          <TextButton
+            title={showTransfer ? t.hideTransfer : t.viewTransfer}
+            tone="sub"
+            onPress={() => setShowTransfer(!showTransfer)}
+            style={{ alignSelf: 'flex-end' }}
+          />
+          {showTransfer ? (
+            <View style={{ gap: S.sm, borderTopWidth: B.hair, borderColor: C.line, paddingTop: S.sm }}>
+              {t.transferRows.map(([k, v]) => (
+                <View key={k} style={{ gap: 2 }}>
+                  <Label>{k}</Label>
+                  <Text style={[T.small, { color: C.ink }]}>{v}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
       </>
     );

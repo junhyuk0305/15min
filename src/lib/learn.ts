@@ -1,7 +1,8 @@
 // 학습 화면(A, B, C, 회고)의 순수 판정. 시계, 단계 전환, 다시 보내기, 대화 표시.
 // React Native를 import하지 않는다(Node 테스트용). 정책 숫자는 rules.ts에서 가져온다.
-import type { Message } from './model';
-import { isIdle, phaseAt, phaseBounds, RETRO_SECONDS, type Phase } from './rules';
+import { copy } from './copy';
+import type { Message, QuizGrade } from './model';
+import { isIdle, phaseAt, phaseBounds, RETRO_SECONDS, type DayRow, type Phase } from './rules';
 
 /** 진행 저장 간격(초). 나갈 때도 바로 저장한다 */
 export const SAVE_EVERY = 5;
@@ -11,6 +12,8 @@ export const OVERLAY_MS = 1000;
 export const FEEDBACK_MS = 1200;
 /** 연결이 끊겼을 때 다시 확인하는 간격 */
 export const PROBE_MS = 4000;
+/** 오늘의 이유 최대 글자 수. 서버 start_day가 넘으면 reason_long으로 거부한다(마이그레이션 800) */
+export const MAX_TODAY_REASON = 500;
 
 // ---------- 시계 ----------
 
@@ -62,7 +65,55 @@ export function dismissIdle(s: ClockState): ClockState {
   return { ...s, quietMs: 0, idle: false };
 }
 
+// ---------- 진행 저장 ----------
+
+/** 연결 끊김이 아닌 저장 실패가 이만큼 이어지면 시계를 멈춘다 */
+export const SAVE_FAILS_TO_STOP = 2;
+
+/**
+ * 진행 저장 실패. 연결 끊김과 시간 초과는 오프라인으로 본다(연결이 돌아오면 시계가 다시 돈다).
+ * 그 밖의 실패는 이어진 횟수를 세고, SAVE_FAILS_TO_STOP번이면 시계를 멈춘다(stuck). 성공하면 0으로 돌린다.
+ */
+export function saveFailure(kind: string, failsInRow: number): { offline: boolean; failsInRow: number; stuck: boolean } {
+  if (kind === 'network' || kind === 'timeout') return { offline: true, failsInRow, stuck: failsInRow >= SAVE_FAILS_TO_STOP };
+  const n = failsInRow + 1;
+  return { offline: false, failsInRow: n, stuck: n >= SAVE_FAILS_TO_STOP };
+}
+
+// ---------- 하루 경계 ----------
+
+/**
+ * 학습 중인 날(sessionDay)이 04:00 경계로 끝났나. 완료한 날은 끝난 것으로 보지 않는다.
+ * 지금 하루 키가 다르거나, 그날이 실패로 판정됐거나, 서버가 그날 행을 찾지 못하면(not_found) 끝났다.
+ * store 동작은 지금 하루 키로 요청하므로 경계를 넘긴 저장은 not_found로 돌아온다.
+ */
+export function dayEnded(sessionDay: string, currentDay: string, status: DayRow['status'] | undefined, errorCode?: string | null): boolean {
+  if (status === 'done') return false;
+  return errorCode === 'not_found' || currentDay !== sessionDay || status === 'failed';
+}
+
 // ---------- 단계 ----------
+
+/** 단계 이름. 첫날 A는 지난 항목이 없어 수준 확인이다 */
+export function phaseName(phase: Phase, levelCheck = false): string {
+  return phase === 'A' && levelCheck ? copy.learn.levelPhase : copy.learn.phase[phase];
+}
+
+/** 이 목표로 오늘 전에 학습을 시작한 날이 있나(오늘의 이유를 쓴 날). 없으면 첫날이라 A가 수준 확인이다 */
+export function studiedBefore(days: readonly Pick<DayRow, 'goalId' | 'day' | 'todayReason'>[], goalId: string, today: string): boolean {
+  return days.some((d) => d.goalId === goalId && d.day < today && !!d.todayReason);
+}
+
+/** 학습 순서와 단계별 시간(초). 회고까지 */
+export function phasePlan(targetMinutes: number): { phase: Phase; seconds: number }[] {
+  const b = phaseBounds(targetMinutes);
+  return [
+    { phase: 'A', seconds: b.aEnd },
+    { phase: 'B', seconds: b.bEnd - b.aEnd },
+    { phase: 'C', seconds: b.total - b.bEnd },
+    { phase: 'retro', seconds: RETRO_SECONDS },
+  ];
+}
 
 /** save_progress에 넣는 단계. 서버는 A, B, C만 받는다 */
 export function savePhase(secs: number, targetMinutes: number): 'A' | 'B' | 'C' {
@@ -95,6 +146,30 @@ export function overlayFor(shown: Phase | null, secs: number, targetMinutes: num
   const next = phaseAt(secs, targetMinutes);
   if (shown === next) return null;
   return { phase: next, remaining: phaseRemaining(next, secs, targetMinutes, retroSeconds) };
+}
+
+// ---------- 복습 채점 ----------
+
+/**
+ * 채점 뒤 할 일. right: 맞음, 잠깐 보이고 다음 문항. retry: 첫 오답이라 정답을 감췄다(answer_en ''),
+ * 다시 답하거나 정답을 본다. revealed: 정답을 보였다, 읽고 다음 문항으로 간다.
+ */
+export function quizStep(grade: Pick<QuizGrade, 'correct' | 'answerEn'>): 'right' | 'retry' | 'revealed' {
+  if (grade.correct) return 'right';
+  return grade.answerEn === '' ? 'retry' : 'revealed';
+}
+
+// ---------- 회고 ----------
+
+/** 회고 남은 시간이 이만큼 이하면 closing으로 보낸다. 서버가 새 질문 없이 마무리한다 */
+export const RETRO_CLOSING_SECONDS = 20;
+
+export const retroClosing = (secs: number) => RETRO_SECONDS - secs <= RETRO_CLOSING_SECONDS;
+
+/** 회고의 마지막 줄이 답을 기다리는 코치 질문인가. 마무리(closing) 줄이나 내 글이 마지막이면 아니다 */
+export function retroAwaitsAnswer(messages: readonly Message[]): boolean {
+  const last = messages.filter((m) => m.phase === 'retro').at(-1);
+  return !!last && last.role === 'coach' && last.meta.retro_stage !== 'closing';
 }
 
 // ---------- 보내기 ----------

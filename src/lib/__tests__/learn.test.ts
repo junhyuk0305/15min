@@ -3,20 +3,29 @@ import { test } from 'node:test';
 import {
   clockRunning,
   coachModalOf,
+  dayEnded,
   dismissIdle,
   hiddenUntilClosed,
   linesOf,
   overlayFor,
   phaseEnd,
+  phaseName,
+  phasePlan,
   phaseRemaining,
   quizModalOf,
+  quizStep,
+  retroAwaitsAnswer,
+  retroClosing,
+  saveFailure,
   savePhase,
   sendId,
+  studiedBefore,
   tick,
   touch,
   type ClockGates,
   type ClockState,
 } from '../learn';
+import { copy } from '../copy';
 import type { Message } from '../model';
 
 const open: ClockGates = { appActive: true, focused: true, waiting: false, offline: false, failed: false, overlay: false, blocked: false };
@@ -165,4 +174,89 @@ test('단계 끝: 시계가 멈추는 자리. 경계에서 안내가 뜬다 (결
   for (let i = 0; i < 5; i++) s = tick(s, phaseEnd('A', 10), true).state;
   assert.equal(s.secs, 120, 'A 끝에서 멈춘다');
   assert.deepEqual(overlayFor('A', s.secs, 10), { phase: 'B', remaining: 360 });
+});
+
+// 진행 저장 실패 (QA Q-D)
+
+test('저장 실패: 시간 초과도 연결 끊김처럼 오프라인으로 본다. 횟수는 늘리지 않는다', () => {
+  assert.deepEqual(saveFailure('network', 0), { offline: true, failsInRow: 0, stuck: false });
+  assert.deepEqual(saveFailure('timeout', 0), { offline: true, failsInRow: 0, stuck: false });
+});
+
+test('저장 실패: 그 밖의 실패가 2번 이어지면 시계를 멈춘다', () => {
+  const one = saveFailure('server', 0);
+  assert.deepEqual(one, { offline: false, failsInRow: 1, stuck: false });
+  const two = saveFailure('invalid', one.failsInRow);
+  assert.deepEqual(two, { offline: false, failsInRow: 2, stuck: true });
+  assert.equal(saveFailure('timeout', two.failsInRow).stuck, true, '멈춘 뒤 끊겨도 멈춤은 풀리지 않는다');
+});
+
+// 단계 이름과 첫날 (첫 사용 F2, F11)
+
+test('단계 이름: 첫날 A는 수준 확인, 나머지는 학습 화면 이름 그대로', () => {
+  assert.equal(phaseName('A', true), copy.learn.levelPhase);
+  assert.equal(phaseName('A'), copy.learn.phase.A);
+  assert.equal(phaseName('C', true), copy.learn.phase.C, 'C는 수준 확인이 아니다');
+  assert.equal(phaseName('retro'), copy.learn.phase.retro);
+});
+
+test('첫날 판정: 오늘 전에 오늘의 이유를 쓴 날이 있어야 학습한 적이 있다', () => {
+  const d = (day: string, todayReason: string | null, goalId = 'g') => ({ goalId, day, todayReason });
+  assert.equal(studiedBefore([], 'g', '2026-10-19'), false);
+  assert.equal(studiedBefore([d('2026-10-19', '오늘 이유를 스무 자 넘게 씁니다')], 'g', '2026-10-19'), false, '오늘은 세지 않는다');
+  assert.equal(studiedBefore([d('2026-10-18', null)], 'g', '2026-10-19'), false, '쿠폰이나 실패로 끝난 날');
+  assert.equal(studiedBefore([d('2026-10-18', '이유')], 'other', '2026-10-19'), false, '다른 목표');
+  assert.equal(studiedBefore([d('2026-10-18', '이유')], 'g', '2026-10-19'), true);
+});
+
+test('학습 순서: 15분은 3분, 9분, 3분, 회고 3분. 나누어떨어지지 않으면 초까지', () => {
+  assert.deepEqual(
+    phasePlan(15).map((p) => [p.phase, copy.session.planTime(p.seconds)]),
+    [
+      ['A', '3분'],
+      ['B', '9분'],
+      ['C', '3분'],
+      ['retro', '3분'],
+    ],
+  );
+  const p13 = phasePlan(13);
+  assert.equal(p13.slice(0, 3).reduce((n, p) => n + p.seconds, 0), 13 * 60, '세 단계를 더하면 학습 분이다');
+  assert.equal(copy.session.planTime(p13[0].seconds), '2분 36초');
+});
+
+// 복습 채점 (첫 사용 F3)
+
+test('채점 뒤: 맞으면 right, 정답을 감춘 첫 오답은 retry, 정답을 보이면 revealed', () => {
+  assert.equal(quizStep({ correct: true, answerEn: 'instead' }), 'right');
+  assert.equal(quizStep({ correct: false, answerEn: '' }), 'retry');
+  assert.equal(quizStep({ correct: false, answerEn: 'instead' }), 'revealed');
+});
+
+// 회고 마무리 (첫 사용 F9)
+
+test('회고 마무리: 남은 시간이 20초 이하면 closing으로 보낸다', () => {
+  assert.equal(retroClosing(159), false);
+  assert.equal(retroClosing(160), true);
+  assert.equal(retroClosing(180), true);
+});
+
+test('회고: 마지막 줄이 마무리가 아닌 코치 줄이면 답을 기다린다', () => {
+  const r = (id: string, role: Message['role'], meta: Record<string, unknown> = {}) => msg(id, role, id, { phase: 'retro', meta });
+  assert.equal(retroAwaitsAnswer([]), false);
+  assert.equal(retroAwaitsAnswer([r('q1', 'coach', { retro_q: 1 })]), true);
+  assert.equal(retroAwaitsAnswer([r('q1', 'coach', { retro_q: 1 }), r('u1', 'user')]), false);
+  assert.equal(retroAwaitsAnswer([r('u2', 'user'), r('f', 'coach', { retro_stage: 'follow_up' })]), true);
+  assert.equal(retroAwaitsAnswer([r('u2', 'user'), r('c', 'coach', { retro_stage: 'closing' })]), false);
+  assert.equal(retroAwaitsAnswer([r('c', 'coach', { retro_stage: 'closing' }), msg('b', 'partner', 'B 줄')]), false, '회고 줄만 본다');
+});
+
+// 04:00 경계 (QA Q-E)
+
+test('하루 경계: 하루 키가 바뀌거나, 실패로 판정되거나, 그날 행이 없으면(not_found) 끝났다', () => {
+  assert.equal(dayEnded('2026-10-18', '2026-10-18', 'progress'), false);
+  assert.equal(dayEnded('2026-10-18', '2026-10-19', 'progress'), true, '04:00이 지남');
+  assert.equal(dayEnded('2026-10-18', '2026-10-18', 'failed'), true, '서버가 먼저 실패로 판정');
+  assert.equal(dayEnded('2026-10-18', '2026-10-18', 'progress', 'not_found'), true, '경계를 넘긴 저장');
+  assert.equal(dayEnded('2026-10-18', '2026-10-18', 'progress', 'server'), false, '다른 저장 실패는 경계가 아니다');
+  assert.equal(dayEnded('2026-10-18', '2026-10-19', 'done'), false, '완료한 날은 끝난 것이 아니다');
 });

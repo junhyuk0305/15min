@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Text, TextInput, View } from 'react-native';
 import { DeleteAccountButton, LegalLinks } from '@/components/AccountLinks';
 import { ChatLine } from '@/components/ChatLine';
 import { TextButton } from '@/components/TextButton';
 import { Body, Button, H1, Screen, styles, useNow } from '@/components/ui';
 import { toApiError } from '@/lib/api';
 import { copy, errorText } from '@/lib/copy';
-import type { ReflectionMessage } from '@/lib/model';
+import { uuidv4, type ReflectionMessage } from '@/lib/model';
 import { canSend, fmtClock, localParts } from '@/lib/rules';
 import { reflectionWindow } from '@/lib/selectors';
 import { tzOf, useApp } from '@/lib/store';
@@ -67,6 +67,8 @@ export default function Suspended() {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 실패한 문장. 같은 문장을 다시 보내면 같은 id로 보내 서버가 한 번만 저장한다
+  const pending = useRef<{ id: string; text: string } | null>(null);
 
   // 반성문 시간대는 서버 프로필 값(suspended_start_minutes, suspended_target_minutes)을 쓴다.
   // 그 값이 없는 옛 응답일 때만 이 기기의 목표 캐시로 대신한다
@@ -107,8 +109,11 @@ export default function Suspended() {
     setBusy(true);
     setError(null);
     setText('');
+    const id = pending.current?.text === body ? pending.current.id : uuidv4();
+    pending.current = { id, text: body };
     try {
-      await reflectionTurn(body);
+      await reflectionTurn(body, id);
+      pending.current = null;
     } catch (e) {
       const err = toApiError(e);
       setText(body); // 입력한 문장은 남긴다 (MP 7.3)
@@ -121,6 +126,8 @@ export default function Suspended() {
 
   // 시각을 알면 창이 닫히는 순간 입력을 닫는다
   const open = chat === 'open' && winOpen !== false;
+  // 창이 열린 시각(또는 시각을 몰라 서버에 묻는 중)인데 아직 대화를 받지 못했다
+  const asking = !open && chat !== 'closed' && (win ? win.open : chat === 'unknown');
   const footer = (
     <>
       {open ? (
@@ -129,12 +136,12 @@ export default function Suspended() {
             value={text}
             onChangeText={setText}
             placeholder={t.placeholder}
-            placeholderTextColor={C.disabled}
+            placeholderTextColor={C.sub}
             accessibilityLabel={t.placeholder}
             multiline
             style={[styles.input, T.bodySerif, { borderColor: C.ink, backgroundColor: C.card, color: C.ink, minHeight: 80, maxHeight: 160, textAlignVertical: 'top' }]}
           />
-          <Button title={t.send} onPress={() => void send()} busy={busy} disabled={!canSend(text)} />
+          <Button title={t.send} onPress={() => void send()} busy={busy} disabled={!canSend(text)} disabledReason={canSend(text) ? null : t.needText} />
         </>
       ) : null}
       <View style={{ flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -167,15 +174,28 @@ export default function Suspended() {
           {win ? <Body muted>{t.closesAt(fmtWhen(win.closesAt, tz))}</Body> : null}
           <View>{lines}</View>
         </>
+      ) : asking ? (
+        error ? null : (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: S.sm }}>
+            <ActivityIndicator color={C.ink} />
+            <Body muted>{t.loading}</Body>
+          </View>
+        )
       ) : chat === 'closed' || win ? (
-        <Body>{win ? t.opensAt(fmtWhen(win.opensAt, tz)) : t.opensUnknown}</Body>
+        <Body>{win && win.opensAt > now ? t.opensAt(fmtWhen(win.opensAt, tz)) : t.opensUnknown}</Body>
       ) : null}
       {error ? (
         <Text accessibilityRole="alert" style={[T.small, { color: C.redText }]}>
           {error}
         </Text>
       ) : null}
-      {error && !open ? <TextButton title={copy.status.retry} onPress={() => void load()} /> : null}
+      {error && !open ? <TextButton
+          title={copy.status.reload}
+          onPress={() => {
+            setError(null); // 다시 묻는 동안 진행 표시를 보인다
+            void load();
+          }}
+        /> : null}
     </Screen>
   );
 }

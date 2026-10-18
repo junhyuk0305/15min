@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { DOCS, readDoc } from '../../../scripts/sync-legal';
 import { copy, errorText } from '../copy';
 import { dayFromRow, goalFromRow, lastRetroAnswer, mergeById, profileFromRow, upsertDay, uuidv4, type AppGoal, type Message } from '../model';
-import { createReporter } from '../reportCore';
+import { createReporter, scrubBreadcrumb } from '../reportCore';
 import { EMPTY_CACHE, nextSuspendedGoal, planInputOf, reflectionWindow, routeInputOf, serverOffsetOf, todayRowOf, type Cache } from '../selectors';
 import { zonedTime } from '../rules';
 
@@ -151,4 +151,12 @@ test('오류 보고: Sentry가 켜졌으면 capture, 아니면 콘솔', () => {
   createReporter(sink, true)(new Error('x'), 'render');
   createReporter(sink, false)(new Error('x'), 'render');
   assert.deepEqual(seen, ['capture', 'log [render]']);
+});
+
+test('오류 기록의 요청 주소에서 쿼리를 지운다 (Sentry beforeBreadcrumb)', () => {
+  const fetch = scrubBreadcrumb({ category: 'fetch', data: { url: 'http://x/rest/v1/messages?goal_id=eq.g1&day=eq.2026-10-18', method: 'GET', status_code: 200 } });
+  assert.deepEqual(fetch.data, { url: 'http://x/rest/v1/messages', method: 'GET', status_code: 200 });
+  const nav = scrubBreadcrumb({ category: 'navigation', data: { from: '/auth?next=%2Farchive%2Fg1', to: '/archive/g1#x' } });
+  assert.deepEqual(nav.data, { from: '/auth', to: '/archive/g1' });
+  assert.deepEqual(scrubBreadcrumb({ category: 'console' }), { category: 'console' });
 });

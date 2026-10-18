@@ -269,6 +269,15 @@ export function validWeekdays(weekdays: readonly number[]): boolean {
 
 const inRange = (n: number, min: number, max: number) => Number.isInteger(n) && n >= min && n <= max;
 
+/**
+ * 학습과 회고가 하루 경계(04:00)를 넘는 일정인가. 시작이 00:00~03:59이고 시작 + 학습 분 + 회고 3분이 04:00을 넘으면 참.
+ * 서버 app_private.crosses_boundary와 같다(create_goal, change_schedule이 crosses_boundary로 거부).
+ */
+export function crossesBoundary(startMinutes: number, targetMinutes: number): boolean {
+  const boundary = DAY_BOUNDARY_HOUR * 60;
+  return startMinutes < boundary && startMinutes + targetMinutes + RETRO_SECONDS / 60 > boundary;
+}
+
 /** create_goal 검사와 같다. 문제 없으면 null. */
 export function goalInputError(input: {
   periodDays: number;
@@ -276,12 +285,13 @@ export function goalInputError(input: {
   startMinutes: number;
   targetMinutes: number;
   reason: string;
-}): 'invalid' | 'reason_short' | null {
+}): 'invalid' | 'reason_short' | 'crosses_boundary' | null {
   if (!inRange(input.periodDays, PERIOD_MIN, PERIOD_MAX)) return 'invalid';
   if (!inRange(input.targetMinutes, TARGET_MIN, TARGET_MAX)) return 'invalid';
   if (!inRange(input.startMinutes, 0, 1439)) return 'invalid';
   if (!validWeekdays(input.weekdays)) return 'invalid';
   if (input.reason.trim().length < MIN_NOTE_CHARS) return 'reason_short';
+  if (crossesBoundary(input.startMinutes, input.targetMinutes)) return 'crosses_boundary';
   return null;
 }
 

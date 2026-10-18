@@ -203,6 +203,26 @@ test('코드 받기 횟수 초과는 limit, 틀린 코드는 invalid otp_expired
   assert.deepEqual(await kindOf(api.verifyCode('a@b.co', '123456')), { kind: 'invalid', code: 'otp_expired' });
 });
 
+test('가입 트리거 거부(GoTrue 500 + P0001)는 network가 아니라 invalid와 그 코드', async () => {
+  const { api } = setup([
+    { status: 500, body: { code: 'P0001', message: 'age_not_confirmed' } },
+    { status: 500, body: { code: 'P0001', message: 'ai_consent_required' } },
+    { status: 500, body: { code: 'unexpected_failure', msg: 'Database error saving new user' } },
+  ]);
+  const meta = { age_confirmed: true, ai_consent: true, terms_version: 'v', timezone: 'UTC' } as const;
+  assert.deepEqual(await kindOf(api.sendCode('a@b.co', meta)), { kind: 'invalid', code: 'age_not_confirmed' });
+  assert.deepEqual(await kindOf(api.sendCode('a@b.co', meta)), { kind: 'invalid', code: 'ai_consent_required' });
+  // 그 밖의 500은 그대로 재시도할 수 있는 실패로 본다
+  assert.equal((await kindOf(api.sendCode('a@b.co', meta))).kind, 'network');
+});
+
+test('report_ai_text: 함수 이름, 글, 사유를 그대로 보낸다', async () => {
+  const { api, calls } = setup([{ status: 200, body: {} }]);
+  await api.reportAiText('goal-setup', '코치 답', '틀린 설명');
+  assert.match(calls[0].url, /\/rest\/v1\/rpc\/report_ai_text$/);
+  assert.deepEqual(JSON.parse(calls[0].body ?? '{}'), { p_fn: 'goal-setup', p_text: '코치 답', p_reason: '틀린 설명' });
+});
+
 test('login_method: password만 password, 나머지는 otp', async () => {
   const { api } = setup([{ status: 200, body: 'password' }, { status: 200, body: 'otp' }]);
   assert.equal(await api.loginMethod('review@x.app'), 'password');

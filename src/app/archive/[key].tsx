@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { ChatLine, type ChatSpeaker } from '@/components/ChatLine';
 import { CoachNote } from '@/components/CoachNote';
@@ -9,6 +9,7 @@ import { TextButton } from '@/components/TextButton';
 import { Body, Label, Screen } from '@/components/ui';
 import { charsByDay, dayId, phaseGroups } from '@/lib/archive';
 import { copy } from '@/lib/copy';
+import { phaseName } from '@/lib/learn';
 import type { LessonModal, Message } from '@/lib/model';
 import { loadPhaseOf } from '@/lib/selectors';
 import { messagesOf, useApp } from '@/lib/store';
@@ -24,14 +25,15 @@ const back = () => (router.canGoBack() ? router.back() : router.replace('/archiv
 function Line({ m, prev, partner }: { m: Message; prev: ChatSpeaker | null; partner: string }) {
   if (m.role === 'coach') {
     const modal = m.meta.modal as LessonModal | undefined;
-    const quiz = !!m.meta.quiz;
+    const quiz = m.meta.quiz as { level_check?: boolean; index?: number } | undefined;
     return (
       <CoachNote
         prev={prev}
-        kicker={quiz ? t.quiz : t.coach}
-        expression={modal?.expression.en}
-        meaning={modal?.expression.ko}
-        description={m.text || modal?.expression.note}
+        kicker={quiz ? (quiz.level_check ? copy.learn.levelCheck((quiz.index ?? 0) + 1) : t.quiz) : t.coach}
+        lead={modal?.expression ? m.text : undefined}
+        expression={modal?.expression?.en}
+        meaning={modal?.expression?.ko}
+        description={modal?.expression ? modal.expression.note : m.text}
         words={modal?.words.map((w) => ({ word: w.en, meaning: w.ko }))}
       />
     );
@@ -58,6 +60,14 @@ export default function ArchiveDetail() {
     if (rec) void load.run(() => loadDayMessages(rec.goalId, rec.day));
   };
   useEffect(run, [rec?.goalId, rec?.day]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 서버 읽기가 실패해 배너가 떠 있으면 다시 불러오기는 배너 하나만 둔다. 배너로 다시 읽기에 성공하면 대화도 다시 읽는다
+  const loadFailed = state.loadFailed;
+  const wasFailed = useRef(loadFailed);
+  useEffect(() => {
+    if (wasFailed.current && !loadFailed) run();
+    wasFailed.current = loadFailed;
+  }, [loadFailed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const footer = <TextButton title={t.back} onPress={back} />;
   if (!rec || !goal) {
@@ -100,14 +110,14 @@ export default function ArchiveDetail() {
       {status === 'error' ? (
         <View style={{ gap: S.xs }}>
           <ErrorLine message={load.error ? load.message : t.loadError} />
-          <TextButton title={t.retry} onPress={run} style={{ alignSelf: 'flex-start' }} />
+          {loadFailed ? null : <TextButton title={t.retry} onPress={run} style={{ alignSelf: 'flex-start' }} />}
         </View>
       ) : null}
       {status === 'idle' && groups.length === 0 ? <Body muted>{t.noChat}</Body> : null}
 
       {groups.map((g) => (
         <View key={g.phase} style={{ gap: S.xs }}>
-          <Label>{t.phase[g.phase]}</Label>
+          <Label>{phaseName(g.phase, g.levelCheck)}</Label>
           <View>
             {g.messages.map((m, i) => (
               <Line key={m.id} m={m} prev={i === 0 ? null : speakerOf(g.messages[i - 1])} partner={goal.situation.partner} />

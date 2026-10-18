@@ -27,8 +27,8 @@ import {
 } from '@/lib/rules';
 import { LEARN_PATH, RETRO_PATH } from '@/lib/route';
 import { useRuntime } from '@/lib/runtime';
-import { homeBanners, homeNoteOf, nextStudyDay, retroFirstLine, type HomeBanner } from '@/lib/selectors';
-import { deviceTz, goalDaysOf, messagesOf, todayKeyOf, todayRowOf, tzOf, useApp } from '@/lib/store';
+import { homeBanners, homeNoteOf, longWaitOf, nextStudyDay, retroFirstLine, type HomeBanner } from '@/lib/selectors';
+import { deviceTz, goalDaysOf, messagesOf, nowMs, todayKeyOf, todayRowOf, tzOf, useApp } from '@/lib/store';
 import { useAction } from '@/lib/useAction';
 import { C, PALETTES, S, T } from '@/lib/theme';
 
@@ -39,6 +39,12 @@ function nextMilestone(total: number) {
   const next = steps.find((s) => s > total) ?? Math.ceil((total + 1) / 10000) * 10000;
   const prev = [0, ...steps].filter((s) => s <= total).pop() ?? 0;
   return { next, ratio: (total - prev) / (next - prev) };
+}
+
+/** 남은 시간. 24시간이 넘으면 "1일 9시간", 아니면 시:분:초 */
+function countdown(ms: number): string {
+  const long = longWaitOf(ms);
+  return long ? h.longWait(long.days, long.hours) : fmtDuration(ms);
 }
 
 /** 그날 시작 시각을 "내일 22:00" 또는 "10월 20일 22:00"으로 */
@@ -98,6 +104,13 @@ export default function Home() {
   const rec = todayRowOf(state, now, deviceTz);
   const st = homeState(goal, rec, now, tz);
   const flash = useFlash(st === 'nag', today);
+  const giveupEnd = goal ? giveupEndsAt(goal) : null;
+  useEffect(() => {
+    if (giveupEnd === null) return;
+    // 포기 마감 순간에 다시 읽는다. 서버가 확정하면 route.ts가 이용 정지 화면으로 보낸다
+    const id = setTimeout(() => void useApp.getState().refresh(), Math.max(0, giveupEnd - nowMs()) + 1000);
+    return () => clearTimeout(id);
+  }, [giveupEnd]);
   const banners = homeBanners({ permission, exactAlarm, loadFailed: state.loadFailed, offline: state.offline });
 
   if (!goal) {
@@ -140,7 +153,7 @@ export default function Home() {
       middle = (
         <>
           <Label>{h.beforeFirstLabel}</Label>
-          <Big>{fmtDuration(fc.start - now)}</Big>
+          <Big>{countdown(fc.start - now)}</Big>
           <Body serif>{h.beforeFirstBody(whenOf(goal, first, today), fs.targetMinutes)}</Body>
         </>
       );
@@ -160,7 +173,7 @@ export default function Home() {
       middle = (
         <>
           <Label>{h.waitLabel}</Label>
-          <Big>{fmtDuration(c.start - now)}</Big>
+          <Big>{countdown(c.start - now)}</Big>
           <Body serif>{h.waitBody(fmtClock(s.startMinutes), s.targetMinutes)}</Body>
         </>
       );
@@ -169,7 +182,7 @@ export default function Home() {
       middle = (
         <>
           <Label>{h.waitLabel}</Label>
-          <Big>{fmtDuration(c.start - now)}</Big>
+          <Big>{countdown(c.start - now)}</Big>
           <Body serif>{h.soonBody(s.targetMinutes)}</Body>
         </>
       );
@@ -223,11 +236,13 @@ export default function Home() {
     }
     case 'done': {
       const line = retroFirstLine(messagesOf(state, goal.id, today));
+      const next = nextStudyDay(goal, addDays(today, 1));
       middle = (
         <>
           <Label>{h.doneLabel}</Label>
           <Big>{h.doneBig(Math.floor(rec!.activeSeconds / 60))}</Big>
           <Body serif>{line ? `“${line}”` : h.doneShake}</Body>
+          {next ? <Body muted>{copy.learn.nextStudy(whenOf(goal, next, today))}</Body> : null}
         </>
       );
       break;
@@ -245,7 +260,7 @@ export default function Home() {
       middle = (
         <>
           <Label inverse>{h.giveupLabel}</Label>
-          <Big inverse>{fmtDuration((giveupEndsAt(goal) ?? now) - now)}</Big>
+          <Big inverse>{countdown((giveupEnd ?? now) - now)}</Big>
           <Body inverse serif>
             {h.giveupBody}
           </Body>
@@ -259,7 +274,7 @@ export default function Home() {
       );
       primary = (
         <>
-          <ErrorLine message={withdraw.message} />
+          <ErrorLine message={withdraw.error?.code === 'not_active' ? h.giveupDone : withdraw.message} />
           <Button title={h.withdraw} kind="inverse" busy={withdraw.busy} onPress={() => void withdraw.run(state.withdrawGiveup)} />
         </>
       );
@@ -293,11 +308,16 @@ export default function Home() {
 
         {st === 'giveup' ? null : (
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: S.sm }}>
-            <TextButton title={h.coupons(goal.coupons)} onPress={() => router.push('/coupon')} style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: S.sm }}>
+              <TextButton title={h.couponOpen} onPress={() => router.push('/coupon')} style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }} />
+              <Text style={[T.small, { color: sub }]}>{h.couponsLeft(goal.coupons)}</Text>
+            </View>
             {canAchieve(goal, today) ? (
               <TextButton title={h.achieve} onPress={() => router.push('/goal/achieve')} style={{ alignSelf: 'flex-end', paddingHorizontal: 0 }} />
             ) : (
-              <Text style={[T.small, { color: sub }]}>{h.achieveIn(daysBetween(today, achieveDay(goal)))}</Text>
+              <Text style={[T.small, { color: sub, flexShrink: 1, textAlign: 'right' }]}>
+                {st === 'before_first' ? h.achieveAfter(goal.periodDays) : h.achieveIn(daysBetween(today, achieveDay(goal)))}
+              </Text>
             )}
           </View>
         )}

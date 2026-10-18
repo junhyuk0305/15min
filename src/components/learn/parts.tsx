@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { router } from 'expo-router';
+import { useState, type ReactNode } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { CoachNote } from '@/components/CoachNote';
 import { ErrorLine } from '@/components/ErrorLine';
+import { LearnShell } from '@/components/learn/LearnShell';
 import { useSurface } from '@/components/surface';
 import { TextButton } from '@/components/TextButton';
 import { Body, Button, H1, Label } from '@/components/ui';
 import { copy } from '@/lib/copy';
-import type { CoachModalView, ModalEntry, Overlay } from '@/lib/learn';
+import { phaseName, type CoachModalView, type ModalEntry, type Overlay } from '@/lib/learn';
 import { reportError } from '@/lib/report';
 import { fmtDuration, type Phase } from '@/lib/rules';
 import { useRuntime } from '@/lib/runtime';
@@ -18,14 +20,14 @@ const t = copy.learn;
 /** 단계별 테마: A 화이트, B 다크, C 화이트(기획서 11.4). 회고도 화이트 */
 export const themeOf = (phase: Phase): ThemeName => (phase === 'B' ? 'dark' : 'white');
 
-/** 단계 전환 안내. 다음 단계 테마로 화면을 덮고 이름과 남은 시간을 1초 보인다 */
-export function PhaseOverlay({ overlay }: { overlay: Overlay | null }) {
+/** 단계 전환 안내. 다음 단계 테마로 화면을 덮고 이름과 남은 시간을 1초 보인다. 첫날 A는 수준 확인 */
+export function PhaseOverlay({ overlay, levelCheck }: { overlay: Overlay | null; levelCheck?: boolean }) {
   if (!overlay) return null;
   const p = PALETTES[themeOf(overlay.phase)];
   return (
     <View accessibilityLiveRegion="assertive" style={[StyleSheet.absoluteFill, s.center, { backgroundColor: p.bg, gap: S.sm }]}>
       <Text accessibilityRole="header" style={[T.h1Serif, { color: p.ink }]}>
-        {t.phase[overlay.phase]}
+        {phaseName(overlay.phase, levelCheck)}
       </Text>
       <Text style={[T.hero, { color: p.ink }]}>{fmtDuration(overlay.remaining * 1000)}</Text>
     </View>
@@ -90,7 +92,7 @@ export function CoachModal({
   );
 }
 
-/** 신고 아이콘. 글자 없는 버튼이라 접근성 이름을 단다(MP 7.7-3) */
+/** 상대와 코치 줄 옆의 작은 글자 버튼 '신고'. 보이는 크기는 작고 hitSlop을 더해 44pt다(MP 7.5-7) */
 export function ReportButton({ onPress }: { onPress: () => void }) {
   const { p } = useSurface();
   return (
@@ -99,12 +101,22 @@ export function ReportButton({ onPress }: { onPress: () => void }) {
       accessibilityLabel={copy.report.label}
       onPress={onPress}
       hitSlop={S.sm}
-      style={({ pressed }) => [{ width: 28, minHeight: 28, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.5 : 1 }]}
+      style={({ pressed }) => [{ minWidth: 28, minHeight: 28, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.5 : 1 }]}
     >
-      <View style={[s.flag, { borderColor: p.sub }]}>
-        <Text style={{ fontFamily: F.sansBold, fontSize: 11, lineHeight: 14, color: p.sub }}>!</Text>
-      </View>
+      <Text style={[T.small, { color: p.sub, textDecorationLine: 'underline' }]}>{copy.report.action}</Text>
     </Pressable>
+  );
+}
+
+/** 학습을 이어 갈 수 없어 멈춘 화면(한도 초과, 04:00 경계). 학습과 회고가 같이 쓴다. 주 버튼은 홈으로 가기 */
+export function StopView({ theme, header, title, body }: { theme: ThemeName; header?: ReactNode; title: string; body: string }) {
+  return (
+    <LearnShell theme={theme} header={header} footer={<Button title={t.home} onPress={() => router.replace('/')} />}>
+      <View style={{ flex: 1, justifyContent: 'center', gap: S.md }}>
+        <H1>{title}</H1>
+        <Body muted>{body}</Body>
+      </View>
+    </LearnShell>
   );
 }
 
@@ -169,7 +181,8 @@ function ReportCard({ busy, error, onChoose, onCancel }: { busy: boolean; error:
 
 /**
  * 영어 입력과 보내기. 실패하면 문장을 남긴 채 실패 안내와 다시 보내기를 보인다(MP 7.3).
- * 글자 수 제한은 없다(결정안 3). 빈 문장만 막는다.
+ * 글자 수 제한은 없다(결정안 3). 빈 문장만 막고, 막힌 이유를 입력창 위에 한 줄 보인다(MP 7.5-5).
+ * error는 실패 안내 문장. 없으면 공통 문장. secondary면 보내기를 테두리 버튼으로 낮춘다(아래에 주 버튼이 따로 있을 때).
  */
 export function Composer({
   value,
@@ -177,6 +190,8 @@ export function Composer({
   onSend,
   busy,
   failed,
+  error,
+  secondary,
   placeholder = t.inputPlaceholder,
   sendTitle = t.send,
 }: {
@@ -185,19 +200,23 @@ export function Composer({
   onSend: () => void;
   busy: boolean;
   failed: boolean;
+  error?: string | null;
+  secondary?: boolean;
   placeholder?: string;
   sendTitle?: string;
 }) {
   const { p } = useSurface();
+  const empty = !value.trim();
   return (
     <>
-      <ErrorLine message={failed ? t.failed : null} />
+      <ErrorLine message={failed ? (error ?? t.failed) : null} />
+      {empty && !failed && !busy ? <Text style={[T.small, { color: p.sub }]}>{t.emptyAnswer}</Text> : null}
       <View style={{ flexDirection: 'row', gap: S.sm, alignItems: 'stretch' }}>
         <TextInput
           value={value}
           onChangeText={onChange}
           placeholder={placeholder}
-          placeholderTextColor={p.disabled}
+          placeholderTextColor={p.sub}
           accessibilityLabel={placeholder}
           multiline
           editable={!busy}
@@ -205,9 +224,10 @@ export function Composer({
         />
         <Button
           title={failed ? t.resend : sendTitle}
+          kind={secondary ? 'secondary' : 'primary'}
           onPress={onSend}
           busy={busy}
-          disabled={!value.trim()}
+          disabled={empty}
           style={{ minWidth: failed ? 112 : 84, alignSelf: 'flex-end' }}
         />
       </View>
@@ -219,7 +239,6 @@ const s = StyleSheet.create({
   dim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', padding: S.lg },
   center: { alignItems: 'center', justifyContent: 'center' },
   card: { width: '100%', maxWidth: 412, borderRadius: R.xl, borderWidth: B.base, padding: S.md, gap: S.sm },
-  flag: { width: 16, height: 16, borderRadius: 8, borderWidth: B.hair, alignItems: 'center', justifyContent: 'center' },
   input: { flex: 1, minHeight: 56, maxHeight: 140, borderWidth: B.base, borderRadius: R.md, paddingHorizontal: 14, paddingVertical: 12, textAlignVertical: 'top' },
 });
 

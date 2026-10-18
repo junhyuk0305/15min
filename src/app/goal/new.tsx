@@ -10,6 +10,7 @@ import { SetupHeader } from '@/components/goal/Header';
 import {
   canAsk,
   choicesOf,
+  FIELD_MAX,
   FIELD_ORDER,
   firstStart,
   missingFields,
@@ -19,11 +20,12 @@ import {
   type FieldKey,
 } from '@/components/goal/logic';
 import { PlanFields } from '@/components/goal/PlanFields';
+import { useSetupReport } from '@/components/goal/ReportSheet';
 import { TextButton } from '@/components/TextButton';
 import { Body, Button, Field, Row, useNow } from '@/components/ui';
 import { toApiError } from '@/lib/api';
 import { copy, errorText } from '@/lib/copy';
-import { fmtClock, MIN_NOTE_CHARS } from '@/lib/rules';
+import { crossesBoundary, fmtClock, MIN_NOTE_CHARS } from '@/lib/rules';
 import { tzOf, useApp } from '@/lib/store';
 import { useAction } from '@/lib/useAction';
 import { B, C, HIT, R, S, T } from '@/lib/theme';
@@ -93,6 +95,7 @@ function ChatStage() {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const report = useSetupReport();
 
   const send = async (raw: string) => {
     const body = raw.trim();
@@ -132,6 +135,10 @@ function ChatStage() {
   if (!busy && last?.role === 'coach' && fields.goal_name && !done) chips.push(g.acceptName);
   const askingReason = missingFields(fields).includes('reason');
   const n = text.trim().length;
+  // 이유를 묻는 동안은 20자부터 보낸다. 비활성 이유는 입력창 바로 위에 둔다(MP 7.5-5)
+  const short = askingReason ? Math.max(0, MIN_NOTE_CHARS - n) : 0;
+  const off = busy || !n || short > 0;
+  const hint = busy ? null : short > 0 ? g.needChars(short) : !n ? g.needText : null;
 
   const speakerOf = (role: 'user' | 'coach'): 'me' | 'partner' => (role === 'user' ? 'me' : 'partner');
 
@@ -151,16 +158,18 @@ function ChatStage() {
           {error ? (
             <View style={{ gap: S.xs }}>
               <ErrorLine message={error} />
-              <TextButton title={g.retry} onPress={() => void send(text)} disabled={!text.trim()} style={{ alignSelf: 'flex-start' }} />
+              <TextButton title={g.retry} onPress={() => void send(text)} disabled={off} style={{ alignSelf: 'flex-start' }} />
             </View>
           ) : null}
+          {hint ? <Text style={[T.small, { color: C.sub }]}>{hint}</Text> : null}
           <View style={{ flexDirection: 'row', gap: S.sm, alignItems: 'stretch' }}>
             <TextInput
               value={text}
               onChangeText={setText}
               placeholder={g.placeholder}
-              placeholderTextColor={C.disabled}
+              placeholderTextColor={C.sub}
               accessibilityLabel={g.placeholder}
+              maxLength={FIELD_MAX.reason}
               multiline
               editable={!busy}
               style={[
@@ -171,8 +180,8 @@ function ChatStage() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={g.send}
-              accessibilityState={{ disabled: busy || !n, busy }}
-              disabled={busy || !n}
+              accessibilityState={{ disabled: off, busy }}
+              disabled={off}
               onPress={() => void send(text)}
               style={({ pressed }) => ({
                 minWidth: 64,
@@ -181,32 +190,36 @@ function ChatStage() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 paddingHorizontal: S.sm,
-                backgroundColor: busy || !n ? C.disabled : C.ink,
+                backgroundColor: off ? C.disabled : C.ink,
                 opacity: pressed ? 0.8 : 1,
               })}
             >
               {busy ? <ActivityIndicator size="small" color={C.onInk} /> : <Text style={[T.buttonSm, { color: C.onInk }]}>{g.send}</Text>}
             </Pressable>
           </View>
-          {askingReason ? (
-            <Text style={[T.small, { color: n >= MIN_NOTE_CHARS ? C.ink : C.sub, textAlign: 'right' }]}>{g.count(n, MIN_NOTE_CHARS)}</Text>
-          ) : null}
           {done ? <TextButton title={g.toPlan} onPress={() => useGoalDraft.getState().setStage('plan')} /> : null}
         </>
       }
     >
       <View style={{ flex: 1, justifyContent: 'flex-end' }}>
         {lines.map((l, i) => (
-          <ChatLine
-            key={l.id}
-            speaker={speakerOf(l.role)}
-            text={l.text}
-            who={l.role === 'user' ? g.me : g.coach}
-            prev={i > 0 ? speakerOf(lines[i - 1].role) : null}
-          />
+          <View key={l.id}>
+            <ChatLine speaker={speakerOf(l.role)} text={l.text} who={l.role === 'user' ? g.me : g.coach} prev={i > 0 ? speakerOf(lines[i - 1].role) : null} />
+            {/* 첫 줄은 앱이 쓴 고정 질문이다. 그 뒤 코치 답만 신고할 수 있다 */}
+            {l.role === 'coach' && i > 0 ? (
+              <TextButton
+                title={copy.report.action}
+                tone="sub"
+                accessibilityLabel={copy.report.label}
+                onPress={() => report.open(l.text)}
+                style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }}
+              />
+            ) : null}
+          </View>
         ))}
         {busy ? <ChatLine speaker="narration" text={g.typing} prev="me" /> : null}
       </View>
+      {report.sheet}
     </Frame>
   );
 }
@@ -246,6 +259,7 @@ function ManualStage() {
           value={fields[k] ?? ''}
           onChange={(v) => setField(k, v)}
           placeholder={PLACEHOLDER[k]}
+          maxLength={FIELD_MAX[k]}
           multiline={k === 'reason'}
           min={k === 'reason' ? MIN_NOTE_CHARS : undefined}
           note={k === 'reason' ? copy.goalForm.reasonLocked : k === 'goal_name' ? g.nameNote : undefined}
@@ -263,6 +277,8 @@ function PlanStage() {
   const plan = useGoalDraft((s) => s.plan);
   const setPlan = useGoalDraft((s) => s.setPlan);
   const short = weekdaysShort(plan.weekdays);
+  // 학습과 회고가 04:00을 넘는 일정은 서버가 받지 않는다(crosses_boundary)
+  const reason = short > 0 ? g.weekdaysLeft(short) : crossesBoundary(plan.startMinutes, plan.targetMinutes) ? g.boundary : null;
   return (
     <Frame
       header={<SetupHeader stage="plan" fields={fields} />}
@@ -270,8 +286,8 @@ function PlanStage() {
         <>
           <Button
             title={g.toConfirm}
-            disabled={short > 0}
-            disabledReason={short > 0 ? g.weekdaysLeft(short) : null}
+            disabled={!!reason}
+            disabledReason={reason}
             onPress={() => useGoalDraft.getState().setStage('confirm')}
           />
           <TextButton title={g.toChat} tone="sub" onPress={() => useGoalDraft.getState().setStage('chat')} />
@@ -306,7 +322,7 @@ function ConfirmStage() {
   const days = WEEKDAY_ORDER.filter((w) => plan.weekdays.includes(w))
     .map((w) => g.weekdayNames[w])
     .join(', ');
-  const noName = !(fields.goal_name ?? '').trim();
+  const blocked = !(fields.goal_name ?? '').trim() ? g.needName : crossesBoundary(plan.startMinutes, plan.targetMinutes) ? g.boundary : null;
 
   const start = () =>
     void create.run(async () => {
@@ -321,7 +337,8 @@ function ConfirmStage() {
       footer={
         <>
           <ErrorLine message={create.message} />
-          <Button title={g.create} busy={create.busy} disabled={noName} disabledReason={noName ? g.needName : null} onPress={start} />
+          <Text style={[T.small, { color: C.sub }]}>{g.startsAt(when)}</Text>
+          <Button title={g.create} busy={create.busy} disabled={!!blocked} disabledReason={blocked} onPress={start} />
           <View style={{ flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: S.md }}>
             <TextButton title={g.toPlanBack} tone="sub" disabled={create.busy} onPress={() => useGoalDraft.getState().setStage('plan')} />
             <TextButton title={g.toChat} tone="sub" disabled={create.busy} onPress={() => useGoalDraft.getState().setStage('chat')} />
@@ -332,7 +349,7 @@ function ConfirmStage() {
       <Text accessibilityRole="header" style={[T.h2, { color: C.ink }]}>
         {g.confirmTitle}
       </Text>
-      <Field label={g.fields.goal_name} value={fields.goal_name ?? ''} onChange={(v) => setField('goal_name', v)} note={g.nameNote} />
+      <Field label={g.fields.goal_name} value={fields.goal_name ?? ''} onChange={(v) => setField('goal_name', v)} note={g.nameNote} maxLength={FIELD_MAX.goal_name} />
       <View>
         <Row left={g.fields.place} right={fields.place} />
         <Row left={g.fields.my_role} right={fields.my_role} />
@@ -354,7 +371,6 @@ function ConfirmStage() {
           ))}
         </View>
       </View>
-      <Text style={[T.small, { color: C.sub }]}>{g.startsAt(when)}</Text>
     </Frame>
   );
 }

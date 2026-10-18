@@ -91,8 +91,8 @@ export function LessonPanel({ header, banner, overlay, request, setFailed, touch
 
   const footer = loadFailed ? (
     <>
-      <ErrorLine message={t.failed} />
-      <Button title={t.resend} busy={busy} onPress={() => void load()} />
+      <ErrorLine message={t.loadFailed} />
+      <Button title={t.reload} busy={busy} onPress={() => void load()} />
     </>
   ) : loaded ? (
     <Composer

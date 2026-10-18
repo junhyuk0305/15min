@@ -96,6 +96,13 @@ function byStatus(status: number, code?: string): ApiError {
 
 type PgError = { code?: string; message?: string } | null;
 
+const gradeOf = (r: Record<string, unknown>): QuizGrade => ({
+  correct: r.correct === true,
+  feedback: String(r.feedback ?? ''),
+  answerEn: String(r.answer_en ?? ''),
+  modal: r.modal ?? null,
+});
+
 /** PostgREST(rpc, select) 오류 → ApiError */
 export function fromPostgrest(error: PgError, status: number): ApiError {
   const code = error?.code ?? '';
@@ -129,8 +136,12 @@ export async function fromFunctions(error: unknown): Promise<ApiError> {
   return toApiError(error);
 }
 
+/** 가입 트리거가 막는 코드. GoTrue가 500 {code: 'P0001', message: 코드}로 돌려주고 supabase-js는 재시도 오류로 바꾼다 */
+const SIGNUP_CODES = new Set(['age_not_confirmed', 'ai_consent_required']);
+
 /** Supabase Auth 오류 → ApiError. 화면은 code로 문구를 고른다(otp_expired, invalid_credentials 등). */
 export function fromAuth(error: unknown): ApiError {
+  if (isAuthError(error) && SIGNUP_CODES.has(error.message.trim())) return new ApiError('invalid', error.message.trim());
   if (isAuthRetryableFetchError(error)) return new ApiError('network');
   if (isAuthError(error)) {
     const status = error.status ?? 0;
@@ -307,9 +318,10 @@ export function createApi(opts: ApiOptions) {
       return data.session;
     },
 
-    /** 이 기기의 세션만 지운다. 서버 요청이 실패해도 로컬 세션은 지워진다 */
+    /** 이 기기의 세션만 지운다. 서버 요청이 실패해도 로컬 세션은 지워지고, 그 실패를 ApiError로 던진다 */
     async signOut(): Promise<void> {
-      await sb().auth.signOut({ scope: 'local' });
+      const { error } = await sb().auth.signOut({ scope: 'local' });
+      if (error) throw fromAuth(error);
     },
 
     // ----- RPC (명세 3절) -----
@@ -384,6 +396,11 @@ export function createApi(opts: ApiOptions) {
     /** 코치, 상대, 반성문 응답 신고. 같은 건은 한 번만 남는다 */
     async reportMessage(messageId: string, reason: string): Promise<void> {
       await rpc('report_message', { p_message_id: messageId, p_reason: reason });
+    },
+
+    /** 서버에 저장하지 않는 AI 글(목표 설정 대화의 코치 답) 신고. 글을 함께 보낸다. 24시간에 20건(넘으면 limit) */
+    async reportAiText(fn: string, text: string, reason: string): Promise<void> {
+      await rpc('report_ai_text', { p_fn: fn, p_text: text, p_reason: reason });
     },
 
     // ----- 읽기 (RLS: 자기 행, 포기 확정 목표는 숨김) -----
@@ -486,12 +503,17 @@ export function createApi(opts: ApiOptions) {
 
     async quizGrade(goalId: string, day: string, phase: 'A' | 'C', questionId: string, answer: string, aided: boolean): Promise<QuizGrade> {
       const r = await invoke<Raw>('review-quiz', { goal_id: goalId, day, phase, action: 'grade', question_id: questionId, answer, aided });
-      return { correct: r.correct === true, feedback: String(r.feedback ?? ''), answerEn: String(r.answer_en ?? ''), modal: r.modal ?? null };
+      return gradeOf(r);
     },
 
-    /** message가 없으면 고정 질문 1 */
-    async retro(goalId: string, day: string, message?: { id: string; text: string }): Promise<Message[]> {
-      const r = await invoke<Raw>('retro', { goal_id: goalId, day, ...(message ? { message } : {}) });
+    /** 답하지 않고 정답을 본다. 틀림으로 센다 */
+    async quizSkip(goalId: string, day: string, phase: 'A' | 'C', questionId: string): Promise<QuizGrade> {
+      return gradeOf(await invoke<Raw>('review-quiz', { goal_id: goalId, day, phase, action: 'skip', question_id: questionId }));
+    },
+
+    /** message가 없으면 고정 질문 1. closing이면 서버가 새 질문 없이 마무리한다(회고 시간이 거의 끝남) */
+    async retro(goalId: string, day: string, message?: { id: string; text: string }, closing = false): Promise<Message[]> {
+      const r = await invoke<Raw>('retro', { goal_id: goalId, day, ...(message ? { message } : {}), ...(closing ? { closing: true } : {}) });
       return mapMessages(r.messages);
     },
 

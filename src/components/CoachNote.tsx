@@ -10,6 +10,7 @@ import { B, F, R, S, T } from '@/lib/theme';
  */
 export function CoachNote({
   kicker,
+  lead,
   expression,
   meaning,
   description,
@@ -20,6 +21,8 @@ export function CoachNote({
 }: {
   /** 맨 위 작은 머리글. 예: 코치, 코치 퀴즈 */
   kicker: string;
+  /** 표현 앞에 오는 코치 문장. 예: 원하는 것을 말할 때는 아래 표현을 써 보십시오. */
+  lead?: string;
   /** 새 표현(영어) */
   expression?: string;
   /** 표현의 뜻 */
@@ -39,6 +42,7 @@ export function CoachNote({
   return (
     <View style={box} accessibilityRole={modal ? undefined : 'summary'}>
       <Text style={[modal ? T.label : s.kicker, { color: p.sub }]}>{kicker}</Text>
+      {lead ? <Text style={[modal ? T.body : s.lead, { color: p.ink }]}>{lead}</Text> : null}
       {expression ? <Text style={[modal ? s.exModal : s.ex, { color: p.ink }]}>{expression}</Text> : null}
       {meaning ? <Text style={[modal ? T.body : s.mean, { color: p.ink }]}>{meaning}</Text> : null}
       {description ? <Text style={[modal ? T.small : s.desc, { color: p.sub }]}>{description}</Text> : null}
@@ -61,6 +65,7 @@ const s = StyleSheet.create({
   exModal: { fontFamily: F.sansBold, fontSize: 17, lineHeight: 24 },
   mean: { fontFamily: F.serifBlack, fontSize: 14, lineHeight: 21 },
   desc: { fontFamily: F.serif, fontSize: 13, lineHeight: 20 },
+  lead: { fontFamily: F.serif, fontSize: 14, lineHeight: 21 },
   word: { flexDirection: 'row', justifyContent: 'space-between', gap: S.sm, borderTopWidth: B.hair, paddingTop: 5 },
   wordKey: { fontFamily: F.sansBold, fontSize: 13, lineHeight: 19 },
 });

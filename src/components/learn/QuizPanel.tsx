@@ -8,19 +8,32 @@ import { useSurface } from '@/components/surface';
 import { TextButton } from '@/components/TextButton';
 import { Body, Button, Label } from '@/components/ui';
 import { copy } from '@/lib/copy';
-import { FEEDBACK_MS, quizModalOf, type CoachModalView } from '@/lib/learn';
+import { FEEDBACK_MS, quizModalOf, quizStep, type CoachModalView } from '@/lib/learn';
 import type { QuizGrade, QuizQuestion } from '@/lib/model';
 import { useApp } from '@/lib/store';
 import { B, R, S, T } from '@/lib/theme';
 
 const t = copy.learn;
 
+type Failure = 'next' | 'grade' | 'skip';
+
 /**
  * A와 C 복습(기획서 11.6). 시간이 남는 한 문항을 계속 낸다(결정안 5). 유형은 서버가 정한다(결정안 11).
- * 정답과 설명은 가린 채 먼저 답한다. 첫 시도를 낸 뒤에만 설명을 열 수 있고, 다음 답은 도움 받은 답이 된다(결정안 12).
- * 맞으면 잠깐 안내하고 다음 문항. 틀리면 한 번 더 답하거나 넘어간다.
+ * 정답과 설명은 가린 채 먼저 답한다. 첫 오답이면 서버가 정답을 감추고(answer_en 빈 값) 한 번 더 받는다.
+ * 그때 다시 답하거나, 설명을 보거나(상황 적용만), 정답을 본다(skip). 두 번째 오답이나 정답 보기면 정답을 보이고
+ * 사용자가 다음 문제 보기를 누른다. 맞으면 잠깐 안내하고 다음 문항. 첫날 A는 수준 확인이다.
  */
-export function QuizPanel({ phase, header, banner, overlay, request, setFailed, touch, offline }: PanelProps & { phase: 'A' | 'C' }) {
+export function QuizPanel({
+  phase,
+  header,
+  banner,
+  overlay,
+  request,
+  setFailed,
+  touch,
+  offline,
+  onLevelCheck,
+}: PanelProps & { phase: 'A' | 'C'; onLevelCheck?: (levelCheck: boolean) => void }) {
   const [q, setQ] = useState<QuizQuestion | null>(null);
   const [answer, setAnswer] = useState('');
   const [choice, setChoice] = useState<number | null>(null);
@@ -29,14 +42,14 @@ export function QuizPanel({ phase, header, banner, overlay, request, setFailed, 
   const [aided, setAided] = useState(false);
   const [explain, setExplain] = useState<CoachModalView | null>(null);
   const [busy, setBusy] = useState(false);
-  /** 'next': 문항을 못 받음, 'grade': 채점을 못 받음 */
-  const [failure, setFailure] = useState<'next' | 'grade' | null>(null);
+  /** 'next': 문항을 못 받음, 'grade': 채점을 못 받음, 'skip': 정답을 못 받음 */
+  const [failure, setFailure] = useState<Failure | null>(null);
   const [netFail, setNetFail] = useState(false);
   const advance = useRef<ReturnType<typeof setTimeout> | null>(null);
   const report = useReport(touch);
 
   const fail = useCallback(
-    (f: 'next' | 'grade' | null) => {
+    (f: Failure | null) => {
       setFailure(f);
       setFailed(f !== null);
     },
@@ -56,7 +69,8 @@ export function QuizPanel({ phase, header, banner, overlay, request, setFailed, 
     setGrade(null);
     setAttempts(0);
     setAided(false);
-  }, [phase, request, fail]);
+    onLevelCheck?.(r.value.levelCheck);
+  }, [phase, request, fail, onLevelCheck]);
 
   useEffect(() => {
     const id = setTimeout(() => void next(), 0);
@@ -76,6 +90,13 @@ export function QuizPanel({ phase, header, banner, overlay, request, setFailed, 
 
   const given = () => (q?.type === 'meaning_choice' ? (choice !== null ? (q.choices?.[choice] ?? '') : '') : answer.trim());
 
+  const show = (g: QuizGrade) => {
+    setGrade(g);
+    const step = quizStep(g);
+    if (step === 'right') advance.current = setTimeout(() => void next(), FEEDBACK_MS);
+    else if (step === 'retry' && q?.type === 'meaning_choice') setChoice(null);
+  };
+
   const submit = async () => {
     const ans = given();
     if (!q || !ans || busy) return;
@@ -85,38 +106,56 @@ export function QuizPanel({ phase, header, banner, overlay, request, setFailed, 
     setBusy(false);
     if (!r.ok) return fail('grade');
     fail(null);
-    const n = attempts + 1;
-    setAttempts(n);
-    setGrade(r.value);
-    const canRetry = !r.value.correct && n === 1 && quizModalOf(r.value.modal) !== null;
-    if (!canRetry) advance.current = setTimeout(() => void next(), FEEDBACK_MS);
-    else if (q.type === 'meaning_choice') setChoice(null);
+    setAttempts(attempts + 1);
+    show(r.value);
   };
 
+  /** 정답 보기. 답하지 않고 정답을 받는다(틀림으로 센다) */
+  const reveal = async () => {
+    if (!q || busy) return;
+    touch();
+    setBusy(true);
+    const r = await request(() => useApp.getState().quizSkip(phase, q.id));
+    setBusy(false);
+    if (!r.ok) return fail('skip');
+    fail(null);
+    show(r.value);
+  };
+
+  const modal = grade ? quizModalOf(grade.modal) : null;
   const openExplain = () => {
-    const m = grade ? quizModalOf(grade.modal) : null;
-    if (!m) return;
+    if (!modal) return;
     touch();
     setAided(true);
-    setExplain(m.kind === 'word' ? { expression: null, words: [m] } : { expression: m, words: [] });
+    setExplain(modal.kind === 'word' ? { expression: null, words: [modal] } : { expression: modal, words: [] });
   };
 
-  const retrying = !!grade && !grade.correct && attempts === 1 && quizModalOf(grade.modal) !== null;
-  const settled = !!grade && !retrying;
+  const step = grade ? quizStep(grade) : null;
+  const retrying = step === 'retry';
+  const settled = step === 'right' || step === 'revealed';
+  const explainButton = modal ? <TextButton title={t.explain} onPress={openExplain} disabled={busy} /> : null;
 
   let footer = null;
   if (failure) {
+    const again = failure === 'next' ? next : failure === 'skip' ? reveal : submit;
     footer = (
       <>
-        <ErrorLine message={t.failed} />
-        <Button title={t.resend} busy={busy} onPress={() => void (failure === 'next' ? next() : submit())} />
+        <ErrorLine message={failure === 'next' ? t.loadFailed : t.failed} />
+        <Button title={failure === 'next' ? t.reload : t.resend} busy={busy} onPress={() => void again()} />
+      </>
+    );
+  } else if (q && step === 'revealed') {
+    footer = (
+      <>
+        <Button title={t.nextQuestion} busy={busy} onPress={() => void next()} />
+        {explainButton}
       </>
     );
   } else if (q && !settled) {
     const extra = retrying ? (
       <View style={{ flexDirection: 'row', justifyContent: 'center', gap: S.lg }}>
-        <TextButton title={t.explain} onPress={openExplain} disabled={busy} />
-        <TextButton title={t.skip} tone="sub" onPress={() => void next()} disabled={busy} />
+        {explainButton}
+        <TextButton title={t.reveal} tone="sub" onPress={() => void reveal()} disabled={busy} />
       </View>
     ) : null;
     footer =
@@ -150,8 +189,10 @@ export function QuizPanel({ phase, header, banner, overlay, request, setFailed, 
       );
   }
 
+  // 채점 결과는 보기 아래에 붙는다. 작은 화면에서도 보이게 내리고(follow), 새 문항이면 맨 위로 올린다(topKey)
   return (
-    <LearnShell theme={themeOf(phase)} header={header} banner={banner} footer={footer} overlay={overlay}>
+    <LearnShell theme={themeOf(phase)} header={header} banner={banner} footer={footer} overlay={overlay} follow={!!grade} topKey={q?.id}>
+      {q?.levelCheck ? <Body muted>{t.levelNote}</Body> : null}
       {q ? (
         <Question
           q={q}
@@ -166,7 +207,7 @@ export function QuizPanel({ phase, header, banner, overlay, request, setFailed, 
       ) : busy ? (
         <Body muted>{t.preparing}</Body>
       ) : null}
-      {grade ? <Feedback grade={grade} retrying={retrying} /> : null}
+      {grade ? <Feedback grade={grade} /> : null}
       <CoachModal
         modal={explain}
         onClose={() => {
@@ -190,6 +231,7 @@ function Question({
   choice: number | null;
   locked: boolean;
   onChoose: (i: number) => void;
+  /** 상황 적용 문항만. 상대 대사를 AI가 써서 신고할 수 있어야 한다(Play AI 생성 콘텐츠 정책). 나머지 유형은 서버가 만든 글이다 */
   onReport: () => void;
 }) {
   const { p } = useSurface();
@@ -198,7 +240,7 @@ function Question({
     <View style={{ gap: S.md }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <Label>{q.levelCheck ? t.levelCheck(q.index + 1) : t.question(q.index + 1)}</Label>
-        <ReportButton onPress={onReport} />
+        {q.type === 'situation' ? <ReportButton onPress={onReport} /> : null}
       </View>
       <Text style={[T.bodySerif, { fontSize: 17, lineHeight: 28, color: p.ink }]}>{first}</Text>
       {rest.join('\n').trim() ? <Text style={[T.body, { color: p.sub }]}>{rest.join('\n').trim()}</Text> : null}
@@ -231,13 +273,12 @@ function Question({
   );
 }
 
-function Feedback({ grade, retrying }: { grade: QuizGrade; retrying: boolean }) {
+function Feedback({ grade }: { grade: QuizGrade }) {
   const { p } = useSurface();
   return (
     <View accessibilityLiveRegion="polite" style={{ gap: S.xs, borderTopWidth: B.hair, borderTopColor: p.line, paddingTop: S.md }}>
       <Text style={[T.h2, { color: grade.correct ? p.ink : p.redText }]}>{grade.correct ? t.right : t.wrong}</Text>
       {grade.feedback ? <Body>{grade.feedback}</Body> : null}
-      {retrying ? <Body muted>{t.retryNote}</Body> : null}
     </View>
   );
 }

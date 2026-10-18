@@ -1,19 +1,28 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { useSurface } from '@/components/surface';
 import { Body, Button, Label, Screen } from '@/components/ui';
 import { copy } from '@/lib/copy';
 import { reportError } from '@/lib/report';
-import { settingsFor, streakOf, todayStats, totalMinutes } from '@/lib/rules';
+import { addDays, fmtClock, settingsFor, streakOf, todayStats, totalMinutes, type Goal } from '@/lib/rules';
+import { nextStudyDay } from '@/lib/selectors';
 import { goalDaysOf, todayKey, todayRow, useApp } from '@/lib/store';
-import { B, S, T } from '@/lib/theme';
+import { B, C, S, T } from '@/lib/theme';
 
 const t = copy.learn;
 
+/** 다음 학습일과 시작 시각. 내일이면 "내일 21:30" */
+function nextWhen(goal: Goal, today: string): string | null {
+  const day = nextStudyDay(goal, addDays(today, 1));
+  if (!day) return null;
+  const clock = fmtClock(settingsFor(goal, day).startMinutes);
+  return day === addDays(today, 1) ? copy.home.tomorrowAt(clock) : copy.home.dateAt(Number(day.slice(5, 7)), Number(day.slice(8, 10)), clock);
+}
+
 /**
- * 완료(기획서 9.2, 11.8). 오늘 분, 누적, 연속, 쿠폰. 격려 한 문장과 흔드는 한 문장.
- * 성과 문장은 items와 item_events로 센다(결정안 15). 못 불러오면 그 줄만 안내한다.
+ * 완료(기획서 9.2, 11.8). 오늘 분, 누적, 연속, 쿠폰. 격려 한 문장과 흔드는 한 문장. 다음 학습 시각.
+ * 성과 문장은 items와 item_events로 센다(결정안 15). 읽는 동안 진행 표시, 못 불러오면 그 줄만 안내한다.
  */
 export default function Done() {
   const { earned } = useLocalSearchParams<{ earned?: string }>();
@@ -46,6 +55,7 @@ export default function Done() {
   const mine = goalDaysOf(state);
   const total = totalMinutes(mine);
   const streak = streakOf(mine, goal.firstDay, today, settingsFor(goal, today).weekdays);
+  const when = nextWhen(goal, today);
 
   return (
     <Screen footer={<Button title={t.home} onPress={() => router.replace('/')} />}>
@@ -70,6 +80,7 @@ export default function Done() {
           <Body serif muted>
             {t.doneShake}
           </Body>
+          {when ? <Body>{t.nextStudy(when)}</Body> : null}
         </View>
         {earned === '1' ? <Body>{t.couponEarned}</Body> : null}
         <View style={{ gap: S.xs }}>
@@ -77,6 +88,12 @@ export default function Done() {
             <Body key={line}>{line}</Body>
           ))}
           {statsFailed ? <Body muted>{t.statsFailed}</Body> : null}
+          {!stats && !statsFailed ? (
+            <View accessibilityRole="progressbar" style={{ flexDirection: 'row', gap: S.sm, alignItems: 'center' }}>
+              <ActivityIndicator color={C.ink} />
+              <Body muted>{t.statsLoading}</Body>
+            </View>
+          ) : null}
         </View>
       </View>
     </Screen>

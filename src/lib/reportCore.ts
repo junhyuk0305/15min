@@ -9,3 +9,20 @@ export function createReporter(sink: ErrorSink, sentryOn: boolean) {
     else sink.log(`[${where}]`, e);
   };
 }
+
+type Crumb = { category?: string; data?: { [key: string]: unknown } };
+
+/** 주소에서 쿼리와 해시를 뗀다. 요청 주소의 필터 값(목표 id, 날짜)이 오류 수집 도구로 가지 않게 한다 */
+export const stripQuery = (url: string) => url.split(/[?#]/)[0];
+
+/** Sentry beforeBreadcrumb. 요청(fetch, xhr)과 화면 이동 기록의 주소에서 쿼리를 지운다 */
+export function scrubBreadcrumb<T extends Crumb>(crumb: T): T {
+  const data = crumb.data;
+  if (!data) return crumb;
+  const out: { [key: string]: unknown } = { ...data };
+  for (const key of ['url', 'from', 'to']) {
+    const v = out[key];
+    if (typeof v === 'string') out[key] = stripQuery(v);
+  }
+  return { ...crumb, data: out };
+}

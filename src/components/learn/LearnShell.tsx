@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,7 +13,7 @@ import { B, PALETTES, S, T, type ThemeName } from '@/lib/theme';
 /**
  * 학습 화면 틀. 위에 시계, 가운데 스크롤, 아래 입력과 주 버튼.
  * 키보드가 올라오면 react-native-keyboard-controller가 화면 전체를 올려 입력창과 주 버튼이 가려지지 않는다(MP 7.5-1, 7.7-2).
- * follow면 내용이 늘 때마다 맨 아래로 내린다(채팅).
+ * follow면 내용이 늘 때마다 맨 아래로 내린다(채팅). topKey가 바뀌면 맨 위로 올린다(복습의 새 문항).
  */
 export function LearnShell({
   theme,
@@ -23,6 +23,7 @@ export function LearnShell({
   footer,
   overlay,
   follow,
+  topKey,
 }: {
   theme: ThemeName;
   header?: ReactNode;
@@ -32,10 +33,20 @@ export function LearnShell({
   /** 화면 위에 덮는 것(단계 전환 안내). 모달은 children이나 footer 안에 둔다 */
   overlay?: ReactNode;
   follow?: boolean;
+  topKey?: string;
 }) {
   const insets = useSafeAreaInsets();
   const p = PALETTES[theme];
   const scroll = useRef<ScrollView>(null);
+  useEffect(() => {
+    if (topKey !== undefined) scroll.current?.scrollTo({ y: 0, animated: false });
+  }, [topKey]);
+  // follow가 켜지는 순간(복습 채점 결과)에도 내린다. 바닥 버튼이 함께 커지면 내용 크기 변화만으로는 내려가지 않는다
+  useEffect(() => {
+    if (!follow) return;
+    const id = requestAnimationFrame(() => scroll.current?.scrollToEnd({ animated: true }));
+    return () => cancelAnimationFrame(id);
+  }, [follow]);
   return (
     <SurfaceProvider theme={theme}>
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: p.bg }}>

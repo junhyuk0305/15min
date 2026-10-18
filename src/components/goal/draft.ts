@@ -6,7 +6,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { toApiError } from '@/lib/api';
 import { copy } from '@/lib/copy';
 import { uuidv4, type GoalSetupFields } from '@/lib/model';
-import { useApp } from '@/lib/store';
+import { GOAL_DRAFT_KEY, useApp } from '@/lib/store';
 import { api } from '@/lib/supabase';
 import { defaultPlan, mergeFields, type Plan, type SetupLine, type SetupStage } from './logic';
 
@@ -95,7 +95,7 @@ export const useGoalDraft = create<Draft & Actions>()(
       reset: () => set({ userId: null, lines: [], fields: {}, done: false, subsituations: [], manual: false, stage: 'chat' }),
     }),
     {
-      name: 'graego-goal-setup-v1',
+      name: GOAL_DRAFT_KEY,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (s): Draft => ({
         userId: s.userId,
@@ -110,3 +110,11 @@ export const useGoalDraft = create<Draft & Actions>()(
     },
   ),
 );
+
+// 로그아웃, 계정 삭제, 세션 만료 때 기기에 남은 초안(처음 이유 포함)을 지운다. 저장 키는 store도 지운다
+useApp.subscribe((s, prev) => {
+  if (prev.authed && !s.authed) {
+    useGoalDraft.getState().reset();
+    useGoalDraft.persist.clearStorage();
+  }
+});

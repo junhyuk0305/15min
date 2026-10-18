@@ -36,6 +36,15 @@ import {
   type Cache,
 } from './selectors';
 import { api, configMissing, onAuthLost, supabase } from './supabase';
+import { copy } from './copy';
+import { reportError } from './report';
+import { useRuntime } from './runtime';
+
+/** 목표 설정 대화 초안의 저장 키(components/goal/draft.ts). 로그아웃하면 이 키도 지운다 */
+export const GOAL_DRAFT_KEY = 'graego-goal-setup-v1';
+
+/** 이 코드로 실패하면 목표 상태가 바뀐 것이다(포기 확정, 지워진 목표). 다시 읽어 화면을 맞춘다 */
+const STALE_CODES = ['not_active', 'not_found'];
 
 /** 기기 시간대. 서버 프로필에 시작할 때마다 알린다(set_timezone) */
 export const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -97,19 +106,22 @@ type Actions = {
    */
   lessonTurn: (text?: string, id?: string) => Promise<{ messages: Message[]; modal: LessonModal; episode: Episode | null }>;
   /** 회고 대화. text가 없으면 고정 질문 1. id는 lessonTurn과 같다 */
-  retroTurn: (text?: string, id?: string) => Promise<void>;
+  retroTurn: (text?: string, id?: string, closing?: boolean) => Promise<void>;
   /** A, C 복습 문항. 채점 안 된 문항이 있으면 그 문항을 다시 준다 */
   quizNext: (phase: 'A' | 'C') => Promise<QuizQuestion>;
   /** 채점. aided는 항목 설명을 본 뒤의 답(결정안 12) */
   quizGrade: (phase: 'A' | 'C', questionId: string, answer: string, aided: boolean) => Promise<QuizGrade>;
+  quizSkip: (phase: 'A' | 'C', questionId: string) => Promise<QuizGrade>;
   /** 성과 문장용 항목과 기록(활성 목표). 캐시하지 않는다 */
   loadItems: () => Promise<{ items: Item[]; events: ItemEvent[] }>;
   /** 기록 탭 글자 수용. 내가 쓴 학습, 회고 문장. 캐시하지 않는다 */
   loadWritten: () => Promise<WrittenRow[]>;
   loadDayMessages: (goalId: string, day: string) => Promise<void>;
   reportMessage: (messageId: string, reason: string) => Promise<void>;
-  /** 반성문. text가 없으면 오늘 대화를 불러온다 */
-  reflectionTurn: (text?: string) => Promise<void>;
+  /** 서버에 저장하지 않는 AI 글(목표 설정 코치 답) 신고 */
+  reportAiText: (fn: string, text: string, reason: string) => Promise<void>;
+  /** 반성문. text가 없으면 오늘 대화를 불러온다. id는 lessonTurn과 같다(실패한 문장은 같은 id로 다시 보낸다) */
+  reflectionTurn: (text?: string, id?: string) => Promise<void>;
 
   setLeftAt: (at: number | null) => void;
   signOut: () => Promise<void>;
@@ -140,7 +152,7 @@ export const useApp = create<AppState>()(
           return await run();
         } catch (e) {
           const err = toApiError(e);
-          if (err.kind === 'suspended' || err.kind === 'banned') void get().refresh();
+          if (err.kind === 'suspended' || err.kind === 'banned' || (err.code && STALE_CODES.includes(err.code))) void get().refresh();
           throw err;
         }
       }
@@ -168,6 +180,12 @@ export const useApp = create<AppState>()(
         const m: Message = { id, goalId, day, phase, role: 'user', text: text.trim(), meta: {}, createdAt: now(), pending: true };
         putMessages(goalId, day, [m]);
         return m;
+      };
+
+      /** 캐시와 목표 설정 초안(처음 이유 포함)을 지운다. 온보딩 여부만 남긴다 */
+      const wipeLocal = () => {
+        set({ ...EMPTY_CACHE, reflections: [], authed: false, loadFailed: false, offline: false, error: null });
+        AsyncStorage.removeItem(GOAL_DRAFT_KEY).catch((e: unknown) => reportError(e, 'storage'));
       };
 
       return {
@@ -210,6 +228,12 @@ export const useApp = create<AppState>()(
           try {
             await api.settleMe();
             const [profile, goals, days] = await Promise.all([api.fetchProfile(), api.fetchGoals(), api.fetchDays()]);
+            if (!profile) {
+              // 읽기는 됐는데 프로필이 없으면 서버에서 지워진 계정이다. 새 계정처럼 보이지 않게 알리고 로그아웃한다
+              useRuntime.getState().setNotice(copy.status.accountGone);
+              await get().signOut();
+              return;
+            }
             const prev = get();
             const goal = goals.find((g) => g.status === 'active') ?? null;
             const lastGoal = goals.filter((g) => g.status === 'achieved').sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0))[0] ?? null;
@@ -250,7 +274,8 @@ export const useApp = create<AppState>()(
         onSession: (session) => {
           const userId = session?.user.id ?? null;
           if (!userId) {
-            set({ authed: false });
+            // 로그아웃, 세션 갱신 실패, 지워진 세션: 기기에 남은 계정 데이터도 지운다
+            wipeLocal();
             return;
           }
           // 다른 계정으로 들어오면 앞 계정의 캐시를 버린다
@@ -364,6 +389,8 @@ export const useApp = create<AppState>()(
         quizGrade: (phase, questionId, answer, aided) =>
           act(() => api.quizGrade(requireGoal().id, today(), phase, questionId, answer.trim(), aided)),
 
+        quizSkip: (phase, questionId) => act(() => api.quizSkip(requireGoal().id, today(), phase, questionId)),
+
         loadWritten: () => act(() => api.fetchWritten()),
 
         loadItems: () =>
@@ -373,13 +400,13 @@ export const useApp = create<AppState>()(
             return { items, events };
           }),
 
-        retroTurn: (text, id) =>
+        retroTurn: (text, id, closing) =>
           act(async () => {
             const g = requireGoal();
             const day = today();
             const mine = text ? optimistic(g.id, day, 'retro', text, id) : null;
             try {
-              const msgs = await api.retro(g.id, day, mine ? { id: mine.id, text: mine.text } : undefined);
+              const msgs = await api.retro(g.id, day, mine ? { id: mine.id, text: mine.text } : undefined, closing);
               putMessages(g.id, day, msgs, mine?.id);
               const answer = msgs.find((m) => m.role === 'user' && m.meta.retro_q === 2);
               if (answer) set({ lastRetro: answer.text });
@@ -396,13 +423,15 @@ export const useApp = create<AppState>()(
 
         reportMessage: (messageId, reason) => act(() => api.reportMessage(messageId, reason)),
 
-        reflectionTurn: (text) =>
+        reportAiText: (fn, text, reason) => act(() => api.reportAiText(fn, text, reason)),
+
+        reflectionTurn: (text, id) =>
           act(async () => {
             if (!text) {
               set({ reflections: await api.reflection() });
               return;
             }
-            const mine: ReflectionMessage = { id: uuidv4(), day: '', role: 'user', text: text.trim(), createdAt: now(), pending: true };
+            const mine: ReflectionMessage = { id: id ?? uuidv4(), day: '', role: 'user', text: text.trim(), createdAt: now(), pending: true };
             set({ reflections: [...get().reflections, mine] });
             try {
               const msgs = await api.reflection({ id: mine.id, text: mine.text });
@@ -418,14 +447,25 @@ export const useApp = create<AppState>()(
         signOut: async () => {
           try {
             await api.signOut();
+          } catch (e) {
+            // 이 기기의 세션은 이미 지워졌다. 서버 세션은 만료로 끝나므로 사용자에게는 알리지 않고 기록만 남긴다
+            reportError(e, 'signout');
           } finally {
-            set({ ...EMPTY_CACHE, reflections: [], authed: false, loadFailed: false, offline: false, error: null });
+            wipeLocal();
           }
         },
 
         deleteAccount: () =>
           act(async () => {
-            await api.deleteAccount();
+            try {
+              await api.deleteAccount();
+            } catch (e) {
+              const err = toApiError(e);
+              // 응답만 못 받았고 서버에서는 지워졌을 수 있다. 다시 읽어 확인한다(지워졌으면 refresh가 로그아웃한다)
+              if (err.kind === 'timeout' || err.kind === 'server') await get().refresh();
+              if (!get().authed) return;
+              throw err;
+            }
             await get().signOut();
           }),
 

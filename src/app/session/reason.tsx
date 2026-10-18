@@ -1,15 +1,17 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 import { ErrorLine } from '@/components/ErrorLine';
 import { LearnShell } from '@/components/learn/LearnShell';
+import { TextButton } from '@/components/TextButton';
 import { Body, Button, Card, Field, H1, Label } from '@/components/ui';
 import { copy } from '@/lib/copy';
+import { MAX_TODAY_REASON, phaseName, phasePlan } from '@/lib/learn';
 import { LEARN_PATH } from '@/lib/route';
-import { MIN_NOTE_CHARS, noteValid } from '@/lib/rules';
+import { MIN_NOTE_CHARS, noteValid, settingsFor } from '@/lib/rules';
 import { goalDaysOf, todayKey, useApp } from '@/lib/store';
 import { useAction } from '@/lib/useAction';
-import { S } from '@/lib/theme';
+import { C, S, T } from '@/lib/theme';
 
 const t = copy.session;
 
@@ -27,6 +29,10 @@ export default function Reason() {
     .filter((d) => d.day < today && d.todayReason)
     .sort((a, b) => (a.day < b.day ? 1 : -1))[0]?.todayReason ?? undefined;
   const same = previous !== undefined && text.trim() === previous.trim();
+  const short = MIN_NOTE_CHARS - text.trim().length;
+  const disabledReason = short > 0 ? t.needChars(short) : same ? t.sameAsYesterday : null;
+  // 첫날(지난 이유 없음)에는 학습 순서와 단계별 시간을 보인다. 첫날 A는 수준 확인이다
+  const plan = previous === undefined ? phasePlan(settingsFor(goal, today).targetMinutes) : null;
 
   const begin = async () => {
     const ok = await start.run(async () => {
@@ -42,7 +48,14 @@ export default function Reason() {
       footer={
         <>
           <ErrorLine message={start.message} />
-          <Button title={t.begin} onPress={() => void begin()} busy={start.busy} disabled={!noteValid(text, previous)} />
+          <Button
+            title={t.begin}
+            onPress={() => void begin()}
+            busy={start.busy}
+            disabled={!noteValid(text, previous)}
+            disabledReason={disabledReason}
+          />
+          <TextButton title={t.ok} tone="sub" onPress={() => router.replace('/')} disabled={start.busy} />
         </>
       }
     >
@@ -58,14 +71,24 @@ export default function Reason() {
           <Body muted>{previous}</Body>
         </View>
       ) : null}
+      {plan ? (
+        <View style={{ gap: S.xs }}>
+          <Label>{t.planLabel}</Label>
+          {plan.map((p, i) => (
+            <Text key={p.phase} style={[T.small, { color: C.ink }]}>
+              {t.planRow(i + 1, phaseName(p.phase, true), t.planTime(p.seconds))}
+            </Text>
+          ))}
+        </View>
+      ) : null}
       <Field
         value={text}
-        onChange={setText}
+        onChange={(v) => setText(v.slice(0, MAX_TODAY_REASON))}
         placeholder={t.reasonPlaceholder}
-        label={copy.goalForm.reasonLabel}
+        label={t.reasonLabel}
         min={MIN_NOTE_CHARS}
         multiline
-        error={same ? t.sameAsYesterday : null}
+        note={text.length >= MAX_TODAY_REASON ? t.maxChars(MAX_TODAY_REASON) : undefined}
       />
     </LearnShell>
   );

@@ -155,6 +155,13 @@ export function homeBanners(i: {
   return out;
 }
 
+/** 남은 시간이 24시간 이상이면 일과 시간("1일 9시간"). 그보다 짧으면 null이고 홈은 시:분:초로 센다 */
+export function longWaitOf(ms: number): { days: number; hours: number } | null {
+  if (ms < 86_400_000) return null;
+  const hours = Math.floor(ms / 3_600_000);
+  return { days: Math.floor(hours / 24), hours: hours % 24 };
+}
+
 /** from부터(포함) 처음 오는 학습일. 2주 안에 없으면 null */
 export function nextStudyDay(goal: Goal, from: string): string | null {
   let d = from < goal.firstDay ? goal.firstDay : from;

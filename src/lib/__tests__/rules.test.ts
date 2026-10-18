@@ -166,6 +166,20 @@ test('목표 입력 범위: 학습 10~30분, 기간 7~90일, 요일 5개 이상,
   assert.equal(R.PERIOD_DEFAULT, 14);
 });
 
+test('04:00 경계: 시작 + 학습 분 + 회고 3분이 04:00을 넘으면 crosses_boundary (서버와 같다)', () => {
+  const ok = { periodDays: 14, weekdays: WEEKDAYS, startMinutes: 22 * 60, targetMinutes: 15, reason: mkGoal().reason };
+  // 03:42 + 15분 + 3분 = 04:00. 넘지 않는다
+  assert.equal(goalInputError({ ...ok, startMinutes: 3 * 60 + 42 }), null);
+  assert.equal(goalInputError({ ...ok, startMinutes: 3 * 60 + 43 }), 'crosses_boundary');
+  assert.equal(goalInputError({ ...ok, startMinutes: 3 * 60 + 59, targetMinutes: 10 }), 'crosses_boundary');
+  // 04:00부터는 하루 안이다
+  assert.equal(goalInputError({ ...ok, startMinutes: 4 * 60 }), null);
+  // 자정 직전 시작은 다음 날 04:00까지 넉넉하다
+  assert.equal(goalInputError({ ...ok, startMinutes: 23 * 60 + 59, targetMinutes: 30 }), null);
+  assert.equal(R.crossesBoundary(0, 30), false);
+  assert.equal(R.crossesBoundary(3 * 60 + 30, 30), true);
+});
+
 test('달성 선언은 first_day + 기간부터', () => {
   const g = mkGoal(); // 10-19 시작, 14일
   assert.equal(achieveDay(g), '2026-11-02');

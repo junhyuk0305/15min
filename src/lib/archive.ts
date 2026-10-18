@@ -131,12 +131,15 @@ export function learnedTotals(items: readonly Item[], events: readonly ItemEvent
 export type ArchivePhase = 'A' | 'B' | 'C' | 'retro';
 const PHASE_ORDER: ArchivePhase[] = ['A', 'B', 'C', 'retro'];
 
-/** 단계별 대화. 목표 설정과 오늘의 이유 메시지는 뺀다. 빈 단계는 없다 */
-export function phaseGroups(messages: readonly Message[]): { phase: ArchivePhase; messages: Message[] }[] {
-  return PHASE_ORDER.map((phase) => ({
-    phase,
-    messages: messages.filter((m) => m.phase === phase).sort((a, b) => a.createdAt - b.createdAt),
-  })).filter((g) => g.messages.length > 0);
+/** 수준 확인 문항인가(첫날 A). review-quiz가 meta.quiz.level_check로 남긴다 */
+const isLevelCheck = (m: Message) => (m.meta.quiz as { level_check?: unknown } | undefined)?.level_check === true;
+
+/** 단계별 대화. 목표 설정과 오늘의 이유 메시지는 뺀다. 빈 단계는 없다. levelCheck면 학습 화면처럼 수준 확인으로 부른다 */
+export function phaseGroups(messages: readonly Message[]): { phase: ArchivePhase; levelCheck: boolean; messages: Message[] }[] {
+  return PHASE_ORDER.map((phase) => {
+    const list = messages.filter((m) => m.phase === phase).sort((a, b) => a.createdAt - b.createdAt);
+    return { phase, levelCheck: list.some(isLevelCheck), messages: list };
+  }).filter((g) => g.messages.length > 0);
 }
 
 // ---------- 서버 행 ----------

@@ -55,6 +55,18 @@ test('choicesOf: "A, B, C 중 어디" 꼴의 마지막 질문에서만 보기를
   assert.deepEqual(choicesOf('하나 중 어디입니까?'), []);
 });
 
+test('choicesOf: 질문 앞부분("상대는", "장소는")은 첫 보기에 붙지 않는다', () => {
+  assert.deepEqual(choicesOf('카페에서는 주문하는 손님이 됩니다. 말을 주고받을 상대는 바리스타, 계산대 점원, 옆자리 손님 중 누구입니까?'), [
+    '바리스타',
+    '계산대 점원',
+    '옆자리 손님',
+  ]);
+  assert.deepEqual(choicesOf('분명한 이유입니다. 영어로 말할 장소는 카페, 호텔 프런트, 회의실 중 어디입니까?'), ['카페', '호텔 프런트', '회의실']);
+  assert.deepEqual(choicesOf('해결할 일은 주문, 자리 찾기 중 무엇입니까?'), ['주문', '자리 찾기']);
+  // 보기 자체에 "는"이 있어도 항목 이름이 아니면 그대로 둔다
+  assert.deepEqual(choicesOf('아는 사람, 처음 보는 사람 중 누구입니까?'), ['아는 사람', '처음 보는 사람']);
+});
+
 test('기본 약속: 기간 14일, 월~금, 22:00, 15분. 지난 목표가 있으면 그 시각을 이어 쓴다', () => {
   assert.deepEqual(defaultPlan(), { periodDays: 14, weekdays: [1, 2, 3, 4, 5], startMinutes: 1320, targetMinutes: 15 });
   assert.deepEqual(defaultPlan({ weekdays: [0, 1, 2, 3, 4, 5], startMinutes: 420, targetMinutes: 20 }), {

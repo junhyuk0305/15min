@@ -25,6 +25,9 @@ export type Plan = { periodDays: number; weekdays: number[]; startMinutes: numbe
 /** 채팅이 채우는 순서 (goal-setup 함수와 같다) */
 export const FIELD_ORDER: FieldKey[] = ['reason', 'place', 'my_role', 'partner', 'task', 'goal_name'];
 
+/** 항목별 글자 수 상한. create_goal, goal-setup(handler.ts FIELD_MAX)과 같다 */
+export const FIELD_MAX: Record<FieldKey, number> = { reason: 1000, place: 100, my_role: 100, partner: 100, task: 100, goal_name: 60 };
+
 /** goal-setup 함수가 받는 대화 줄 수 상한 (handler.ts MAX_MESSAGES) */
 export const MAX_LINES = 40;
 
@@ -69,6 +72,9 @@ export const stepOf = (stage: SetupStage): 1 | 2 | 3 => (stage === 'chat' ? 1 : 
 /** 사용자 줄 하나를 더 보내도 서버 상한 안인가 */
 export const canAsk = (lines: readonly SetupLine[]) => lines.length + 1 <= MAX_LINES;
 
+/** 질문 앞부분 "말을 주고받을 상대는", "영어로 말할 장소는"처럼 항목 이름에 조사가 붙은 말. 첫 보기 앞에서 지운다 */
+const QUESTION_LEAD = /^(?:.*\s)?\S*(?:장소|상대|역할|일|이름|목표|상황|곳)(?:은|는|이|가)\s+/;
+
 /**
  * 코치가 보기를 주면 칩으로 보인다. 응답에 보기 칸이 없어서 마지막 질문 문장
  * "A, B, C 중 어디에 가깝습니까?" 꼴에서만 뽑는다. 꼴이 다르면 빈 배열.
@@ -82,6 +88,7 @@ export function choicesOf(reply: string): string[] {
     if (!m) return [];
     const items = m[1]
       .replace(/^(예를 들어|예컨대|예:)\s*/, '')
+      .replace(QUESTION_LEAD, '')
       .split(/\s*,\s*|\s+또는\s+|\s+아니면\s+/)
       .map((x) => x.replace(/^['"“‘]|['"”’]$/g, '').trim())
       .filter(Boolean);

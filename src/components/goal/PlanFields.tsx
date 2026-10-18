@@ -1,7 +1,7 @@
 import { Pressable, Text, View } from 'react-native';
 import { Label, Stepper } from '@/components/ui';
 import { copy } from '@/lib/copy';
-import { MIN_WEEKDAYS, PERIOD_MAX, PERIOD_MIN, TARGET_MAX, TARGET_MIN } from '@/lib/rules';
+import { MIN_WEEKDAYS, TARGET_MAX, TARGET_MIN } from '@/lib/rules';
 import { B, C, HIT, R, S, T } from '@/lib/theme';
 import { Chip } from './Chip';
 import {
@@ -40,7 +40,7 @@ export function PlanFields({ plan, onChange }: { plan: Plan; onChange: (p: Plan)
             <Chip key={n} role="radio" label={copy.unit.days(n)} on={plan.periodDays === n} onPress={() => set({ periodDays: n })} />
           ))}
         </View>
-        <Note>{g.periodNote(PERIOD_MIN, PERIOD_MAX)}</Note>
+        <Note>{g.periodNote}</Note>
       </View>
 
       <View style={{ gap: S.sm }}>

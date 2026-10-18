@@ -197,3 +197,9 @@ test('상세: 단계 순서 A, B, C, 회고. 목표 설정과 오늘의 이유�
     ],
   );
 });
+
+test('상세: 수준 확인 문항이 있는 A는 levelCheck', () => {
+  const m = (id: string, meta: Record<string, unknown>): Message => ({ id, goalId: 'g', day: '2026-10-19', phase: 'A', role: 'coach', text: id, meta, createdAt: 0 });
+  assert.equal(phaseGroups([m('q', { quiz: { level_check: true } })])[0].levelCheck, true);
+  assert.equal(phaseGroups([m('q', { quiz: { level_check: false } }), m('g', { quiz_grade: {} })])[0].levelCheck, false);
+});

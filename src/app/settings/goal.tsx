@@ -7,7 +7,7 @@ import { ErrorLine } from '@/components/ErrorLine';
 import { TextButton } from '@/components/TextButton';
 import { Body, Button, Card, H1, Label, Screen, Stepper } from '@/components/ui';
 import { copy } from '@/lib/copy';
-import { fmtClock } from '@/lib/rules';
+import { crossesBoundary, fmtClock } from '@/lib/rules';
 import { useApp } from '@/lib/store';
 import { useAction } from '@/lib/useAction';
 import { C, S, T } from '@/lib/theme';
@@ -59,7 +59,17 @@ export default function GoalSettings() {
     setSaved(true);
   };
 
-  const reason = pendingGiveup ? t.giveupPending : short > 0 ? t.weekdaysShort(short) : !changed ? (saved ? t.saved : t.noChange) : null;
+  const reason = pendingGiveup
+    ? t.giveupPending
+    : short > 0
+      ? t.weekdaysShort(short)
+      : !changed
+        ? saved
+          ? t.saved
+          : t.noChange
+        : crossesBoundary(v.startMinutes, v.targetMinutes)
+          ? copy.goalSetup.boundary
+          : null;
   const minute = v.startMinutes % 60;
 
   return (
@@ -67,6 +77,8 @@ export default function GoalSettings() {
       footer={
         <>
           <ErrorLine message={saveAction.message} />
+          {/* 줄이기 확인은 누를 버튼 바로 위에 둔다(작은 화면에서도 보이게) */}
+          {confirmShrink ? <Text style={[T.h2, { color: C.redText }]}>{t.shrink(base.targetMinutes, v.targetMinutes)}</Text> : null}
           <Button
             title={confirmShrink ? t.shrinkYes : t.save}
             onPress={() => void save()}
@@ -150,7 +162,6 @@ export default function GoalSettings() {
             {t.pendingFull(fmtClock(goal.pendingChange.startMinutes), goal.pendingChange.targetMinutes, goal.pendingChange.weekdays.length)}
           </Text>
         ) : null}
-        {confirmShrink ? <Text style={[T.h2, { color: C.redText }]}>{t.shrink(base.targetMinutes, v.targetMinutes)}</Text> : null}
       </View>
     </Screen>
   );

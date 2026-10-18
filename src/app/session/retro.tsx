@@ -3,32 +3,42 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Banner } from '@/components/Banner';
 import { ErrorLine } from '@/components/ErrorLine';
 import { ClockHeader, LearnShell } from '@/components/learn/LearnShell';
-import { Composer, IdleModal, useReport } from '@/components/learn/parts';
+import { Composer, IdleModal, StopView, useReport } from '@/components/learn/parts';
 import { Transcript } from '@/components/learn/Transcript';
 import { useLearnClock, useOnline, useSessionPresence } from '@/components/learn/useLearnClock';
-import { Body, Button } from '@/components/ui';
+import { Body, Button, useNow } from '@/components/ui';
 import { toApiError } from '@/lib/api';
 import { copy, errorText } from '@/lib/copy';
-import { linesOf, sendId } from '@/lib/learn';
+import { dayEnded, linesOf, retroAwaitsAnswer, retroClosing, saveFailure, sendId } from '@/lib/learn';
 import { dayKeyId, uuidv4, type Message } from '@/lib/model';
 import { reportError } from '@/lib/report';
 import { RETRO_SECONDS, type DayRow } from '@/lib/rules';
-import { todayRow, useApp } from '@/lib/store';
+import { deviceTz, todayKey, todayKeyOf, todayRow, useApp } from '@/lib/store';
 
 const t = copy.learn;
 const NONE: Message[] = [];
 
 /**
  * 회고 3분(결정안 17). 서버의 고정 영어 질문 2개 뒤에 짧은 후속 질문. 시간은 학습과 같은 규칙으로 센다(기획서 10).
- * 3분을 채우면 완료하기 하나만 남는다. 완료는 서버가 학습 분과 회고 3분을 다시 확인한다.
+ * 마지막 20초에 보내면 closing으로 보내 서버가 새 질문 없이 마무리한다.
+ * 3분을 채우면 주 버튼은 완료하기다. 답을 기다리는 질문이 남아 있으면 입력창을 그 위에 두고 보내기를 테두리 버튼으로 낮춘다.
+ * 완료는 서버가 학습 분과 회고 3분을 다시 확인한다.
  */
 export default function Retro() {
-  const rec = useApp((s) => (s.goal ? todayRow(s) : undefined));
+  // 들어온 날에 고정한다. 04:00이 지나 하루가 바뀌면 빈 화면 대신 끝났다는 안내를 보인다(Q-E)
+  const [day] = useState(() => todayKey());
+  const now = useNow(5000);
+  const rec = useApp((s) => (s.goal ? s.days.find((d) => d.goalId === s.goal?.id && d.day === day) : undefined));
+  const current = useApp((s) => todayKeyOf(s, now, deviceTz));
+  const [gone, setGone] = useState(false);
+  if (rec && dayEnded(day, current, rec.status, gone ? 'not_found' : null)) {
+    return <StopView theme="white" title={t.dayEndedTitle} body={t.dayEndedBody} />;
+  }
   if (!rec || (rec.status !== 'progress' && rec.status !== 'done')) return null;
-  return <RetroBody rec={rec} />;
+  return <RetroBody rec={rec} onGone={() => setGone(true)} />;
 }
 
-function RetroBody({ rec }: { rec: DayRow }) {
+function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
   const goalId = rec.goalId;
   const day = rec.day;
   const messages = useApp((s) => s.messages[dayKeyId(goalId, day)]) ?? NONE;
@@ -38,8 +48,11 @@ function RetroBody({ rec }: { rec: DayRow }) {
   const [failed, setFailed] = useState<'open' | 'send' | 'finish' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [netFail, setNetFail] = useState(false);
+  const [blocked, setBlocked] = useState(false);
   const [text, setText] = useState('');
   const pending = useRef<{ id: string; text: string } | null>(null);
+  const [saveStuck, setSaveStuck] = useState(false);
+  const saveFails = useRef(0);
 
   const save = useCallback(
     (secs: number) => {
@@ -47,19 +60,29 @@ function RetroBody({ rec }: { rec: DayRow }) {
       useApp
         .getState()
         .saveRetroProgress(secs)
-        .catch((e: unknown) => {
-          const err = toApiError(e);
-          if (err.kind === 'network') setOffline(true);
-          else reportError(err, 'save_retro');
-        });
+        .then(
+          () => {
+            saveFails.current = 0;
+            setSaveStuck(false);
+          },
+          (e: unknown) => {
+            const err = toApiError(e);
+            if (err.code === 'not_found') return onGone();
+            const r = saveFailure(err.kind, saveFails.current);
+            saveFails.current = r.failsInRow;
+            if (r.offline) setOffline(true);
+            else reportError(err, 'save_retro');
+            if (r.stuck) setSaveStuck(true);
+          },
+        );
     },
-    [done, setOffline],
+    [done, setOffline, onGone],
   );
 
   const clock = useLearnClock({
     initial: done ? RETRO_SECONDS : rec.retroSeconds,
     total: RETRO_SECONDS,
-    gates: { waiting, offline, failed: failed !== null, overlay: false, blocked: done },
+    gates: { waiting, offline, failed: failed !== null || saveStuck, overlay: false, blocked: done || blocked },
     save,
   });
   const { touch, syncTo, current } = clock;
@@ -79,11 +102,14 @@ function RetroBody({ rec }: { rec: DayRow }) {
       } catch (e) {
         const err = toApiError(e);
         reportError(err, 'retro');
+        if (err.code === 'not_found') onGone();
         if (err.kind === 'network') setOffline(true);
+        if (err.kind === 'limit') setBlocked(true);
         if (err.kind === 'closed') void useApp.getState().refresh();
         setNetFail(err.kind === 'network');
         setFailed(what);
-        setError(what === 'finish' ? errorText(err.kind, err.code) : t.failed);
+        // 회고 첫 질문은 보낸 것이 없어 ai_failed의 "다시 보내 주십시오" 대신 다시 불러오기로 안내한다
+        setError(what === 'open' && err.code === 'ai_failed' ? t.loadFailed : errorText(err.kind, err.code));
         if (what === 'finish' && err.code === 'not_enough_time') {
           // 서버가 경과 시간으로 잘랐다. 서버 값으로 맞추고 회고를 이어 간다
           syncTo(todayRow()?.retroSeconds ?? current());
@@ -95,7 +121,7 @@ function RetroBody({ rec }: { rec: DayRow }) {
         touch();
       }
     },
-    [setOffline, syncTo, current, touch],
+    [setOffline, syncTo, current, touch, onGone],
   );
 
   const open = useCallback(
@@ -129,7 +155,8 @@ function RetroBody({ rec }: { rec: DayRow }) {
     const id = sendId(pending.current, body, uuidv4);
     pending.current = { id, text: body };
     setText('');
-    const ok = await run('send', () => useApp.getState().retroTurn(body, id));
+    const closing = retroClosing(current());
+    const ok = await run('send', () => useApp.getState().retroTurn(body, id, closing));
     if (ok) pending.current = null;
     else setText(body);
   };
@@ -145,18 +172,7 @@ function RetroBody({ rec }: { rec: DayRow }) {
   };
 
   const filled = done || clock.secs >= RETRO_SECONDS;
-  const footer = filled ? (
-    <>
-      <Body muted>{t.retroFilled}</Body>
-      <ErrorLine message={failed === 'finish' ? error : null} />
-      <Button title={t.finish} busy={waiting} onPress={() => void finish()} />
-    </>
-  ) : failed === 'open' ? (
-    <>
-      <ErrorLine message={error} />
-      <Button title={t.resend} busy={waiting} onPress={() => void open()} />
-    </>
-  ) : (
+  const composer = (secondary: boolean) => (
     <Composer
       value={text}
       onChange={(v) => {
@@ -166,21 +182,49 @@ function RetroBody({ rec }: { rec: DayRow }) {
       onSend={() => void send()}
       busy={waiting}
       failed={failed === 'send'}
+      error={error}
+      secondary={secondary}
     />
   );
+  // 시간이 찼어도 답을 기다리는 질문이 남았거나 쓰던 문장이 있으면 입력창을 남긴다. 완료하기가 주 버튼이다
+  const keepInput = filled && !done && (retroAwaitsAnswer(messages) || !!text.trim() || failed === 'send');
+  const footer = filled ? (
+    <>
+      {keepInput ? composer(true) : null}
+      <Body muted>{t.retroFilled}</Body>
+      <ErrorLine message={failed === 'finish' ? error : null} />
+      <Button title={t.finish} busy={waiting} onPress={() => void finish()} />
+    </>
+  ) : failed === 'open' ? (
+    <>
+      <ErrorLine message={error} />
+      <Button title={t.reload} busy={waiting} onPress={() => void open()} />
+    </>
+  ) : (
+    composer(false)
+  );
+
+  const header = (
+    <ClockHeader
+      label={t.phase.retro}
+      remaining={RETRO_SECONDS - clock.secs}
+      ratio={clock.secs / RETRO_SECONDS}
+      paused={!clock.running && !filled}
+    />
+  );
+  if (blocked) return <StopView theme="white" header={header} title={t.limitTitle} body={t.limitBody} />;
 
   return (
     <LearnShell
       theme="white"
-      header={
-        <ClockHeader
-          label={t.phase.retro}
-          remaining={RETRO_SECONDS - clock.secs}
-          ratio={clock.secs / RETRO_SECONDS}
-          paused={!clock.running && !filled}
-        />
+      header={header}
+      banner={
+        offline ? (
+          <Banner message={t.offline} />
+        ) : saveStuck ? (
+          <Banner message={t.saveStuck} actionTitle={t.saveRetry} onAction={() => save(current())} />
+        ) : null
       }
-      banner={offline ? <Banner message={t.offline} /> : null}
       footer={footer}
       overlay={<IdleModal visible={clock.idle} onContinue={clock.dismissIdle} />}
       follow

@@ -1,11 +1,10 @@
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { ChatLine, chatGap, type ChatSpeaker } from '@/components/ChatLine';
 import { CoachNote } from '@/components/CoachNote';
-import { useSurface } from '@/components/surface';
 import { ReportButton } from '@/components/learn/parts';
 import { copy } from '@/lib/copy';
 import type { Line } from '@/lib/learn';
-import { CHAT_GAP, F } from '@/lib/theme';
+import { CHAT_GAP } from '@/lib/theme';
 
 const t = copy.learn;
 
@@ -26,7 +25,6 @@ export function Transcript({
   waiting?: boolean;
   onReport: (id: string) => void;
 }) {
-  const { p } = useSurface();
   const speakers: ChatSpeaker[] = lines.map((l) => (l.kind === 'me' ? 'me' : l.kind === 'partner' || coachSpeaks ? 'partner' : 'coach'));
   const prev = speakers.at(-1) ?? null;
   const out = lines.map((l, i) => {
@@ -39,13 +37,12 @@ export function Transcript({
           <View style={{ flex: 1 }}>
             <CoachNote
               kicker={t.coach}
+              lead={ex ? l.text : undefined}
               expression={ex?.en}
               meaning={ex?.ko}
               description={ex ? ex.note : l.text}
               words={l.modal?.words.map((w) => ({ word: w.en, meaning: w.ko }))}
-            >
-              {ex && l.text ? <Text style={{ fontFamily: F.serif, fontSize: 13, lineHeight: 20, color: p.sub }}>{l.text}</Text> : null}
-            </CoachNote>
+            />
           </View>
           <View style={{ paddingTop: 8 }}>
             <ReportButton onPress={() => onReport(l.id)} />

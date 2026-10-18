@@ -183,6 +183,7 @@ export function Field({
   note,
   error,
   serif,
+  maxLength,
 }: {
   label?: string;
   value: string;
@@ -195,6 +196,8 @@ export function Field({
   error?: string | null;
   /** 이유처럼 사용자가 쓴 문장은 명조로 */
   serif?: boolean;
+  /** 서버 상한과 같은 글자 수 상한 */
+  maxLength?: number;
 }) {
   const { p, sub, alert } = useInk();
   const n = value.trim().length;
@@ -210,10 +213,11 @@ export function Field({
         value={value}
         onChangeText={onChange}
         placeholder={placeholder}
-        placeholderTextColor={p.disabled}
+        placeholderTextColor={p.sub}
         accessibilityLabel={label ?? placeholder}
         multiline={multiline}
         editable={editable}
+        maxLength={maxLength}
         style={[
           styles.input,
           serif ? T.bodySerif : T.body,

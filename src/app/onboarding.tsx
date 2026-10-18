@@ -45,6 +45,7 @@ function Hook() {
         </View>
       ))}
       <Text style={[T.small, { color: C.sub, marginTop: S.sm }]}>{o.hookNote(Math.round(perYear / 60))}</Text>
+      <Body>{o.what}</Body>
     </View>
   );
 }
@@ -173,7 +174,10 @@ export default function Onboarding() {
           {step < PAGES - 1 ? (
             <Button title={o.next} onPress={() => go(step + 1)} />
           ) : (
-            <Button title={o.warnAgree} accessibilityLabel={o.warnAgreeLabel} busy={busy} onPress={() => void agree()} />
+            <>
+              <Text style={[T.small, { color: C.sub, textAlign: 'center' }]}>{o.warnConsent}</Text>
+              <Button title={o.warnAgree} busy={busy} onPress={() => void agree()} />
+            </>
           )}
         </PrimaryFooter>
       </View>

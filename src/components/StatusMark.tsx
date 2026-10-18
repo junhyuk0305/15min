@@ -51,6 +51,8 @@ export function StatusMark({
       accessibilityLabel={label}
       disabled={!onPress}
       onPress={onPress}
+      // 칸은 화면 폭을 7등분해 360 폭에서 41pt다. 칸 사이 간격(4)의 절반씩 넓혀 44pt를 넘긴다(MP 7.5-7)
+      hitSlop={2}
       style={{
         flex: 1,
         aspectRatio: 1,

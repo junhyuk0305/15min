@@ -13,6 +13,7 @@ const t = copy.settings;
 /** 계정 삭제 입구. 주 버튼 자리에 두지 않고, 한 번 더 확인한다 (MP 7.5-4) */
 export function DeleteAccountButton({ inverse }: { inverse?: boolean }) {
   const deleteAccount = useApp((s) => s.deleteAccount);
+  const giveupPending = useApp((s) => s.goal?.giveupRequestedAt != null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +42,7 @@ export function DeleteAccountButton({ inverse }: { inverse?: boolean }) {
             <H1>{t.deleteTitle}</H1>
             <Body>{t.deleteBody}</Body>
             <Body muted>{t.deleteKeep}</Body>
+            {giveupPending ? <Text style={[T.body, { color: C.redText }]}>{t.deleteGiveup}</Text> : null}
             {error ? <Text accessibilityRole="alert" style={[T.small, { color: C.redText }]}>{error}</Text> : null}
             <Button title={t.deleteConfirm} kind="danger" busy={busy} onPress={() => void confirm()} />
             <TextButton title={t.deleteCancel} onPress={() => setOpen(false)} disabled={busy} />

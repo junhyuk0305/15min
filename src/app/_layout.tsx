@@ -2,7 +2,7 @@ import { router, Stack, useGlobalSearchParams, usePathname, type ErrorBoundaryPr
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { AppState, Platform, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Platform, Text, View } from 'react-native';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ErrorScreen } from '@/components/ErrorScreen';
@@ -27,13 +27,40 @@ if (Platform.OS !== 'web') {
 /** 첫 읽기를 기다리는 최대 시간. 넘으면 캐시나 오류 화면을 보인다(MP 7.4-2) */
 const BOOT_TIMEOUT_MS = 10_000;
 
+/**
+ * 개발 빌드 전용: ?crash=1이면 렌더 오류를 낸다. ErrorBoundary("다시 열기") 확인용(MP 7.3).
+ * 다시 열기를 누르면 그 뒤로는 내지 않아 정상 화면으로 돌아오는지 볼 수 있다.
+ */
+let devRecovered = false;
+function recoverDevCrash() {
+  devRecovered = true;
+}
+function DevCrash() {
+  // 웹 주소를 바로 읽는다. 라우터 값은 렌더를 다시 시도할 때 비어 있을 수 있다
+  const crash = Platform.OS === 'web' && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('crash') === '1';
+  if (__DEV__ && crash && !devRecovered) {
+    throw new Error('dev render crash');
+  }
+  return null;
+}
+
 /** 렌더 오류가 나면 흰 화면 대신 이 화면을 보인다. 오류는 Sentry(있으면)나 콘솔로 보낸다 */
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   useEffect(() => {
     reportError(error, 'render');
     if (Platform.OS !== 'web') SplashScreen.hide();
   }, [error]);
-  return <ErrorScreen title={copy.status.crashTitle} body={copy.status.crashBody} action={copy.status.reopen} onAction={() => void retry()} />;
+  return (
+    <ErrorScreen
+      title={copy.status.crashTitle}
+      body={copy.status.crashBody}
+      action={copy.status.reopen}
+      onAction={() => {
+        if (__DEV__) recoverDevCrash();
+        void retry();
+      }}
+    />
+  );
 }
 
 function useHydrated() {
@@ -222,7 +249,17 @@ export default function RootLayout() {
       </Frame>
     );
   }
-  if (!ready) return <Frame>{null}</Frame>;
+  if (!ready) {
+    // 네이티브는 스플래시가 덮는다. 웹은 빈 틀 대신 진행 표시를 보인다(MP 7.4-2)
+    return (
+      <Frame>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: S.sm }}>
+          <ActivityIndicator color={C.ink} />
+          <Text style={[T.small, { color: C.sub }]}>{copy.status.loading}</Text>
+        </View>
+      </Frame>
+    );
+  }
   if (bootFailed) {
     const retry = async () => {
       setRetrying(true);
@@ -237,7 +274,7 @@ export default function RootLayout() {
         <ErrorScreen
           title={copy.status.bootTitle}
           body={error ? errorText(error.kind, error.code) : copy.error.kind.network}
-          action={copy.status.retry}
+          action={copy.status.reload}
           busy={retrying}
           onAction={() => void retry()}
         />
@@ -248,6 +285,7 @@ export default function RootLayout() {
     <Frame>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: C.bg } }} />
       <Notice />
+      {__DEV__ ? <DevCrash /> : null}
     </Frame>
   );
 }
