@@ -51,3 +51,4 @@ google-service-account*.json
 supabase/.temp/
 supabase/.branches/
 scripts/e2e/results.json
+scripts/e2e/__pycache__/
