@@ -129,8 +129,8 @@ App Store Connect의 연령 등급 질문에 아래처럼 답합니다. 가이�
 
 ## 7. 수출 규정
 
-`app.config.ts`의 iOS `infoPlist`에 `ITSAppUsesNonExemptEncryption: false`를 둡니다.
-앱은 운영체제의 HTTPS만 씁니다. 자체 암호화를 넣지 않았으므로 면제 대상입니다.
+`app.json`의 `ios.config.usesNonExemptEncryption: false`가 빌드 때 `ITSAppUsesNonExemptEncryption: false`가 됩니다.
+통신은 운영체제의 HTTPS만 씁니다. 로그인 세션을 기기에 저장할 때는 `aes-js`로 AES 암호화를 합니다. 표준 알고리즘을 기기 안 데이터 보호에만 쓰므로 면제 대상으로 봅니다. `[법무 확인: 수출 규정 면제 여부]`
 이 값이 있으면 빌드를 올릴 때마다 수출 규정 질문이 나오지 않습니다.
 
 ## 8. 앱 심사 정보

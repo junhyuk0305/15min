@@ -24,7 +24,7 @@ Graego is an English conversation learning app that makes users stick to a goal 
 DEMO ACCOUNT
 Email: [REVIEW_EMAIL]
 Password: [REVIEW_PASSWORD]
-1. On the sign-in screen, enter the email above. Because it is the review account, a password field appears instead of the 6-digit email code. Enter the password.
+1. On the sign-in screen, enter the email above, check the three required consent boxes (age 18+, Terms and Privacy Policy, AI processing and overseas transfer), then tap "코드 받기". Because it is the review account, a password field appears instead of the 6-digit email code. Enter the password.
 2. The demo account already has an active goal. Tap the goal card on the Home tab to start today's learning right away.
 3. Normal users start the day after they create a goal. The demo account is set up so you can see the learning flow without waiting.
 
@@ -38,14 +38,14 @@ Reminding the user is the core purpose of the app. Before we request notificatio
 - Users can turn notifications off in system settings at any time. The app keeps working.
 
 GIVE-UP AND SUSPENSION
-- A user can request to give up a goal in Settings > Goal. A 24-hour waiting period starts, and the user can withdraw the request at any time during it.
+- A user can request to give up a goal in Settings (설정) > Goal (목표 관리) > 포기 신청. A 24-hour waiting period starts, and the user can withdraw the request at any time during it.
 - Only if the user does not withdraw, the give-up is confirmed. The goal ends and the account is suspended for 7 days (1st confirmed give-up), 14 days (2nd), or permanently (3rd). A suspended user cannot create a new goal.
 - This restriction is caused only by the user's own confirmed give-ups. It is explained before sign-up and in the Terms of Use. It is not a penalty imposed by us or by other users.
 - During suspension the app shows a reflection chat about why the user gave up. Text links to Delete account, Terms of Use and Privacy Policy remain on the suspension screen and on the permanent suspension screen.
 - If you try the give-up request on the demo account, please withdraw it within 24 hours, or the demo account will be suspended.
 
 ACCOUNT DELETION
-Settings > Delete account. Deletion happens immediately in the app. Users can also request deletion at [ACCOUNT_DELETION_URL].
+Settings (설정) > Delete account (계정 삭제) at the bottom. Deletion happens immediately in the app. Users can also request deletion at [ACCOUNT_DELETION_URL].
 
 AI
 Learning chats are processed by the Google Gemini API through our server. At sign-up, users give a separate, required consent to AI processing by Google Gemini API and the related overseas data transfer. The consent time is stored. It is also described in the Privacy Policy.
@@ -70,7 +70,8 @@ Contact: [운영자 이름], [연락처 이메일]
 | 알림을 거부해도 앱이 동작한다 | 반영. 거부해도 온보딩이 이어지고 홈에 붉은 배너와 설정 열기 버튼이 뜹니다 |
 | 정지 중에도 계정 삭제, 이용약관, 개인정보처리방침을 쓸 수 있다 | 반영. 정지 화면과 영구 정지 화면에 세 텍스트 링크가 있습니다 |
 | 가입 때 AI 처리에 동의한다 | 반영. 가입 화면의 별도 필수 동의. 동의 시각을 저장합니다 |
-| AI 응답을 앱 안에서 신고할 수 있다 | 반영. 코치, 상대, 반성문 응답의 신고 버튼. `message_reports`에 메시지 ID, 사유, 시각 저장 |
+| AI 응답을 앱 안에서 신고할 수 있다 | 반영. 코치, 상대, 반성문 응답의 신고 버튼. `message_reports`에 메시지 ID, 사유, 시각 저장. 목표 설정 대화의 코치 응답에는 버튼이 없습니다. 본문의 "any coach"가 맞으려면 이것을 고친 빌드를 제출합니다 `[앱 변경 필요]` |
 | 만 18세 이상만 가입한다 | 반영 |
-| 정확한 알람 권한이 없을 때 안내한다 | 권한 확인과 설정 이동 안내가 있어야 합니다 `[앱 변경 필요]` |
+| 데모 계정도 동의 체크 3개를 해야 코드 받기 버튼이 눌린다 | 반영. `src/app/auth.tsx`의 `allAgreed` |
+| 정확한 알람 권한이 없을 때 안내한다 | 반영. 홈 배너와 "알람 및 리마인더" 설정 이동. 실기기 확인은 사람 필요 |
 | 앱 이름 영문 표기 Graego | HANDOFF 1번에서 확정합니다 `[가정]` |
