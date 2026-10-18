@@ -1,0 +1,195 @@
+import { router } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { View } from 'react-native';
+import { Banner } from '@/components/Banner';
+import { ErrorLine } from '@/components/ErrorLine';
+import { ClockHeader, LearnShell } from '@/components/learn/LearnShell';
+import { LessonPanel } from '@/components/learn/LessonPanel';
+import { IdleModal, PhaseOverlay, themeOf } from '@/components/learn/parts';
+import { QuizPanel } from '@/components/learn/QuizPanel';
+import type { PanelProps, Result } from '@/components/learn/types';
+import { useLearnClock, useOnline, useSessionPresence } from '@/components/learn/useLearnClock';
+import { Body, Button, H1 } from '@/components/ui';
+import { toApiError } from '@/lib/api';
+import { copy, errorText } from '@/lib/copy';
+import { OVERLAY_MS, overlayFor, phaseEnd, phaseRemaining, savePhase } from '@/lib/learn';
+import { reportError } from '@/lib/report';
+import { RETRO_PATH } from '@/lib/route';
+import { phaseAt, type DayRow, type Phase } from '@/lib/rules';
+import { todayRow, useApp } from '@/lib/store';
+import { S } from '@/lib/theme';
+
+const t = copy.learn;
+
+/**
+ * 학습 화면 하나에 A(지난 학습 복습) → B(상황 대화) → C(오늘 학습 복습). 단계는 센 시간으로 정한다(MP P6-1, 2).
+ * 경계에 닿으면 문항 중간이라도 끊고(결정안 5) 다음 단계 이름과 남은 시간을 1초 보인다. 그동안 시계는 멈춘다.
+ * 시간을 다 채우면 회고를 시작하고 회고 화면으로 간다.
+ */
+export default function Learn() {
+  const rec = useApp((s) => (s.goal ? todayRow(s) : undefined));
+  // 학습 중이 아니면 route.ts가 홈으로 보낸다
+  if (!rec || rec.status !== 'progress') return null;
+  return <LearnBody rec={rec} />;
+}
+
+function LearnBody({ rec }: { rec: DayRow }) {
+  const targetMinutes = rec.targetMinutes;
+  const total = targetMinutes * 60;
+  const { offline, setOffline } = useOnline();
+  const [waiting, setWaiting] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const [shown, setShown] = useState<Phase | null>(null);
+  const [retroError, setRetroError] = useState<{ message: string; network: boolean } | null>(null);
+  const retroStarting = useRef(false);
+
+  const save = useCallback(
+    (secs: number) => {
+      if (secs <= 0) return;
+      useApp
+        .getState()
+        .saveProgress(secs, savePhase(secs, targetMinutes))
+        .catch((e: unknown) => {
+          const err = toApiError(e);
+          if (err.kind === 'network') setOffline(true);
+          else reportError(err, 'save_progress');
+        });
+    },
+    [targetMinutes, setOffline],
+  );
+
+  // 화면에 띄운 단계의 끝에서 시계가 멈춘다. 처음(shown null)에는 안내가 끝날 때까지 멈춰 있다
+  const clock = useLearnClock({
+    initial: rec.activeSeconds,
+    total,
+    limit: shown ? phaseEnd(shown, targetMinutes) : 0,
+    gates: { waiting: waiting > 0, offline, failed, overlay: false, blocked },
+    save,
+  });
+  useSessionPresence(() => save(clock.current()));
+
+  const { touch, syncTo, current } = clock;
+  const request = useCallback(
+    async <T,>(job: () => Promise<T>): Promise<Result<T>> => {
+      setWaiting((n) => n + 1);
+      try {
+        const value = await job();
+        setOffline(false);
+        return { ok: true, value };
+      } catch (e) {
+        const error = toApiError(e);
+        if (error.kind === 'network') setOffline(true);
+        if (error.kind === 'limit') setBlocked(true);
+        // 하루가 바뀌었거나(04:00) 학습이 닫혔으면 다시 읽어 route.ts가 화면을 옮기게 한다
+        if (error.kind === 'closed') void useApp.getState().refresh();
+        reportError(error, 'learn');
+        return { ok: false, error };
+      } finally {
+        setWaiting((n) => n - 1);
+        touch(); // 응답을 기다린 시간은 딴짓이 아니다
+      }
+    },
+    [setOffline, touch],
+  );
+
+  // 단계 전환: 시간으로 정한 단계가 화면의 단계와 다르면 1초 안내 뒤 바꾼다(시계는 경계에서 멈춰 있다)
+  const overlay = overlayFor(shown, clock.secs, targetMinutes, rec.retroSeconds);
+  const nextPhase = overlay?.phase ?? null;
+  useEffect(() => {
+    if (!nextPhase) return;
+    const id = setTimeout(() => {
+      setFailed(false);
+      setShown(nextPhase);
+      touch();
+    }, OVERLAY_MS);
+    return () => clearTimeout(id);
+  }, [nextPhase, touch]);
+
+  const startRetro = useCallback(async () => {
+    if (retroStarting.current) return;
+    retroStarting.current = true;
+    setRetroError(null);
+    const r = await request(async () => {
+      const s = useApp.getState();
+      await s.saveProgress(total, 'C');
+      await s.startRetro();
+    });
+    retroStarting.current = false;
+    if (r.ok) {
+      router.replace(RETRO_PATH);
+      return;
+    }
+    if (r.error.code === 'not_enough_time') {
+      // 서버가 경과 시간으로 잘랐다. 서버 값으로 맞추고 C를 이어 간다
+      syncTo(todayRow()?.activeSeconds ?? current());
+      return;
+    }
+    setRetroError({ message: errorText(r.error.kind, r.error.code), network: r.error.kind === 'network' });
+  }, [request, total, syncTo, current]);
+
+  useEffect(() => {
+    if (shown !== 'retro') return;
+    const id = setTimeout(() => void startRetro(), 0);
+    return () => clearTimeout(id);
+  }, [shown, startRetro]);
+
+  // 연결이 돌아오면 회고 시작을 다시 한다
+  const retryRetro = !offline && shown === 'retro' && !!retroError?.network;
+  useEffect(() => {
+    if (!retryRetro) return;
+    const id = setTimeout(() => void startRetro(), 0);
+    return () => clearTimeout(id);
+  }, [retryRetro, startRetro]);
+
+  const view = shown ?? phaseAt(clock.secs, targetMinutes);
+  const header = (
+    <ClockHeader
+      label={t.phase[view]}
+      phaseLeft={view === 'retro' ? undefined : phaseRemaining(view, clock.secs, targetMinutes)}
+      remaining={total - clock.secs}
+      ratio={total ? clock.secs / total : 0}
+      paused={!clock.running}
+    />
+  );
+  const banner = offline ? <Banner message={t.offline} /> : null;
+  const layer = (
+    <>
+      <PhaseOverlay overlay={overlay} />
+      <IdleModal visible={clock.idle} onContinue={clock.dismissIdle} />
+    </>
+  );
+
+  if (blocked) {
+    return (
+      <LearnShell theme={themeOf(view)} header={header} footer={<Button title={t.home} onPress={() => router.replace('/')} />}>
+        <View style={{ flex: 1, justifyContent: 'center', gap: S.md }}>
+          <H1>{t.limitTitle}</H1>
+          <Body muted>{t.limitBody}</Body>
+        </View>
+      </LearnShell>
+    );
+  }
+
+  const props: PanelProps = { header, banner, overlay: layer, request, setFailed, touch, offline };
+  if (shown === 'A' || shown === 'C') return <QuizPanel key={shown} phase={shown} {...props} />;
+  if (shown === 'B') return <LessonPanel {...props} />;
+  return (
+    <LearnShell
+      theme={themeOf(view)}
+      header={header}
+      banner={banner}
+      overlay={layer}
+      footer={
+        shown === 'retro' && retroError ? (
+          <>
+            <ErrorLine message={retroError.message} />
+            <Button title={t.toRetro} busy={waiting > 0} onPress={() => void startRetro()} />
+          </>
+        ) : null
+      }
+    >
+      {null}
+    </LearnShell>
+  );
+}

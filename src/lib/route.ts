@@ -21,8 +21,8 @@ export type RouteInput = {
 export type Gate = 'onboarding' | 'auth' | 'banned' | 'suspended' | 'app';
 
 /** 학습 화면 경로. 학습 화면을 바꾸면 여기만 바꾼다 */
-export const LEARN_PATH = '/session/chat';
-export const RETRO_PATH = '/session/review';
+export const LEARN_PATH = '/session/learn';
+export const RETRO_PATH = '/session/retro';
 
 const GATE_HOME: Record<Exclude<Gate, 'app'>, string> = {
   onboarding: '/onboarding',
@@ -58,9 +58,9 @@ function appRedirect(path: string, i: RouteInput): string | null {
     if (!i.hasActiveGoal || i.giveupPending || i.today === 'closed') return '/';
     return i.today === 'progress' ? LEARN_PATH : null;
   }
-  if (path === LEARN_PATH || path === '/session/learn') return i.hasActiveGoal && i.today === 'progress' ? null : '/';
+  if (path === LEARN_PATH) return i.hasActiveGoal && i.today === 'progress' ? null : '/';
   // 회고 화면은 완료 직후에도 잠깐 남아 있다가 완료 화면으로 간다
-  if (path === RETRO_PATH || path === '/session/retro') return i.hasActiveGoal && i.today !== 'none' ? null : '/';
+  if (path === RETRO_PATH) return i.hasActiveGoal && i.today !== 'none' ? null : '/';
   if (NEEDS_GOAL.includes(path)) return i.hasActiveGoal ? null : '/';
   return null;
 }

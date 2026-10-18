@@ -3,16 +3,18 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Platform, Text, View } from 'react-native';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ErrorScreen } from '@/components/ErrorScreen';
 import { copy, errorText } from '@/lib/copy';
 import { useFontsReady } from '@/lib/fonts';
-import { applyPlan, clearAll, getPermission, onNotificationTap, setupNotifications } from '@/lib/notify';
+import { applyPlan, clearAll, getExactAlarm, getPermission, onNotificationTap, setupNotifications } from '@/lib/notify';
+import { tapTarget, type TapData } from '@/lib/notifyTarget';
 import { buildPlan } from '@/lib/plan';
 import { reportError } from '@/lib/report';
 import { redirectFor } from '@/lib/route';
 import { useRuntime } from '@/lib/runtime';
-import { planInputOf, routeInputOf } from '@/lib/selectors';
+import { planInputOf, routeInputOf, tapStateOf } from '@/lib/selectors';
 import { deviceTz, nowMs, todayKey, useApp } from '@/lib/store';
 import { configMissing } from '@/lib/supabase';
 import { C, FRAME_MAX, S, T } from '@/lib/theme';
@@ -59,6 +61,9 @@ function useBootstrap(hydrated: boolean) {
     const checkPermission = () =>
       getPermission().then(useRuntime.getState().setPermission, (e: unknown) => reportError(e, 'notify'));
     void checkPermission();
+    // Android 정확한 알람 권한. 설정에서 켜고 돌아오면 다시 확인한다(P8-3)
+    const checkExactAlarm = () => useRuntime.getState().setExactAlarm(getExactAlarm());
+    checkExactAlarm();
 
     let timer: ReturnType<typeof setTimeout> | null = null;
     const unsubStore = useApp.subscribe(() => {
@@ -67,6 +72,8 @@ function useBootstrap(hydrated: boolean) {
     });
     const unsubRuntime = useRuntime.subscribe((s, prev) => {
       if (prev.inSession && !s.inSession) replan();
+      // 정확한 알람 권한을 새로 받으면 부정확하게 걸린 알림을 다시 건다
+      else if (prev.exactAlarm !== 'granted' && s.exactAlarm === 'granted') replan();
     });
     const appSub = AppState.addEventListener('change', (st) => {
       if (st !== 'active') return;
@@ -74,6 +81,7 @@ function useBootstrap(hydrated: boolean) {
       s.syncTime().catch((e: unknown) => reportError(e, 'time'));
       void s.refresh();
       void checkPermission();
+      checkExactAlarm();
     });
     // 하루가 바뀌면(04:00) 다시 읽는다
     let day = todayKey();
@@ -115,24 +123,33 @@ function useGuard(active: boolean) {
   return target;
 }
 
-/** 알림을 눌렀을 때 경로. 준비가 끝난 뒤에 연다(앱이 꺼진 상태에서 눌렀을 때 포함) */
+/**
+ * 알림을 눌렀을 때 경로. 준비가 끝난 뒤에 연다(앱이 꺼진 상태에서 눌렀을 때 포함).
+ * 그 알림이 가리키는 상태가 이미 끝났으면(예: 완료한 날의 독촉) 홈으로 보내고 한 줄 안내를 띄운다(P8-5).
+ */
+function openTap(tap: TapData) {
+  const target = tapTarget(tap, tapStateOf(useApp.getState(), nowMs(), deviceTz));
+  if (target.stale) useRuntime.getState().setNotice(copy.notify.stale);
+  router.navigate(target.path as never);
+}
+
 function useNotificationTaps(ready: boolean) {
-  const pending = useRef<string | null>(null);
+  const pending = useRef<TapData | null>(null);
   const readyRef = useRef(ready);
   useEffect(() => {
     readyRef.current = ready;
   }, [ready]);
   useEffect(
     () =>
-      onNotificationTap((url) => {
-        if (readyRef.current) router.push(url as never);
-        else pending.current = url;
+      onNotificationTap((tap) => {
+        if (readyRef.current) openTap(tap);
+        else pending.current = tap;
       }),
     [],
   );
   useEffect(() => {
     if (ready && pending.current) {
-      router.push(pending.current as never);
+      openTap(pending.current);
       pending.current = null;
     }
   }, [ready]);
@@ -162,12 +179,15 @@ function Notice() {
 function Frame({ children }: { children: React.ReactNode }) {
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
-      <View style={{ flex: 1, backgroundColor: Platform.OS === 'web' ? '#E4DED2' : C.bg, alignItems: 'center' }}>
-        <View style={{ flex: 1, width: '100%', maxWidth: Platform.OS === 'web' ? FRAME_MAX : undefined, backgroundColor: C.bg, overflow: 'hidden' }}>
-          {children}
+      {/* 학습 화면의 입력창과 주 버튼을 키보드 위로 올린다(react-native-keyboard-controller). 웹에서는 아무것도 하지 않는다 */}
+      <KeyboardProvider>
+        <StatusBar style="dark" />
+        <View style={{ flex: 1, backgroundColor: Platform.OS === 'web' ? '#E4DED2' : C.bg, alignItems: 'center' }}>
+          <View style={{ flex: 1, width: '100%', maxWidth: Platform.OS === 'web' ? FRAME_MAX : undefined, backgroundColor: C.bg, overflow: 'hidden' }}>
+            {children}
+          </View>
         </View>
-      </View>
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }

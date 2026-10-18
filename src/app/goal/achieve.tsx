@@ -1,52 +1,76 @@
-import { router } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { ErrorLine } from '@/components/ErrorLine';
-import { Body, Button, H1, Label, Screen } from '@/components/ui';
+import { TextButton } from '@/components/TextButton';
+import { Body, Button, H1, Label, Row, Screen } from '@/components/ui';
 import { copy } from '@/lib/copy';
-import type { AppGoal } from '@/lib/model';
-import { canAchieve, daysBetween, totalMinutes } from '@/lib/rules';
+import { achieveDay, canAchieve, daysBetween, totalMinutes } from '@/lib/rules';
 import { goalDaysOf, todayKey, useApp } from '@/lib/store';
 import { useAction } from '@/lib/useAction';
-import { S, T } from '@/lib/theme';
+import { useBlockBack } from '@/lib/useBlockBack';
+import { B, C, S, T } from '@/lib/theme';
 
 const t = copy.achieve;
+
+const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
+const dateOf = (day: string) => t.date(Number(day.slice(5, 7)), Number(day.slice(8, 10)));
+
+/** A2 달성. 선언한 뒤에는 뒤로 갈 수 없고 새 목표 만들기로만 간다 (기획서 5.4, MP S15) */
+function Celebration({ days, total }: { days: number; total: number }) {
+  useBlockBack();
+  return (
+    <Screen footer={<Button title={t.next} onPress={() => router.replace('/goal/new')} />}>
+      <Stack.Screen options={{ gestureEnabled: false }} />
+      <View style={{ flex: 1, justifyContent: 'center', gap: S.md, minHeight: 420 }}>
+        <Text style={[T.hero, { fontSize: 64, lineHeight: 72 }]}>{copy.unit.days(days)}</Text>
+        <Text style={T.big}>{copy.unit.minutes(total)}</Text>
+        <View style={{ borderTopWidth: B.hair, borderTopColor: C.line }} />
+        <Body serif>{t.doneTitle(days)}</Body>
+        <Body serif muted>
+          {t.doneShake}
+        </Body>
+      </View>
+    </Screen>
+  );
+}
 
 export default function Achieve() {
   const state = useApp();
   const goal = state.goal;
   const declareAction = useAction();
   // 선언 뒤에는 활성 목표가 사라지므로 달성 화면에 보일 값을 붙잡아 둔다
-  const [done, setDone] = useState<{ goal: AppGoal; days: number; total: number } | null>(null);
+  const [done, setDone] = useState<{ days: number; total: number } | null>(null);
 
-  if (done) {
+  if (done) return <Celebration days={done.days} total={done.total} />;
+
+  const today = todayKey(state);
+  if (!goal) {
     return (
-      <Screen footer={<Button title={t.next} onPress={() => router.replace('/goal/new')} />}>
-        <View style={{ flex: 1, justifyContent: 'center', gap: S.lg, minHeight: 420 }}>
-          <Text style={T.hero}>{copy.unit.days(done.days)}</Text>
-          <Text style={T.big}>{copy.unit.minutes(done.total)}</Text>
-          <H1>{t.doneTitle(done.days)}</H1>
-          <Text style={T.h2}>{t.doneShake}</Text>
+      <Screen footer={<Button title={t.home} onPress={() => router.replace('/')} />}>
+        <View style={{ flex: 1, justifyContent: 'center', minHeight: 360 }}>
+          <H1>{t.noGoal}</H1>
+        </View>
+      </Screen>
+    );
+  }
+  if (!canAchieve(goal, today)) {
+    return (
+      <Screen footer={<Button title={t.cancel} onPress={back} />}>
+        <View style={{ flex: 1, justifyContent: 'center', gap: S.md, minHeight: 360 }}>
+          <H1>{t.notYet(daysBetween(today, achieveDay(goal)))}</H1>
+          <Body muted>{t.notYetBody}</Body>
         </View>
       </Screen>
     );
   }
 
-  const today = todayKey(state);
-  if (!goal || !canAchieve(goal, today)) {
-    return (
-      <Screen footer={<Button title={t.cancel} kind="secondary" onPress={() => router.back()} />}>
-        {null}
-      </Screen>
-    );
-  }
-
-  const days = daysBetween(goal.firstDay, today);
+  const elapsed = daysBetween(goal.firstDay, today);
   const total = totalMinutes(goalDaysOf(state));
 
   const declare = async () => {
     const achieved = await declareAction.run(state.declareAchievement);
-    if (achieved) setDone({ goal: achieved, days: goal.periodDays, total });
+    if (achieved) setDone({ days: achieved.periodDays, total });
   };
 
   return (
@@ -55,29 +79,20 @@ export default function Achieve() {
         <>
           <ErrorLine message={declareAction.message} />
           <Button title={t.declare} busy={declareAction.busy} onPress={() => void declare()} />
-          <Button title={t.cancel} kind="secondary" onPress={() => router.back()} />
+          <TextButton title={t.cancel} onPress={back} />
         </>
       }
     >
+      <Text style={[T.small, { color: C.sub }]}>{goal.name}</Text>
       <H1>{t.confirmTitle}</H1>
-      <Body>{goal.name}</Body>
-      <View style={{ gap: S.md }}>
-        <View>
-          <Label>{t.startDate}</Label>
-          <Text style={T.h2}>{goal.firstDay.replace(/-/g, '.')}</Text>
-        </View>
-        <View>
-          <Label>{t.elapsed}</Label>
-          <Text style={T.big}>{copy.unit.days(days)}</Text>
-        </View>
-        <View>
-          <Label>{t.total}</Label>
-          <Text style={T.big}>{copy.unit.minutes(total)}</Text>
-        </View>
-        <View>
-          <Label>{t.reason}</Label>
-          <Body>{goal.reason}</Body>
-        </View>
+      <View>
+        <Row left={t.startDate} right={dateOf(goal.firstDay)} />
+        <Row left={t.elapsed} right={copy.unit.days(elapsed)} />
+        <Row left={t.total} right={copy.unit.minutes(total)} />
+      </View>
+      <View style={{ gap: S.xs }}>
+        <Label>{t.reason}</Label>
+        <Body serif>{goal.reason}</Body>
       </View>
     </Screen>
   );

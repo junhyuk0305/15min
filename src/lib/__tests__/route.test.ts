@@ -75,6 +75,11 @@ test('오늘의 이유: 학습 중이면 학습 화면, 끝났거나 포기 대�
   assert.equal(redirectFor('/session/reason', at({ giveupPending: true })), '/');
 });
 
+test('학습 경로: A, B, C 한 화면(/session/learn)과 회고(/session/retro)', () => {
+  assert.equal(LEARN_PATH, '/session/learn');
+  assert.equal(RETRO_PATH, '/session/retro');
+});
+
 test('학습 화면은 진행 중일 때만, 회고 화면은 완료 직후에도', () => {
   assert.equal(redirectFor(LEARN_PATH, base), '/');
   assert.equal(redirectFor(LEARN_PATH, at({ today: 'progress' })), null);

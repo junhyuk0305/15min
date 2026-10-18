@@ -16,6 +16,8 @@ import {
   dayFromRow,
   goalFromRow,
   goalInputToArgs,
+  itemEventFromRow,
+  itemFromRow,
   messageFromRow,
   profileFromRow,
   reflectionFromRow,
@@ -31,7 +33,8 @@ import {
   type QuizQuestion,
   type ReflectionMessage,
 } from './model';
-import type { DayRow, Phase } from './rules';
+import { writtenFromRow, type WrittenRow } from './archive';
+import type { DayRow, Item, ItemEvent, Phase } from './rules';
 
 // ---------- 오류 ----------
 
@@ -422,6 +425,32 @@ export function createApi(opts: ApiOptions) {
           .limit(1),
       );
       return rows[0] ? messageFromRow(rows[0]) : null;
+    },
+
+    /** 목표의 단어와 표현 (성과 문장, 결정안 15) */
+    async fetchItems(goalId: string): Promise<Item[]> {
+      const rows = await select('items', (q) => q.select('*').eq('goal_id', goalId).order('created_at', { ascending: true }).limit(2000));
+      return rows.map(itemFromRow);
+    },
+
+    /** 목표 항목의 기록. item_events에는 goal_id가 없어 items와 잇는다 */
+    async fetchItemEvents(goalId: string): Promise<ItemEvent[]> {
+      const rows = await select('item_events', (q) =>
+        q
+          .select('id, item_id, day, phase, kind, aided, correct, question_type, created_at, items!inner(goal_id)')
+          .eq('items.goal_id', goalId)
+          .order('created_at', { ascending: true })
+          .limit(5000),
+      );
+      return rows.map(itemEventFromRow);
+    },
+
+    /** 기록 카드의 작성 글자 수용. 보이는 목표들에서 내가 쓴 학습, 회고 문장 */
+    async fetchWritten(limit = 5000): Promise<WrittenRow[]> {
+      const rows = await select('messages', (q) =>
+        q.select('goal_id, day, phase, text').eq('role', 'user').in('phase', ['A', 'B', 'C', 'retro']).order('created_at', { ascending: false }).limit(limit),
+      );
+      return rows.map(writtenFromRow);
     },
 
     async fetchReflections(day: string): Promise<ReflectionMessage[]> {

@@ -1,29 +1,36 @@
 import { router } from 'expo-router';
-import { Pressable, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
+import { Banner } from '@/components/Banner';
 import { ErrorLine } from '@/components/ErrorLine';
 import { StatusBanner } from '@/components/StatusBanner';
-import { Big, Body, Button, Gauge, H1, Label, Screen, useNow } from '@/components/ui';
+import { TextButton } from '@/components/TextButton';
+import { Big, Body, Button, Gauge, Label, Screen, useNow } from '@/components/ui';
 import { copy } from '@/lib/copy';
-import { openSystemSettings } from '@/lib/notify';
+import type { AppGoal } from '@/lib/model';
+import { getExactAlarm, openExactAlarmSettings, openSystemSettings } from '@/lib/notify';
 import {
   achieveDay,
+  addDays,
   canAchieve,
   cycleOf,
   daysBetween,
   daysToNextCoupon,
   fmtClock,
   fmtDuration,
-  GIVEUP_WAIT_MS,
+  giveupEndsAt,
   homeState,
+  RETRO_SECONDS,
   settingsFor,
   streakOf,
   totalMinutes,
 } from '@/lib/rules';
-import { LEARN_PATH } from '@/lib/route';
+import { LEARN_PATH, RETRO_PATH } from '@/lib/route';
 import { useRuntime } from '@/lib/runtime';
-import { deviceTz, goalDaysOf, todayKeyOf, todayRowOf, tzOf, useApp } from '@/lib/store';
+import { homeBanners, homeNoteOf, nextStudyDay, retroFirstLine, type HomeBanner } from '@/lib/selectors';
+import { deviceTz, goalDaysOf, messagesOf, todayKeyOf, todayRowOf, tzOf, useApp } from '@/lib/store';
 import { useAction } from '@/lib/useAction';
-import { C, S, T } from '@/lib/theme';
+import { C, PALETTES, S, T } from '@/lib/theme';
 
 const h = copy.home;
 
@@ -34,130 +41,219 @@ function nextMilestone(total: number) {
   return { next, ratio: (total - prev) / (next - prev) };
 }
 
+/** 그날 시작 시각을 "내일 22:00" 또는 "10월 20일 22:00"으로 */
+function whenOf(goal: AppGoal, day: string, today: string): string {
+  const clock = fmtClock(settingsFor(goal, day).startMinutes);
+  if (day === addDays(today, 1)) return h.tomorrowAt(clock);
+  return h.dateAt(Number(day.slice(5, 7)), Number(day.slice(8, 10)), clock);
+}
+
+function Banners({ list }: { list: HomeBanner[] }) {
+  const setExactAlarm = useRuntime((s) => s.setExactAlarm);
+  return (
+    <>
+      {list.map((b) =>
+        b === 'offline' || b === 'load_failed' ? (
+          <StatusBanner key={b} />
+        ) : b === 'notif_off' ? (
+          <Banner key={b} message={h.notifOff} actionTitle={h.openSettings} onAction={openSystemSettings} />
+        ) : (
+          <Banner
+            key={b}
+            message={h.exactAlarm}
+            actionTitle={h.openSettings}
+            onAction={() => void openExactAlarmSettings().then(() => setExactAlarm(getExactAlarm()))}
+          />
+        ),
+      )}
+    </>
+  );
+}
+
+/** 독촉 상태에 처음 들어올 때 한 번 깜빡인다 (화면구성 4절) */
+function useFlash(on: boolean, key: string) {
+  const [opacity] = useState(() => new Animated.Value(0));
+  const flashed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!on || flashed.current === key) return;
+    flashed.current = key;
+    const native = Platform.OS !== 'web';
+    Animated.sequence([
+      Animated.timing(opacity, { toValue: 0.85, duration: 120, useNativeDriver: native }),
+      Animated.timing(opacity, { toValue: 0, duration: 480, useNativeDriver: native }),
+    ]).start();
+  }, [on, key, opacity]);
+  return opacity;
+}
+
 export default function Home() {
   const now = useNow();
   const state = useApp();
   const permission = useRuntime((s) => s.permission);
+  const exactAlarm = useRuntime((s) => s.exactAlarm);
   const withdraw = useAction();
   const goal = state.goal;
+  const tz = tzOf(state);
+  const today = todayKeyOf(state, now, deviceTz);
+  const rec = todayRowOf(state, now, deviceTz);
+  const st = homeState(goal, rec, now, tz);
+  const flash = useFlash(st === 'nag', today);
+  const banners = homeBanners({ permission, exactAlarm, loadFailed: state.loadFailed, offline: state.offline });
+
   if (!goal) {
     // 목표 없음: 목표 정하기 하나 (route.ts가 정지, 영구 정지는 먼저 다른 화면으로 보낸다)
     return (
-      <Screen footer={<Button title={copy.status.newGoal} onPress={() => router.push('/goal/new')} />}>
-        <StatusBanner />
-        <H1>{copy.status.noGoalTitle}</H1>
-        <Body muted>{copy.status.noGoalBody}</Body>
+      <Screen footer={<Button title={h.newGoal} onPress={() => router.push('/goal/new')} />}>
+        <Banners list={banners} />
+        <View style={{ flex: 1, justifyContent: 'center', gap: S.md, minHeight: 360 }}>
+          <Text accessibilityRole="header" style={T.h1}>
+            {h.noGoalTitle}
+          </Text>
+          <Body muted>{h.noGoalBody}</Body>
+        </View>
       </Screen>
     );
   }
 
-  const tz = tzOf(state);
-  const today = todayKeyOf(state, now, deviceTz);
-  const rec = todayRowOf(state, now, deviceTz);
   const mine = goalDaysOf(state);
   const total = totalMinutes(mine);
   const s = settingsFor(goal, today);
   const streak = streakOf(mine, goal.firstDay, today, s.weekdays);
-  const st = homeState(goal, rec, now, tz);
   const c = cycleOf(today, s.startMinutes, s.targetMinutes, tz);
   const red = st === 'nag' || st === 'resume' || st === 'giveup';
   const ms = nextMilestone(total);
+  const note = st === 'before_first' || st === 'giveup' ? null : homeNoteOf(goal, mine, today);
+  // 서버에 닿지 않으면 학습 시작 버튼 자리에 안내를 둔다 (MP 7.3 서버 점검이나 5xx)
+  const startBlocked = state.loadFailed;
 
   const start = () => router.push('/session/reason');
+  const startButton = (inverse: boolean) =>
+    startBlocked ? <Body inverse={inverse}>{h.offlineStart}</Body> : <Button title={h.start} kind={inverse ? 'inverse' : 'primary'} onPress={start} />;
 
-  let middle: React.ReactNode;
+  let middle: React.ReactNode = null;
   let primary: React.ReactNode = null;
   switch (st) {
-    case 'none':
-      break;
-    case 'before_first':
+    case 'before_first': {
+      const first = nextStudyDay(goal, goal.firstDay) ?? goal.firstDay;
+      const fs = settingsFor(goal, first);
+      const fc = cycleOf(first, fs.startMinutes, fs.targetMinutes, tz);
       middle = (
         <>
-          <Label>{h.beforeFirstTitle}</Label>
-          <Body>{h.beforeFirstBody(fmtClock(settingsFor(goal, goal.firstDay).startMinutes))}</Body>
+          <Label>{h.beforeFirstLabel}</Label>
+          <Big>{fmtDuration(fc.start - now)}</Big>
+          <Body serif>{h.beforeFirstBody(whenOf(goal, first, today), fs.targetMinutes)}</Body>
         </>
       );
       break;
-    case 'rest':
+    }
+    case 'rest': {
+      const next = nextStudyDay(goal, addDays(today, 1));
       middle = (
         <>
-          <Label>{h.restTitle}</Label>
-          <Body>{h.restBody}</Body>
+          <Label>{h.restLabel}</Label>
+          {next ? <Body serif>{h.restBody(whenOf(goal, next, today))}</Body> : null}
         </>
       );
       break;
+    }
     case 'waiting':
+      middle = (
+        <>
+          <Label>{h.waitLabel}</Label>
+          <Big>{fmtDuration(c.start - now)}</Big>
+          <Body serif>{h.waitBody(fmtClock(s.startMinutes), s.targetMinutes)}</Body>
+        </>
+      );
+      break;
     case 'soon':
       middle = (
         <>
-          <Label>{h.startIn(s.targetMinutes)}</Label>
-          <Big hero>{fmtDuration(c.start - now)}</Big>
-          {st === 'soon' ? <Body>{h.soonBody(s.targetMinutes)}</Body> : null}
+          <Label>{h.waitLabel}</Label>
+          <Big>{fmtDuration(c.start - now)}</Big>
+          <Body serif>{h.soonBody(s.targetMinutes)}</Body>
         </>
       );
-      if (st === 'soon') primary = <Button title={h.start} onPress={start} />;
+      primary = startButton(false);
       break;
     case 'grace':
       middle = (
         <>
-          <Label>{h.graceTitle}</Label>
-          <Big hero>{fmtDuration(c.graceEnd - now)}</Big>
-          <Body>{h.graceBody}</Body>
+          <Label>{h.graceLabel}</Label>
+          <Big>{h.graceBig(Math.floor((now - c.start) / 60_000))}</Big>
+          <Body serif>{h.graceBody(fmtClock((s.startMinutes + s.targetMinutes) % 1440))}</Body>
         </>
       );
-      primary = <Button title={h.start} onPress={start} />;
+      primary = startButton(false);
       break;
     case 'nag':
       middle = (
         <>
-          <Label inverse>{h.nagTitle}</Label>
-          <Big hero inverse>{fmtDuration(now - c.start)}</Big>
-          <Text style={[T.h2, { color: C.redInk }]}>{h.nagLate(Math.floor((now - c.start) / 60000))}</Text>
+          <Label inverse>{h.nagLabel}</Label>
+          <Big inverse>{h.nagBig(Math.floor((now - c.start) / 60_000))}</Big>
+          <Text style={[T.h2, { color: C.redInk }]}>{h.nagScratch(s.targetMinutes)}</Text>
           <View style={{ gap: S.xs, marginTop: S.sm }}>
-            <Label inverse>{h.yourReason}</Label>
-            <Body inverse>{goal.reason}</Body>
+            <Label inverse>{h.reason}</Label>
+            <Body inverse serif>
+              {goal.reason}
+            </Body>
           </View>
         </>
       );
-      primary = <Button title={h.start} kind="inverse" onPress={start} />;
+      primary = startButton(true);
       break;
     case 'resume': {
-      const left = Math.ceil((rec!.targetMinutes * 60 - rec!.activeSeconds) / 60);
+      const r = rec!;
+      const inRetro = r.phase === 'retro' || r.activeSeconds >= r.targetMinutes * 60;
+      const left = inRetro ? Math.ceil((RETRO_SECONDS - r.retroSeconds) / 60) : Math.ceil((r.targetMinutes * 60 - r.activeSeconds) / 60);
       middle = (
         <>
-          <Big hero inverse>{h.resumeTitle(left)}</Big>
-          <Body inverse>{h.resumeBody}</Body>
+          <Label inverse>{h.resumeLabel}</Label>
+          <Big inverse>{h.resumeBig(Math.max(1, left))}</Big>
+          <Body inverse serif>
+            {inRetro ? h.resumeRetro : h.resumeBody}
+          </Body>
         </>
       );
-      primary = <Button title={h.resume} kind="inverse" onPress={() => router.push(LEARN_PATH)} />;
+      primary = startBlocked ? (
+        <Body inverse>{h.offlineStart}</Body>
+      ) : (
+        <Button title={h.resume} kind="inverse" onPress={() => router.push(inRetro ? RETRO_PATH : LEARN_PATH)} />
+      );
       break;
     }
-    case 'done':
+    case 'done': {
+      const line = retroFirstLine(messagesOf(state, goal.id, today));
       middle = (
         <>
-          <Label>{h.doneTitle}</Label>
-          <Big hero>{copy.unit.minutes(Math.floor(rec!.activeSeconds / 60))}</Big>
-          <Body>{h.doneBody}</Body>
+          <Label>{h.doneLabel}</Label>
+          <Big>{h.doneBig(Math.floor(rec!.activeSeconds / 60))}</Big>
+          <Body serif>{line ? `“${line}”` : h.doneShake}</Body>
         </>
       );
       break;
+    }
     case 'coupon':
       middle = (
         <>
-          <Label>{h.couponTitle}</Label>
-          <Body>{h.couponBody(goal.coupons, daysToNextCoupon(goal))}</Body>
+          <Label>{h.couponLabel}</Label>
+          <Big>{h.couponBig(goal.coupons)}</Big>
+          <Body serif>{h.couponBody(daysToNextCoupon(goal))}</Body>
         </>
       );
       break;
     case 'giveup':
       middle = (
         <>
-          <Label inverse>{h.giveupTitle}</Label>
-          <Big hero inverse>{fmtDuration(goal.giveupRequestedAt! + GIVEUP_WAIT_MS - now)}</Big>
-          <Body inverse>{h.giveupBody}</Body>
+          <Label inverse>{h.giveupLabel}</Label>
+          <Big inverse>{fmtDuration((giveupEndsAt(goal) ?? now) - now)}</Big>
+          <Body inverse serif>
+            {h.giveupBody}
+          </Body>
           <View style={{ gap: S.xs, marginTop: S.sm }}>
-            <Label inverse>{h.giveupReason}</Label>
-            <Body inverse>{goal.reason}</Body>
+            <Label inverse>{h.reason}</Label>
+            <Body inverse serif>
+              {goal.reason}
+            </Body>
           </View>
         </>
       );
@@ -174,42 +270,39 @@ export default function Home() {
   const sub = red ? C.redInk : C.sub;
 
   return (
-    <Screen danger={red} footer={primary}>
-      <StatusBanner />
-      {permission === 'denied' ? (
-        <Pressable onPress={openSystemSettings} style={{ backgroundColor: C.red, borderRadius: 12, padding: S.md }}>
-          <Text style={[T.small, { color: C.redInk }]}>{h.notifOff}</Text>
-        </Pressable>
-      ) : null}
+    <View style={{ flex: 1 }}>
+      <Screen danger={red} footer={primary}>
+        <Banners list={banners} />
 
-      <View style={{ gap: S.xs }}>
-        <Text style={[T.label, { color: sub }]}>{h.total}</Text>
-        <Text style={[T.hero, { color: ink }]}>{copy.unit.minutes(total)}</Text>
-        <Gauge ratio={ms.ratio} inverse={red} />
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text style={[T.small, { color: sub }]}>{h.milestone(ms.next - total, ms.next)}</Text>
-          <Text style={[T.small, { color: ink }]}>{h.streak(streak)}</Text>
+        <View style={{ gap: S.xs }}>
+          <Text style={[T.label, { color: sub }]}>{h.total}</Text>
+          <Text style={[T.hero, { color: ink }]}>{copy.unit.minutes(total)}</Text>
+          <Gauge ratio={ms.ratio} inverse={red} />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: S.sm }}>
+            <Text style={[T.small, { color: sub, flexShrink: 1 }]}>{h.milestone(ms.next - total, ms.next)}</Text>
+            <Text style={[T.small, { color: ink }]}>{h.streak(streak)}</Text>
+          </View>
         </View>
-      </View>
 
-      <View style={{ gap: S.sm, paddingVertical: S.lg, borderTopWidth: 2, borderBottomWidth: 2, borderColor: ink }}>
-        <Text style={[T.small, { color: sub }]}>{goal.name}</Text>
-        {middle}
-      </View>
+        {note ? <Text style={[T.small, { color: ink }]}>{note === 'failed' ? h.failedNote : h.backNote}</Text> : null}
 
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/coupon')} style={{ minHeight: 48, justifyContent: 'center' }}>
-          <Text style={[T.h2, { color: ink, textDecorationLine: 'underline' }]}>{h.coupons(goal.coupons)}</Text>
-        </Pressable>
-        {canAchieve(goal, today) ? (
-          <Pressable accessibilityRole="button" onPress={() => router.push('/goal/achieve')} style={{ minHeight: 48, justifyContent: 'center' }}>
-            <Text style={[T.h2, { color: ink, textDecorationLine: 'underline' }]}>{h.achieve}</Text>
-          </Pressable>
-        ) : (
-          <Text style={[T.small, { color: sub }]}>{h.achieveIn(daysBetween(today, achieveDay(goal)))}</Text>
+        <View style={{ gap: S.sm, paddingVertical: S.md, borderTopWidth: 1.5, borderBottomWidth: 1.5, borderColor: ink }}>
+          <Text style={[T.small, { color: sub }]}>{goal.name}</Text>
+          {middle}
+        </View>
+
+        {st === 'giveup' ? null : (
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: S.sm }}>
+            <TextButton title={h.coupons(goal.coupons)} onPress={() => router.push('/coupon')} style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }} />
+            {canAchieve(goal, today) ? (
+              <TextButton title={h.achieve} onPress={() => router.push('/goal/achieve')} style={{ alignSelf: 'flex-end', paddingHorizontal: 0 }} />
+            ) : (
+              <Text style={[T.small, { color: sub }]}>{h.achieveIn(daysBetween(today, achieveDay(goal)))}</Text>
+            )}
+          </View>
         )}
-      </View>
-
-    </Screen>
+      </Screen>
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: PALETTES.ivory.onRed, opacity: flash }]} />
+    </View>
   );
 }

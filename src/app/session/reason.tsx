@@ -2,7 +2,8 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { ErrorLine } from '@/components/ErrorLine';
-import { Body, Button, Card, Field, H1, Label, Screen } from '@/components/ui';
+import { LearnShell } from '@/components/learn/LearnShell';
+import { Body, Button, Card, Field, H1, Label } from '@/components/ui';
 import { copy } from '@/lib/copy';
 import { LEARN_PATH } from '@/lib/route';
 import { MIN_NOTE_CHARS, noteValid } from '@/lib/rules';
@@ -36,7 +37,8 @@ export default function Reason() {
   };
 
   return (
-    <Screen
+    <LearnShell
+      theme="ivory"
       footer={
         <>
           <ErrorLine message={start.message} />
@@ -65,6 +67,6 @@ export default function Reason() {
         multiline
         error={same ? t.sameAsYesterday : null}
       />
-    </Screen>
+    </LearnShell>
   );
 }

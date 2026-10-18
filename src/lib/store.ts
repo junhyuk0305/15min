@@ -10,8 +10,22 @@ import type { Session } from '@supabase/supabase-js';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { ApiError, TERMS_VERSION, toApiError, type ApiErrorKind, type LoginMethod } from './api';
-import { dayKeyId, mergeById, upsertDay, uuidv4, type AppGoal, type GoalInput, type LessonModal, type Episode, type Message, type ReflectionMessage } from './model';
-import type { Phase } from './rules';
+import {
+  dayKeyId,
+  mergeById,
+  upsertDay,
+  uuidv4,
+  type AppGoal,
+  type GoalInput,
+  type LessonModal,
+  type Episode,
+  type Message,
+  type QuizGrade,
+  type QuizQuestion,
+  type ReflectionMessage,
+} from './model';
+import type { WrittenRow } from './archive';
+import type { Item, ItemEvent, Phase } from './rules';
 import {
   EMPTY_CACHE,
   goalDaysOf,
@@ -76,10 +90,22 @@ type Actions = {
   declareAchievement: () => Promise<AppGoal>;
   changeSchedule: (startMinutes: number, targetMinutes: number, weekdays: number[]) => Promise<void>;
 
-  /** B 단계. text가 없으면 시작(되짚기 + 첫 질문) */
-  lessonTurn: (text?: string) => Promise<{ modal: LessonModal; episode: Episode | null }>;
-  /** 회고 대화. text가 없으면 고정 질문 1 */
-  retroTurn: (text?: string) => Promise<void>;
+  /**
+   * B 단계. text가 없으면 시작(되짚기 + 첫 질문, 또는 오늘 대화).
+   * id는 보낼 메시지 id. 실패한 문장을 다시 보낼 때 같은 id를 넣으면 서버가 한 번만 저장한다.
+   * messages는 이번 응답으로 받은 행(내 문장, 코치, 상대)이다.
+   */
+  lessonTurn: (text?: string, id?: string) => Promise<{ messages: Message[]; modal: LessonModal; episode: Episode | null }>;
+  /** 회고 대화. text가 없으면 고정 질문 1. id는 lessonTurn과 같다 */
+  retroTurn: (text?: string, id?: string) => Promise<void>;
+  /** A, C 복습 문항. 채점 안 된 문항이 있으면 그 문항을 다시 준다 */
+  quizNext: (phase: 'A' | 'C') => Promise<QuizQuestion>;
+  /** 채점. aided는 항목 설명을 본 뒤의 답(결정안 12) */
+  quizGrade: (phase: 'A' | 'C', questionId: string, answer: string, aided: boolean) => Promise<QuizGrade>;
+  /** 성과 문장용 항목과 기록(활성 목표). 캐시하지 않는다 */
+  loadItems: () => Promise<{ items: Item[]; events: ItemEvent[] }>;
+  /** 기록 탭 글자 수용. 내가 쓴 학습, 회고 문장. 캐시하지 않는다 */
+  loadWritten: () => Promise<WrittenRow[]>;
   loadDayMessages: (goalId: string, day: string) => Promise<void>;
   reportMessage: (messageId: string, reason: string) => Promise<void>;
   /** 반성문. text가 없으면 오늘 대화를 불러온다 */
@@ -138,8 +164,8 @@ export const useApp = create<AppState>()(
         set({ messages: { ...get().messages, [key]: mergeById(current, incoming) } });
       };
 
-      const optimistic = (goalId: string, day: string, phase: Message['phase'], text: string): Message => {
-        const m: Message = { id: uuidv4(), goalId, day, phase, role: 'user', text: text.trim(), meta: {}, createdAt: now(), pending: true };
+      const optimistic = (goalId: string, day: string, phase: Message['phase'], text: string, id = uuidv4()): Message => {
+        const m: Message = { id, goalId, day, phase, role: 'user', text: text.trim(), meta: {}, createdAt: now(), pending: true };
         putMessages(goalId, day, [m]);
         return m;
       };
@@ -318,26 +344,40 @@ export const useApp = create<AppState>()(
             set({ goal });
           }),
 
-        lessonTurn: (text) =>
+        lessonTurn: (text, id) =>
           act(async () => {
             const g = requireGoal();
             const day = today();
-            const mine = text ? optimistic(g.id, day, 'B', text) : null;
+            const mine = text ? optimistic(g.id, day, 'B', text, id) : null;
             try {
               const r = await api.lessonTurn(g.id, day, mine ? { id: mine.id, text: mine.text } : undefined);
               putMessages(g.id, day, r.messages, mine?.id);
-              return { modal: r.modal, episode: r.episode };
+              return r;
             } catch (e) {
               if (mine) putMessages(g.id, day, [], mine.id); // 화면이 입력창에 문장을 되돌린다
               throw e;
             }
           }),
 
-        retroTurn: (text) =>
+        quizNext: (phase) => act(() => api.quizNext(requireGoal().id, today(), phase)),
+
+        quizGrade: (phase, questionId, answer, aided) =>
+          act(() => api.quizGrade(requireGoal().id, today(), phase, questionId, answer.trim(), aided)),
+
+        loadWritten: () => act(() => api.fetchWritten()),
+
+        loadItems: () =>
+          act(async () => {
+            const g = requireGoal();
+            const [items, events] = await Promise.all([api.fetchItems(g.id), api.fetchItemEvents(g.id)]);
+            return { items, events };
+          }),
+
+        retroTurn: (text, id) =>
           act(async () => {
             const g = requireGoal();
             const day = today();
-            const mine = text ? optimistic(g.id, day, 'retro', text) : null;
+            const mine = text ? optimistic(g.id, day, 'retro', text, id) : null;
             try {
               const msgs = await api.retro(g.id, day, mine ? { id: mine.id, text: mine.text } : undefined);
               putMessages(g.id, day, msgs, mine?.id);

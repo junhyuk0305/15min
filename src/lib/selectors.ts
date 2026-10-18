@@ -1,8 +1,9 @@
 // store 캐시에서 화면, 라우팅, 알림 계획이 쓰는 값을 뽑는 순수 함수. React Native를 import하지 않는다(Node 테스트용).
+import { firstLine } from './archive';
 import type { AppGoal, Message, Profile } from './model';
 import type { PlanInput } from './plan';
 import type { RouteInput } from './route';
-import { addDays, cycleOf, dayKeyOf, type DayRow } from './rules';
+import { addDays, cycleOf, dayKeyOf, isStudyDay, settingsFor, type DayRow, type DayStatus, type Goal } from './rules';
 
 /** store가 서버에서 받아 캐시하는 값 */
 export type Cache = {
@@ -86,14 +87,15 @@ export function planInputOf(c: Cache, now: number, deviceTz: string): PlanInput 
   const goal = c.goal?.status === 'active' ? c.goal : null;
   const suspended = isSuspended(p, now);
   const blocked = !!p?.banned || suspended;
+  // 정지 중 하루 1회 알림의 시각. 서버 프로필 값을 먼저 쓰고, 없으면 확정 전에 옮겨 둔 캐시를 쓴다
+  const suspendedStart = p?.suspendedStartMinutes ?? c.suspendedGoal?.startMinutes ?? null;
   return {
     goal: blocked ? null : goal,
     lastGoal: goal || blocked ? null : c.lastGoal,
     days: goal ? goalDaysOf(c).map((d) => ({ day: d.day, status: d.status, activeSeconds: d.activeSeconds, targetMinutes: d.targetMinutes })) : [],
     leftAt: c.leftAt && c.leftAt.day === today ? c.leftAt.at : null,
     lastRetro: c.lastRetro,
-    suspension:
-      suspended && p?.suspendedUntil && c.suspendedGoal ? { until: p.suspendedUntil, startMinutes: c.suspendedGoal.startMinutes } : null,
+    suspension: suspended && p?.suspendedUntil && suspendedStart !== null ? { until: p.suspendedUntil, startMinutes: suspendedStart } : null,
     now,
     timeZone,
   };
@@ -129,4 +131,98 @@ export function nextSuspendedGoal(prev: Cache, profile: Profile | null): Cache['
   if (prev.suspendedGoal?.id === id) return prev.suspendedGoal;
   if (prev.goal?.id === id) return { id, startMinutes: prev.goal.startMinutes, targetMinutes: prev.goal.targetMinutes };
   return null;
+}
+
+// ---------- 홈 (P7, P8) ----------
+
+/** 홈 위에 쌓는 빨강 배너. 위에서부터 이 순서다 */
+export type HomeBanner = 'offline' | 'load_failed' | 'notif_off' | 'exact_alarm';
+
+/**
+ * 알림이 꺼져 있으면 설정 열기(12.2). 알림은 켜졌는데 Android 정확한 알람 권한이 없으면 그 설정 열기(P8-3).
+ * 정확한 알람 권한을 확인할 수 없으면('unknown', Expo Go와 웹) 띄우지 않는다.
+ */
+export function homeBanners(i: {
+  permission: 'granted' | 'denied' | 'undetermined';
+  exactAlarm: 'granted' | 'denied' | 'unknown';
+  loadFailed: boolean;
+  offline: boolean;
+}): HomeBanner[] {
+  const out: HomeBanner[] = [];
+  if (i.loadFailed) out.push(i.offline ? 'offline' : 'load_failed');
+  if (i.permission === 'denied') out.push('notif_off');
+  else if (i.permission === 'granted' && i.exactAlarm === 'denied') out.push('exact_alarm');
+  return out;
+}
+
+/** from부터(포함) 처음 오는 학습일. 2주 안에 없으면 null */
+export function nextStudyDay(goal: Goal, from: string): string | null {
+  let d = from < goal.firstDay ? goal.firstDay : from;
+  for (let i = 0; i < 14; i++, d = addDays(d, 1)) if (isStudyDay(d, settingsFor(goal, d).weekdays)) return d;
+  return null;
+}
+
+/**
+ * 오늘 전 마지막 학습일의 결과. 쉬는 요일과 포기 대기일은 건너뛴다. 첫 도전일 전이면 null.
+ * 아직 판정 전이라 행이 없는 지난 학습일은 실패로 본다(rules.streakOf와 같다).
+ */
+export function lastStudyResult(goal: Goal, days: readonly Pick<DayRow, 'day' | 'status'>[], today: string): { day: string; status: DayStatus } | null {
+  const statusOf = new Map(days.map((d) => [d.day, d.status]));
+  for (let d = addDays(today, -1), i = 0; d >= goal.firstDay && i < 14; d = addDays(d, -1), i++) {
+    const st = statusOf.get(d);
+    if (st === 'rest' || st === 'giveup_wait') continue;
+    if (st === undefined && !isStudyDay(d, settingsFor(goal, d).weekdays)) continue;
+    return { day: d, status: st ?? 'failed' };
+  }
+  return null;
+}
+
+/** 홈 한 줄 안내. 지난 학습일 실패(S9), 쿠폰 다음 날 복귀(9.2). 오늘이 끝났으면 없다 */
+export type HomeNote = 'failed' | 'back_from_coupon' | null;
+
+export function homeNoteOf(goal: Goal, days: readonly Pick<DayRow, 'day' | 'status'>[], today: string): HomeNote {
+  const t = days.find((d) => d.day === today)?.status;
+  if (t === 'done' || t === 'coupon') return null;
+  const last = lastStudyResult(goal, days, today);
+  if (last?.status === 'failed') return 'failed';
+  if (last?.status === 'coupon') return 'back_from_coupon';
+  return null;
+}
+
+/** 오늘 회고 첫 답의 첫 줄 (홈 완료 상태) */
+export function retroFirstLine(messages: readonly Message[]): string | null {
+  const first = messages
+    .filter((m) => m.phase === 'retro' && m.role === 'user' && !m.pending)
+    .sort((a, b) => a.createdAt - b.createdAt)[0];
+  const line = first ? firstLine(first.text) : '';
+  return line ? line : null;
+}
+
+/** 알림 탭 판단용 상태 (notifyTarget.tapTarget) */
+export function tapStateOf(c: Cache, now: number, deviceTz: string) {
+  const row = todayRowOf(c, now, deviceTz);
+  return {
+    hasActiveGoal: c.goal?.status === 'active',
+    giveupPending: c.goal?.giveupRequestedAt != null,
+    suspended: isSuspended(c.profile, now),
+    today: todayKeyOf(c, now, deviceTz),
+    todayStatus: row?.status === 'progress' ? ('progress' as const) : row?.status === 'done' || row?.status === 'coupon' ? ('closed' as const) : ('none' as const),
+  };
+}
+
+
+// ---------- 화면 상태 (MP 7.4-2) ----------
+
+/** 로딩 표시를 띄우는 시각과 오류로 바꾸는 시각 */
+export const LOAD_SHOW_MS = 300;
+export const LOAD_ERROR_MS = 10_000;
+
+export type LoadPhase = 'idle' | 'pending' | 'loading' | 'error';
+
+/** elapsed는 요청이 걸린 시간(쉬면 null). 300ms 전에는 아무것도 띄우지 않고, 10초를 넘으면 오류로 본다 */
+export function loadPhaseOf(elapsed: number | null, failed: boolean): LoadPhase {
+  if (elapsed === null) return failed ? 'error' : 'idle';
+  if (elapsed < LOAD_SHOW_MS) return 'pending';
+  if (elapsed < LOAD_ERROR_MS) return 'loading';
+  return 'error';
 }
