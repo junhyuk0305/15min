@@ -1,5 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Text, View } from 'react-native';
 import { ActionSheet } from '@/components/BottomSheet';
 import { LineEnter } from '@/components/ChatLine';
@@ -25,7 +25,8 @@ const t = copy.report;
  * 신고하기는 이유 시트로 이어지고, 고르면 보내고 토스트로 알린다. 시트 두 개가 한꺼번에 뜨지 않게 앞 시트가 닫힌 뒤 연다.
  * opened는 시트가 떠 있는 동안 참이다. 학습 시계는 이 동안 멈춘다(안내 모달로 본다, UXP 6.1).
  * onActivity는 학습 시계의 touch처럼 고정된 함수를 넘긴다(UXP 9.3). 돌려주는 함수도 모두 고정이다.
- * tip은 길게 누르기 안내 말풍선이 떠 있는 동안 참이다. 말풍선은 신고할 수 있는 줄(latest)이 생기면 뜬다(Transcript). 학습 시계는 이 동안도 멈춘다(UXP 3절 "처음 안내").
+ * tip은 길게 누르기 안내 말풍선(LongPressTip)이 실제로 그려져 있는 동안만 참이다. 학습 시계는 이 동안 멈춘다(UXP 3절 "처음 안내").
+ * 말풍선을 그리지 않는 화면(복습 문항)에서 참이 되면 시계가 영영 멈추므로 latest나 seen으로 판단하지 않는다.
  */
 export function useLineMenu(onActivity?: () => void) {
   const [sheet, setSheet] = useState<Sheet | null>(null);
@@ -33,7 +34,7 @@ export function useLineMenu(onActivity?: () => void) {
   const [latest, setLatest] = useState<LineTarget | null>(null);
   // 마지막으로 길게 누른 줄. 시트가 닫히는 동안에도 같은 줄 목록을 그린다(닫히며 "신고하기"가 빠져 보이지 않게)
   const [pressed, setPressed] = useState<LineTarget | null>(null);
-  const tipSeen = useTipSeen(LONG_PRESS_TIP);
+  const tip = useTipShowing();
   // 신고를 보내는 중인 줄. 이유 시트를 연달아 눌러도 한 번만 보낸다
   const sending = useRef<string | null>(null);
   const activity = useRef(onActivity);
@@ -122,13 +123,32 @@ export function useLineMenu(onActivity?: () => void) {
     </>
   );
 
-  return { open, more, toReasons, latest, setLatest, opened: sheet !== null || switching, tip: !tipSeen && latest !== null, sheets };
+  return { open, more, toReasons, latest, setLatest, opened: sheet !== null || switching, tip, sheets };
 }
 
 export type LineMenu = ReturnType<typeof useLineMenu>;
 
 /** 길게 누르기 안내 말풍선의 seenTips id. 코치 모달이 뜨면 LessonPanel이 닫는다 */
 export const LONG_PRESS_TIP = 'report-longpress';
+
+// 지금 그려져 있는 말풍선 수. LongPressTip이 올리고 내린다
+let tipShown = 0;
+const tipListeners = new Set<() => void>();
+function addTipShown(d: number) {
+  tipShown += d;
+  tipListeners.forEach((l) => l());
+}
+function useTipShowing(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      tipListeners.add(cb);
+      return () => {
+        tipListeners.delete(cb);
+      };
+    },
+    () => tipShown > 0,
+  );
+}
 
 /**
  * 첫 AI 메시지 아래 한 번 뜨는 말풍선(갭분석 3.1 8번). 4초 뒤 저절로 닫히고 다시 뜨지 않는다. 떠 있는 동안 학습, 회고 시계는 멈춘다(useLineMenu의 tip).
@@ -138,8 +158,12 @@ export function LongPressTip() {
   const { p } = useInk();
   useEffect(() => {
     if (seen) return;
+    addTipShown(1);
     const id = setTimeout(() => markSeen(LONG_PRESS_TIP), DUR.toast);
-    return () => clearTimeout(id);
+    return () => {
+      clearTimeout(id);
+      addTipShown(-1);
+    };
   }, [seen]);
   if (seen) return null;
   return (
