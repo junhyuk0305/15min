@@ -103,6 +103,10 @@ export function ChatScroll({
         onContentSizeChange={() => {
           if (followRef.current && bottom.current) toEnd();
         }}
+        // 키보드가 올라와 보이는 높이가 줄면 내용 크기는 그대로라 위 처리기가 불리지 않는다. 맨 아래를 읽던 중이면 다시 맞춘다
+        onLayout={() => {
+          if (followRef.current && bottom.current) toEnd();
+        }}
       >
         {children}
       </ScrollView>

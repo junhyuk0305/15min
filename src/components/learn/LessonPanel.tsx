@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChatLine } from '@/components/ChatLine';
 import { Composer } from '@/components/Composer';
 import { CoachModal } from '@/components/learn/parts';
 import { LearnShell } from '@/components/learn/LearnShell';
 import { lineText, Transcript } from '@/components/learn/Transcript';
 import type { PanelProps } from '@/components/learn/types';
 import { ErrorLine } from '@/components/ErrorLine';
+import { LONG_PRESS_TIP } from '@/components/LineMenu';
 import { Button } from '@/components/ui';
 import { copy } from '@/lib/copy';
 import { coachModalOf, hiddenUntilClosed, linesOf, sendId, type CoachModalView, type Line } from '@/lib/learn';
@@ -99,6 +101,8 @@ export function LessonPanel({ header, banner, overlay, request, setFailed, touch
     if (view) {
       const note = r.value.messages.find((m) => m.role === 'coach')?.text ?? '';
       setHidden(new Set(hiddenUntilClosed(r.value.messages, id)));
+      // 길게 누르기 안내 말풍선이 떠 있으면 모달과 겹치지 않게 닫는다(한 번에 안내 하나, 갭분석 3.1)
+      markSeen(LONG_PRESS_TIP);
       setModal({ view, note });
     }
   };
@@ -111,7 +115,11 @@ export function LessonPanel({ header, banner, overlay, request, setFailed, touch
   };
 
   if (!goal) return null;
+  const { place, myRole, partner } = goal.situation;
 
+  // 새로 온 상대 질문이 다 보이면 입력창에 포커스한다(갭분석 C4). 다시 들어왔을 때 있던 줄에는 하지 않는다
+  const last = lines.at(-1);
+  const focusKey = !busy && !reveal.revealing && last && last.kind !== 'me' && reveal.isNew(last.id) ? last.id : null;
   const footer = loadFailed ? (
     <>
       <ErrorLine message={t.loadFailed} />
@@ -129,6 +137,7 @@ export function LessonPanel({ header, banner, overlay, request, setFailed, touch
       error={failed ? t.failed : null}
       placeholder={t.inputPlaceholder}
       onInputStart={reveal.finish}
+      focusKey={focusKey}
     />
   ) : null;
 
@@ -145,6 +154,8 @@ export function LessonPanel({ header, banner, overlay, request, setFailed, touch
       revealing={reveal.revealing}
       onTouch={reveal.finish}
     >
+      {/* 맨 위에 오늘 장면 한 줄. 첫 질문만 바닥에 붙은 첫 화면의 빈 위쪽이 뜻을 갖는다(갭분석 C5) */}
+      {place && myRole && partner ? <ChatLine speaker="narration" text={t.scene(place, myRole, partner)} /> : null}
       <Transcript
         lines={lines}
         partnerName={goal.situation.partner || t.coach}

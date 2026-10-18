@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { ErrorLine } from '@/components/ErrorLine';
 import { Glyph } from '@/components/Glyph';
@@ -20,6 +20,7 @@ const web = Platform.OS === 'web';
  * 한 줄 44에서 시작해 다섯 줄까지 늘어난다. min이 있으면 안쪽 오른쪽 아래에 글자 수 카운터(쓰기 시작했는데 모자라면 빨강).
  * error가 있으면 입력창 위에 빨강 두 문장(실패 안내)을 보이고 문장은 그대로 둔다. 다시 누르면 다시 보낸다(MP 7.3).
  * onInputStart는 입력창을 누르거나 글자를 칠 때 부른다(글자 단위 표시를 바로 끝내는 데 쓴다).
+ * focusKey가 새 값으로 바뀌면 입력창에 포커스한다(상대 질문 표시가 끝난 뒤, 갭분석 C4).
  * 키보드는 감싸는 화면(LearnShell의 keyboard-controller)이 맡는다. 지금 learn/parts.tsx Composer와 같다.
  */
 export function Composer({
@@ -33,6 +34,7 @@ export function Composer({
   placeholder,
   onInputStart,
   maxLength,
+  focusKey,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -47,8 +49,13 @@ export function Composer({
   placeholder?: string;
   onInputStart?: () => void;
   maxLength?: number;
+  focusKey?: string | null;
 }) {
   const { p, alert } = useInk();
+  const input = useRef<TextInput>(null);
+  useEffect(() => {
+    if (focusKey) input.current?.focus();
+  }, [focusKey]);
   // 카운터 자리
   const extra = min !== undefined ? COUNTER : 0;
   const [h, setH] = useState(MIN_H + extra);
@@ -72,6 +79,7 @@ export function Composer({
         }}
       >
         <TextInput
+          ref={input}
           value={value}
           onChangeText={(t) => {
             onInputStart?.();
@@ -98,7 +106,8 @@ export function Composer({
               textAlignVertical: 'top',
             },
             // 웹 브라우저의 네모난 포커스 테두리가 둥근 입력창 안에 겹쳐 보인다. 바깥 둥근 테두리가 입력 자리를 보여 준다
-            web && { height: value ? h : MIN_H + extra, outlineColor: 'transparent' },
+            // Chrome은 outlineStyle auto면 색을 무시하고 기본 포커스 고리를 그린다. 질문 뒤 자동 포커스(C4)로 늘 보이게 되어 투명한 solid로 둔다
+            web && { height: value ? h : MIN_H + extra, outlineColor: 'transparent', outlineStyle: 'solid' },
           ]}
         />
         {min !== undefined ? (

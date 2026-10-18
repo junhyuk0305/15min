@@ -105,7 +105,8 @@ function Enter({ style, children }: { style?: StyleProp<ViewStyle>; children: Re
 }
 
 const s = StyleSheet.create({
-  who: { fontFamily: F.serifBlack, fontSize: 11, lineHeight: 16, letterSpacing: 2 },
+  // 화자 이름은 웹소설 콘셉트라 자간 2를 두고 크기만 13으로(갭분석 V4)
+  who: { fontFamily: F.serifBlack, fontSize: 13, lineHeight: 18, letterSpacing: 2 },
   say: { fontSize: 15, lineHeight: 26, maxWidth: '92%' },
   thought: { fontFamily: F.serif, fontSize: 14, lineHeight: 24, maxWidth: '92%' },
   narration: { fontFamily: F.serif, fontSize: 14, lineHeight: 24 },

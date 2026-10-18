@@ -54,7 +54,7 @@ function GalleryBody() {
         <View style={{ gap: S.sm }}>
           <Label>Button / Row / Field / Gauge</Label>
           <Button title={copy.ux.next} onPress={() => setRatio(ratio >= 1 ? 0 : ratio + 0.35)} />
-          <Button title={copy.ux.send} onPress={() => undefined} disabled disabledReason={copy.learn.pickChoice} />
+          <Button title={copy.ux.send} onPress={() => undefined} disabled disabledReason={copy.session.needChars(12)} />
           <Gauge ratio={ratio} />
           <Card onPress={() => setOpen('sheet')}>
             <Body>{copy.learn.inputPlaceholder}</Body>

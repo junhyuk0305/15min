@@ -92,8 +92,17 @@ export default function Auth() {
       setInfo(t.resent);
     });
 
-  // 6자리가 차면 바로 보낸다(갭분석 V10). 버튼도 같은 일을 한다
-  const verify = (c = code) => run(() => store.verifyCode(email, c));
+  // 6자리가 차면 바로 보낸다(갭분석 V10). 버튼도 같은 일을 한다.
+  // 코드가 틀리면 칸을 비운다. 틀린 6자리가 남으면 같은 값을 다시 넣어도 바뀐 것이 없어 자동 제출이 안 된다
+  const verify = (c = code) =>
+    run(async () => {
+      try {
+        await store.verifyCode(email, c);
+      } catch (e) {
+        if (toApiError(e).code === 'otp_expired') setCode('');
+        throw e;
+      }
+    });
   const passwordLogin = () => run(() => store.signInWithPassword(email, password));
 
   const backToEmail = () => {

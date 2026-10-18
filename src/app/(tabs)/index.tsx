@@ -94,8 +94,9 @@ const BLEND_MS = 400;
  * 빨강 진입(갭분석 M12). 앱을 보는 중에 아이보리에서 빨강으로 바뀌면 아이보리 덮개가 400ms에 걷히며 섞이고, 탭 바도 같이 빨강이 된다.
  * 독촉은 그날 처음 들어올 때 흰 깜빡임 1회(화면구성 4절). 보는 중에 독촉이 되면 warning 햅틱.
  * 줄인 움직임이면 섞임과 깜빡임 없이 바로 빨강이다.
+ * 홈을 보고 있지 않으면(다른 탭, 학습 화면 아래) 섞임과 햅틱 없이 바로 빨강이고, 깜빡임은 홈을 다시 볼 때 한다.
  */
-function useRedEntry(red: boolean, nag: boolean, key: string) {
+function useRedEntry(red: boolean, nag: boolean, key: string, focused: boolean) {
   const reduced = useReducedMotion();
   const flash = useSharedValue(0);
   // 아이보리 덮개는 빨강이 처음 그려지는 프레임부터 있어야 한다. 그래서 바뀐 순간을 렌더 중에 알아내고 새 덮개를 붙인다
@@ -103,7 +104,7 @@ function useRedEntry(red: boolean, nag: boolean, key: string) {
   const [blend, setBlend] = useState(0);
   if (shownRed !== red) {
     setShownRed(red);
-    if (shownRed === false && red && !reduced) setBlend(blend + 1);
+    if (shownRed === false && red && !reduced && focused) setBlend(blend + 1);
   }
   const wasRed = useRef<boolean | null>(null);
   const flashed = useRef<string | null>(null);
@@ -115,8 +116,8 @@ function useRedEntry(red: boolean, nag: boolean, key: string) {
       homeRed.value = 0;
       return;
     }
-    // 처음 그릴 때부터 빨강이면 섞을 아이보리가 없었다
-    const live = was === false;
+    // 처음 그릴 때부터 빨강이면 섞을 아이보리가 없었다. 보지 않는 동안 바뀌었으면 보여 줄 섞임이 없다
+    const live = was === false && focused;
     if (live && !reduced) {
       homeRed.value = 0;
       homeRed.value = withTiming(1, { duration: BLEND_MS, easing: EASE });
@@ -124,7 +125,7 @@ function useRedEntry(red: boolean, nag: boolean, key: string) {
       homeRed.value = 1;
     }
     if (nag && live) warning();
-    if (nag && flashed.current !== key) {
+    if (nag && focused && flashed.current !== key) {
       flashed.current = key;
       if (!reduced) {
         flash.value = withDelay(
@@ -133,7 +134,7 @@ function useRedEntry(red: boolean, nag: boolean, key: string) {
         );
       }
     }
-  }, [red, nag, key, reduced, flash]);
+  }, [red, nag, key, reduced, flash, focused]);
   const flashStyle = useAnimatedStyle(() => ({ opacity: flash.value }));
   return { blend, flashStyle };
 }
@@ -178,7 +179,8 @@ export default function Home() {
   const kst = showsKstLabel(new Date().getTimezoneOffset()) ? <Text style={[T.small, { color: C.sub }]}>{copy.unit.kst}</Text> : null;
   const st = homeState(goal, rec, now, tz);
   const red = st === 'nag' || st === 'resume' || st === 'giveup';
-  const { blend, flashStyle } = useRedEntry(red, st === 'nag', today);
+  const focused = useIsFocused();
+  const { blend, flashStyle } = useRedEntry(red, st === 'nag', today, focused);
   useTabBarRed(red);
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -187,7 +189,6 @@ export default function Home() {
     setRefreshing(false);
   };
   // 첫 홈 안내(갭분석 3.1-3): 첫 학습일 전, 이 탭을 보고 있을 때 한 번
-  const focused = useIsFocused();
   const tourSeen = useTipSeen(TOUR);
   const countdownRef = useRef<View>(null);
   const couponRef = useRef<View>(null);

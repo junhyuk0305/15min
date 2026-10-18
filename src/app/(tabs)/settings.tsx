@@ -93,7 +93,8 @@ export default function Settings() {
     }
   };
 
-  const notifOff = permission !== 'granted';
+  // 권한을 읽기 전(앱 시작 직후)과 아직 묻지 않은 상태는 'undetermined'다. 홈 배너처럼 판단을 미루고 값을 비운다
+  const notifOff = permission === 'denied';
   // 정확한 시각 알림은 Android 권한이다. 확인할 수 없으면(unknown) 줄을 두지 않는다. 거부는 Android에서만 나온다
   const showExact = exactAlarm === 'denied' || (Platform.OS === 'android' && exactAlarm === 'granted');
   const exactOff = exactAlarm === 'denied';
@@ -134,7 +135,7 @@ export default function Settings() {
           inset
           pressBg
           left={t.notif}
-          value={notifOff ? t.notifOff : t.notifOn}
+          value={notifOff ? t.notifOff : permission === 'granted' ? t.notifOn : undefined}
           dot={notifOff}
           chevron={notifOff}
           onPress={notifOff ? openSystemSettings : undefined}

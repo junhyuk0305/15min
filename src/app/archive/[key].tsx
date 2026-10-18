@@ -12,6 +12,7 @@ import { Body, Label, Screen } from '@/components/ui';
 import { charsByDay, dayId, phaseGroups } from '@/lib/archive';
 import { copy } from '@/lib/copy';
 import { phaseName } from '@/lib/learn';
+import { APP_TIME_ZONE, fmtClock, localParts } from '@/lib/rules';
 import type { LessonModal, Message } from '@/lib/model';
 import { loadPhaseOf } from '@/lib/selectors';
 import { messagesOf, useApp } from '@/lib/store';
@@ -22,6 +23,12 @@ import { B, C, S, T } from '@/lib/theme';
 const t = copy.archive;
 
 const back = () => (router.canGoBack() ? router.back() : router.replace('/archive'));
+
+/** 단계 첫 메시지의 한국 시각 "22:03"(갭분석 C7) */
+function clockOf(ms: number): string {
+  const p = localParts(ms, APP_TIME_ZONE);
+  return fmtClock(p.hour * 60 + p.minute);
+}
 
 /** 대화 한 줄. 상대와 나는 웹소설 줄, 코치는 괘선 주석 (D안). 읽기 전용 */
 function Line({ m, prev, partner }: { m: Message; prev: ChatSpeaker | null; partner: string }) {
@@ -128,7 +135,11 @@ export default function ArchiveDetail() {
 
       {groups.map((g) => (
         <View key={g.phase} style={{ gap: S.xs }}>
-          <Label>{phaseName(g.phase, g.levelCheck)}</Label>
+          {/* 단계 구분 라벨 오른쪽에 그 단계를 시작한 시각을 작게(갭분석 C7) */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: S.sm }}>
+            <Label>{phaseName(g.phase, g.levelCheck)}</Label>
+            <Label>{clockOf(g.messages[0].createdAt)}</Label>
+          </View>
           <View>
             {g.messages.map((m, i) => (
               <Line key={m.id} m={m} prev={i === 0 ? null : speakerOf(g.messages[i - 1])} partner={goal.situation.partner} />

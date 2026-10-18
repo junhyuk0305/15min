@@ -1,9 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState, type ReactNode } from 'react';
+import { cloneElement, isValidElement, useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,6 +11,7 @@ import {
   View,
   type ViewStyle,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import Animated, { FadeIn, interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Glyph } from '@/components/Glyph';
@@ -68,8 +67,8 @@ export function useNow(intervalMs = 1000, now: () => number = nowMs): number {
 
 /**
  * 화면 틀. theme: ivory(기본), white(학습 A, C), dark(학습 B). danger면 빨강 바탕.
- * footer는 바닥에 고정되고 키보드가 올라오면 함께 올라간다 (MP 7.5-1).
- * header(공통 Header)는 위에 고정되고 본문만 스크롤된다.
+ * footer는 바닥에 고정되고 키보드가 올라오면 함께 올라간다 (MP 7.5-1). 키보드는 학습 화면(LearnShell)과 같은 keyboard-controller가 맡는다(갭분석 M20).
+ * header(공통 Header)는 위에 고정되고 본문만 스크롤된다. 본문을 내리면 Header에 scrolled를 넘겨 아래 hairline을 긋는다(메가프롬프트 4.3).
  * onRefresh를 주면 당겨서 새로고침이 된다(갭분석 F8, 홈과 기록 탭). 웹은 react-native-web이 당기기를 지원하지 않는다.
  */
 export function Screen({
@@ -94,18 +93,23 @@ export function Screen({
   const insets = useSafeAreaInsets();
   const p = PALETTES[theme];
   const bg = danger ? p.red : p.bg;
+  const [scrolled, setScrolled] = useState(false);
   const body = (
     <View style={{ paddingHorizontal: S.lg, paddingTop: header ? S.sm : insets.top + S.lg, paddingBottom: S.lg, gap: S.md }}>{children}</View>
   );
   return (
     <SurfaceProvider theme={theme} red={!!danger}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: bg }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: bg }}>
         <StatusBar style={danger || theme === 'dark' ? 'light' : 'dark'} />
-        {header ? <View style={{ paddingTop: insets.top }}>{header}</View> : null}
+        {header ? (
+          <View style={{ paddingTop: insets.top }}>{isValidElement<{ scrolled?: boolean }>(header) ? cloneElement(header, { scrolled }) : header}</View>
+        ) : null}
         {scroll ? (
           <ScrollView
             contentContainerStyle={{ flexGrow: 1 }}
             keyboardShouldPersistTaps="handled"
+            onScroll={header ? (e) => setScrolled(e.nativeEvent.contentOffset.y > 0) : undefined}
+            scrollEventThrottle={32}
             refreshControl={
               onRefresh ? (
                 <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={danger ? p.onRed : p.ink} colors={[p.ink]} />

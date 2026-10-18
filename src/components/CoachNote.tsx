@@ -87,7 +87,7 @@ export function CoachNote({
 const s = StyleSheet.create({
   inline: { borderTopWidth: B.hair, borderBottomWidth: B.hair, paddingVertical: 10, paddingHorizontal: 2, gap: S.xs },
   modal: { borderWidth: B.base, borderRadius: R.xl, padding: S.md, gap: S.sm },
-  kicker: { fontFamily: F.serifBlack, fontSize: 11, lineHeight: 16, letterSpacing: 2 },
+  kicker: { fontFamily: F.serifBlack, fontSize: 13, lineHeight: 18, letterSpacing: 2 },
   ex: { fontFamily: F.sansBold, fontSize: 16, lineHeight: 23 },
   exModal: { fontFamily: F.sansBold, fontSize: 17, lineHeight: 24 },
   mean: { fontFamily: F.serifBlack, fontSize: 14, lineHeight: 21 },

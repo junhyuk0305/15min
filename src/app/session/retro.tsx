@@ -208,6 +208,9 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
     if (ok) router.replace({ pathname: '/session/done', params: { earned: out.earned ? '1' : '0' } });
   };
 
+  // 새로 온 코치 질문이 다 보이면 입력창에 포커스한다(갭분석 C4). 다시 들어왔을 때 있던 줄에는 하지 않는다
+  const last = lines.at(-1);
+  const focusKey = !waiting && !reveal.revealing && last && last.kind !== 'me' && reveal.isNew(last.id) ? last.id : null;
   const composer = (
     <Composer
       value={text}
@@ -220,6 +223,7 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
       error={failed === 'send' ? (error ?? t.failed) : null}
       placeholder={t.inputPlaceholder}
       onInputStart={reveal.finish}
+      focusKey={focusKey}
     />
   );
   // 시간이 찼어도 답을 기다리는 질문이 남았거나 쓰던 문장이 있으면 입력창을 남긴다. 완료하기가 주 버튼이다

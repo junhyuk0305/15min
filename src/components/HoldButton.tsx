@@ -37,6 +37,12 @@ export function HoldButton({
   const progress = useSharedValue(0);
   const [width, setWidth] = useState(0);
   const [armed, setArmed] = useState(!reduced);
+  // 화면에 있는 동안 줄인 움직임 설정이 바뀌면 다시 맞춘다(렌더 중 상태 맞추기). 켜지면 1초 비활성부터 다시 거친다
+  const [armedFor, setArmedFor] = useState(reduced);
+  if (armedFor !== reduced) {
+    setArmedFor(reduced);
+    setArmed(!reduced);
+  }
   const done = useRef(false);
 
   // 줄인 움직임: 단계에 들어온 뒤 1초 동안 눌리지 않는다(연타로 확인을 건너뛰지 않게)

@@ -54,7 +54,13 @@ export default function Suspended() {
       ),
     [reflections],
   );
-  const reveal = useReveal(lines.map((l) => ({ id: l.id, text: l.text, ai: l.kind !== 'me' })));
+  // 반성문은 기기에 저장하지 않아 다시 들어오면 서버에서 대화를 새로 받는다. 이번에 들어와 보낸 글이 없으면 받은 줄은
+  // 이미 본 줄로 보고 글자 단위로 보이지 않는다(UXP 3절 "다시 들어왔을 때는 쓰지 않는다")
+  const [sent, setSent] = useState(false);
+  const reveal = useReveal(
+    lines.map((l) => ({ id: l.id, text: l.text, ai: l.kind !== 'me' })),
+    !sent,
+  );
   const menu = useLineMenu();
   const { open: openMenu, toReasons } = menu;
   const targetOf = useCallback((l: Line) => ({ id: l.id, text: l.text, send: (r: string) => useApp.getState().reportMessage(l.id, r) }), []);
@@ -97,6 +103,7 @@ export default function Suspended() {
     const body = text.trim();
     if (!canSend(body) || busy) return;
     setBusy(true);
+    setSent(true);
     setError(null);
     setText('');
     const id = pending.current?.text === body ? pending.current.id : uuidv4();

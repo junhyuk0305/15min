@@ -110,7 +110,8 @@ export const T = {
   /** 명조 본문(이유, 홈 가운데 문장) */
   bodySerif: { fontFamily: F.serif, fontSize: 15, lineHeight: 25 },
   small: { fontFamily: F.sans, fontSize: 13, lineHeight: 19 },
-  label: { fontFamily: F.sansBold, fontSize: 11, lineHeight: 16, letterSpacing: 1 },
+  /** 라벨. 한글 11px에 자간 1은 띄엄띄엄 읽혀 12px, 자간 0.5(갭분석 V4) */
+  label: { fontFamily: F.sansBold, fontSize: 12, lineHeight: 17, letterSpacing: 0.5 },
   /** 주 버튼 글자 */
   button: { fontFamily: F.sansBold, fontSize: 18, lineHeight: 24 },
   /** 보조 버튼, 글자 버튼, 세그먼트 글자 */

@@ -30,6 +30,10 @@ export function useLineMenu(onActivity?: () => void) {
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [switching, setSwitching] = useState(false);
   const [latest, setLatest] = useState<LineTarget | null>(null);
+  // 마지막으로 길게 누른 줄. 시트가 닫히는 동안에도 같은 줄 목록을 그린다(닫히며 "신고하기"가 빠져 보이지 않게)
+  const [pressed, setPressed] = useState<LineTarget | null>(null);
+  // 신고를 보내는 중인 줄. 이유 시트를 연달아 눌러도 한 번만 보낸다
+  const sending = useRef<string | null>(null);
   const activity = useRef(onActivity);
   useEffect(() => {
     activity.current = onActivity;
@@ -56,19 +60,32 @@ export function useLineMenu(onActivity?: () => void) {
     },
     [show],
   );
-  const open = useCallback((target: LineTarget) => show({ kind: 'line', target }), [show]);
+  const open = useCallback(
+    (target: LineTarget) => {
+      setPressed(target);
+      show({ kind: 'line', target });
+    },
+    [show],
+  );
   const more = useCallback(() => show({ kind: 'more' }), [show]);
 
   const choose = (target: LineTarget, reason: string) => {
     close();
-    target.send?.(reason).then(
-      () => showToast(t.done),
-      (e: unknown) => {
-        const err = toApiError(e);
-        reportError(err, 'report');
-        showToast(errorText(err.kind, err.code));
-      },
-    );
+    if (!target.send || sending.current === target.id) return;
+    sending.current = target.id;
+    target
+      .send(reason)
+      .then(
+        () => showToast(t.done),
+        (e: unknown) => {
+          const err = toApiError(e);
+          reportError(err, 'report');
+          showToast(errorText(err.kind, err.code));
+        },
+      )
+      .finally(() => {
+        sending.current = null;
+      });
   };
   const copyText = (text: string) => {
     close();
@@ -89,7 +106,7 @@ export function useLineMenu(onActivity?: () => void) {
         visible={!!line}
         onClose={close}
         actions={[
-          ...(line?.send ? [{ label: t.menu, onPress: () => toReasons(line) }] : []),
+          ...(pressed?.send ? [{ label: t.menu, onPress: () => line && toReasons(line) }] : []),
           { label: t.copy, onPress: () => line && copyText(line.text) },
         ]}
       />
@@ -108,17 +125,18 @@ export function useLineMenu(onActivity?: () => void) {
 
 export type LineMenu = ReturnType<typeof useLineMenu>;
 
-const TIP = 'report-longpress';
+/** 길게 누르기 안내 말풍선의 seenTips id. 코치 모달이 뜨면 LessonPanel이 닫는다 */
+export const LONG_PRESS_TIP = 'report-longpress';
 
 /**
  * 첫 AI 메시지 아래 한 번 뜨는 말풍선(갭분석 3.1 8번). 4초 뒤 저절로 닫히고 다시 뜨지 않는다. 시계는 멈추지 않는다.
  */
 export function LongPressTip() {
-  const seen = useTipSeen(TIP);
+  const seen = useTipSeen(LONG_PRESS_TIP);
   const { p } = useInk();
   useEffect(() => {
     if (seen) return;
-    const id = setTimeout(() => markSeen(TIP), DUR.toast);
+    const id = setTimeout(() => markSeen(LONG_PRESS_TIP), DUR.toast);
     return () => clearTimeout(id);
   }, [seen]);
   if (seen) return null;

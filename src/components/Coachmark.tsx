@@ -45,15 +45,17 @@ export function Coachmark({
   // 닫히면 처음 단계로 되돌린다(렌더 중 상태 맞추기)
   if (!visible && i !== 0) setI(0);
   const step = steps[i];
+  // 부르는 쪽(홈)은 1초마다 다시 그려지며 steps를 새로 만든다. 단계 객체 대신 고정된 ref로 기다려 1초마다 다시 재지 않는다(UXP 6.3)
+  const target = step?.target;
 
   useEffect(() => {
-    if (!visible || !step) return;
+    if (!visible || !target) return;
     // 첫 그림이 끝난 뒤에 잰다
     const id = requestAnimationFrame(() => {
-      step.target.current?.measureInWindow((x, y, w, h) => setMeasured({ i, box: { x, y, w, h } }));
+      target.current?.measureInWindow((x, y, w, h) => setMeasured({ i, box: { x, y, w, h } }));
     });
     return () => cancelAnimationFrame(id);
-  }, [visible, step, i, win.width, win.height]);
+  }, [visible, target, i, win.width, win.height]);
 
   if (!visible || !step) return null;
   const box = measured && measured.i === i ? measured.box : null;

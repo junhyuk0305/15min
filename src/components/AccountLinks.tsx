@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Text } from 'react-native';
 import { ActionSheet, BottomSheet } from '@/components/BottomSheet';
 import { HeaderMore } from '@/components/Header';
@@ -67,6 +67,14 @@ export function DeleteAccountButton({ inverse }: { inverse?: boolean }) {
 export function AccountMenu({ report }: { report?: () => void } = {}) {
   const [menu, setMenu] = useState(false);
   const [del, setDel] = useState(false);
+  // 고르기 시트가 내려간 뒤 확인 시트를 여는 타이머. 그사이 화면이 사라지면 지운다
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
   const close = () => setMenu(false);
   const legal = (doc: 'terms' | 'privacy') => {
     close();
@@ -95,7 +103,7 @@ export function AccountMenu({ report }: { report?: () => void } = {}) {
             danger: true,
             onPress: () => {
               close();
-              setTimeout(() => setDel(true), DUR.slow);
+              timer.current = setTimeout(() => setDel(true), DUR.slow);
             },
           },
           { label: t.terms, onPress: () => legal('terms') },

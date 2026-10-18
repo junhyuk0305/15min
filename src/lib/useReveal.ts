@@ -10,10 +10,13 @@ export type RevealItem = { id: string; text: string; ai: boolean };
  * 화면을 처음 그릴 때 이미 있던 줄(다시 들어옴, 강제 종료 뒤 재실행)은 고르지 않는다. 줄인 움직임이면 고르지 않는다.
  * 끝은 타이머 하나로 정한다. finish는 바로 끝낸다(화면 누름, 입력 시작). 고정된 함수라 1초마다 다시 그려지는 화면에서도 바뀌지 않는다.
  * isNew는 처음 그릴 때 없던 줄인지(등장 움직임에 쓴다).
+ * seeding이면 그동안 들어온 줄도 처음 줄로 본다(저장하지 않는 반성문을 다시 열어 서버에서 대화를 받을 때).
  */
-export function useReveal(items: readonly RevealItem[]) {
+export function useReveal(items: readonly RevealItem[], seeding = false) {
   const reduced = useReducedMotion();
-  const [initial] = useState(() => new Set(items.map((i) => i.id)));
+  const [initial, setInitial] = useState(() => new Set(items.map((i) => i.id)));
+  // 렌더 중 상태 맞추기. seeding 동안 새로 보인 줄을 처음 줄에 더한다
+  if (seeding && items.some((i) => !initial.has(i.id))) setInitial(new Set([...initial, ...items.map((i) => i.id)]));
   const [done, setDone] = useState<string | null>(null);
   const last = items.at(-1);
   const target = !reduced && last && last.ai && last.text.trim() && !initial.has(last.id) && last.id !== done ? last.id : null;

@@ -32,6 +32,7 @@ import {
   type ClockState,
 } from '../learn';
 import { copy } from '../copy';
+import { QUIZ_COPY } from '../../../supabase/functions/_shared/copy';
 import type { Message } from '../model';
 
 const open: ClockGates = { appActive: true, focused: true, waiting: false, revealing: false, offline: false, failed: false, overlay: false, tip: false, blocked: false };
@@ -322,6 +323,12 @@ test('뜻 고르기 정답 공개: 채점 문장에 따옴표로 든 보기가 �
   assert.equal(revealedChoice(choices, '정답은 "항상"입니다.'), 1);
   assert.equal(revealedChoice(choices, '맞았습니다.'), -1);
   assert.equal(revealedChoice(undefined, '정답은 "항상"입니다.'), -1);
+});
+
+test('뜻 고르기 정답 공개: 서버 채점 문장(QUIZ_COPY) 형식에서 정답 보기를 찾는다', () => {
+  const choices = ['대신', '항상', '먼저'];
+  assert.equal(revealedChoice(choices, QUIZ_COPY.wrong('먼저')), 2);
+  assert.equal(revealedChoice(choices, QUIZ_COPY.retry(true)), -1);
 });
 
 // 회고 마무리 (첫 사용 F9)

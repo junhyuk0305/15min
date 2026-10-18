@@ -124,7 +124,7 @@ test('uuidv4 모양', () => {
 });
 
 test('errorText: 코드 문구가 먼저, 없으면 종류 문구, 둘 다 두 문장', () => {
-  assert.equal(errorText('server', 'ai_failed'), '응답을 받지 못했습니다. 다시 보내 주십시오.');
+  assert.equal(errorText('server', 'ai_failed'), '응답을 받지 못했습니다. 다시 보내십시오.');
   assert.equal(errorText('network'), copy.error.kind.network);
   assert.equal(errorText('nope'), copy.error.generic);
   for (const s of [...Object.values(copy.error.kind), ...Object.values(copy.error.code)]) {

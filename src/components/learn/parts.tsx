@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
+import { Appear } from '@/components/Appear';
 import { ConfirmSheet } from '@/components/BottomSheet';
 import { CoachNote } from '@/components/CoachNote';
 import { LearnShell } from '@/components/learn/LearnShell';
@@ -120,18 +121,21 @@ export function PhaseOverlay({
   );
 }
 
+/** 가운데 모달 카드가 0.96에서 1로 커지며 나타나는 크기(갭분석 M3). 바탕은 Modal fade */
+const MODAL_FROM = 0.96;
+
 /** 딴짓 팝업(기획서 11.2). 시간은 멈춰 있고, 계속하기를 눌러야 다시 흐른다 */
 export function IdleModal({ visible, onContinue }: { visible: boolean; onContinue: () => void }) {
   const { p } = useSurface();
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onContinue}>
       <View style={[s.dim, s.center]}>
-        <View style={[s.card, { backgroundColor: p.red, borderColor: p.red }]}>
+        <Appear scale={MODAL_FROM} style={{ ...s.card, backgroundColor: p.red, borderColor: p.red }}>
           <Text style={[T.label, { color: p.onRed }]}>{copy.learn.idleKicker}</Text>
           <H1 inverse>{copy.learn.idleTitle}</H1>
           <Body inverse>{copy.learn.idleBody}</Body>
           <Button title={copy.learn.idleContinue} kind="inverse" onPress={onContinue} />
-        </View>
+        </Appear>
       </View>
     </Modal>
   );
@@ -169,14 +173,14 @@ export function CoachModal({
   return (
     <Modal transparent visible={!!modal} animationType="fade" onRequestClose={onClose}>
       <View style={[s.dim, s.center]}>
-        <View style={{ width: '100%', maxWidth: 412 }}>
+        <Appear scale={MODAL_FROM} style={{ width: '100%', maxWidth: 412 }}>
           <CoachNote kicker={t.coach} modal description={note || undefined}>
             {modal?.expression ? <Entry kind={t.expression} e={modal.expression} /> : null}
             {modal?.words.map((w) => <Entry key={w.en} kind={t.word} e={w} />)}
             <Button title={t.close} onPress={onClose} style={{ marginTop: S.xs }} />
           </CoachNote>
           {tip ? <Text style={[T.small, { color: PALETTES.dark.ink, textAlign: 'center', marginTop: S.md }]}>{tip}</Text> : null}
-        </View>
+        </Appear>
       </View>
     </Modal>
   );

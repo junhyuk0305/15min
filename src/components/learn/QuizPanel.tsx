@@ -219,6 +219,7 @@ export function QuizPanel({
           q={q}
           choice={choice}
           locked={busy || settled}
+          settled={settled}
           wrong={wrong}
           right={step === 'revealed' ? revealedChoice(q.choices, grade?.feedback ?? '') : -1}
           onChoose={(i) => {
@@ -249,6 +250,7 @@ function Question({
   wrong,
   right,
   locked,
+  settled,
   onChoose,
   onLongPress,
 }: {
@@ -258,6 +260,8 @@ function Question({
   /** 정답을 보였을 때 정답 보기 번호. 없으면 -1 */
   right: number;
   locked: boolean;
+  /** 맞았거나 정답을 공개해 더 답하지 않는다 */
+  settled: boolean;
   onChoose: (i: number) => void;
   /** 상황 적용 문항만. 상대 대사를 AI가 써서 신고할 수 있어야 한다(Play AI 생성 콘텐츠 정책). 나머지 유형은 서버가 만든 글이다 */
   onLongPress?: () => void;
@@ -272,8 +276,8 @@ function Question({
       </Pressable>
       {rest.join('\n').trim() ? <Text style={[T.body, { color: p.sub }]}>{rest.join('\n').trim()}</Text> : null}
       {q.choices?.map((c, i) => {
-        // 틀린 보기는 빨강 테두리가 고른 상태보다 앞선다. 정답 보기는 검정 테두리
-        const missed = wrong?.index === i;
+        // 틀린 보기는 빨강 테두리. 다시 답하는 중에 같은 보기를 또 고르면 고른 표시가 이긴다. 정답을 공개한 뒤에는 틀린 표시가 이긴다
+        const missed = wrong?.index === i && (choice !== i || settled);
         const on = choice === i && !missed;
         return (
           <Shake key={`${i}:${c}`} shakeKey={missed ? wrong.n : 0}>

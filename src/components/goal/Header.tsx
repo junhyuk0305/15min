@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { ScrollView, Text, View } from 'react-native';
+import { Appear } from '@/components/Appear';
 import { Header } from '@/components/Header';
 import { Gauge, Label } from '@/components/ui';
 import { copy } from '@/lib/copy';
@@ -34,12 +35,13 @@ export function SetupHeader({ stage, fields, onBack, right }: { stage: SetupStag
           accessibilityLabel={shown.map((k) => `${g.fields[k]} ${fields[k]}`).join(', ')}
         >
           {shown.map((k) => (
-            <View key={k} style={{ flexDirection: 'row', borderWidth: B.hair, borderColor: C.line, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, gap: 6 }}>
+            // 항목이 채워지면 칩이 오른쪽에서 들어온다(갭분석 M17). 진행 막대는 Gauge가 600ms로 늘린다
+            <Appear key={k} fromX={16} style={{ flexDirection: 'row', borderWidth: B.hair, borderColor: C.line, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, gap: 6 }}>
               <Text style={[T.small, { color: C.sub, fontSize: 12 }]}>{g.fields[k]}</Text>
               <Text numberOfLines={1} style={[T.small, { color: C.ink, fontSize: 12, flexShrink: 1, maxWidth: 180 }]}>
                 {fields[k]}
               </Text>
-            </View>
+            </Appear>
           ))}
         </ScrollView>
       ) : null}
