@@ -10,8 +10,9 @@ for f in sorted(glob.glob(os.path.join(sys.argv[1], '*.json'))):
     d = json.load(open(f, encoding='utf-8'))
     bs = [b for b in d['buttons'] if not b['offscreen']]
     prim = [b for b in bs if b['h'] >= 48 and b['bg'] not in ('rgba(0, 0, 0, 0)', CARD)]
-    text = [b for b in bs if b['deco'] == 'underline']
-    outline = [b for b in bs if b['h'] >= 48 and b['bg'] == 'rgba(0, 0, 0, 0)' and b['bw'] not in ('0px',) and b['deco'] != 'underline']
+    # 글자 버튼(TextButton): 채움과 테두리 없이 굵은 15px 글자. U2부터 밑줄은 본문 링크(role=link)에만 있다
+    text = [b for b in bs if b['bg'] == 'rgba(0, 0, 0, 0)' and b['bw'] == '0px' and b['name'] and b['fs'] == '15px' and 'ExtraBold' in b.get('ff', '')]
+    outline = [b for b in bs if b['h'] >= 48 and b['bg'] == 'rgba(0, 0, 0, 0)' and b['bw'] not in ('0px',) and b not in text]
     for b in bs:
         if (b['w'] < 44 or b['h'] < 44) and b['role'] != 'tab':
             small.append((d['name'], b['name'] or b['label'], b['w'], b['h']))

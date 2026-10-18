@@ -41,7 +41,7 @@ DOM_JS = r"""
     const tcs = getComputedStyle(t);
     out.push({ name: (e.innerText || '').trim().replace(/\s+/g, ' '), label: e.getAttribute('aria-label'), role: e.getAttribute('role') || e.tagName.toLowerCase(),
       x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), bg: cs.backgroundColor,
-      bw: cs.borderTopWidth, bc: cs.borderTopColor, deco: tcs.textDecorationLine, color: tcs.color, fs: tcs.fontSize,
+      bw: cs.borderTopWidth, bc: cs.borderTopColor, deco: tcs.textDecorationLine, color: tcs.color, fs: tcs.fontSize, ff: tcs.fontFamily,
       disabled: e.getAttribute('aria-disabled') === 'true', offscreen: v === 'offscreen' });
   }
   // 글자가 화면 밖으로 나가거나 잘리는 요소
@@ -641,7 +641,7 @@ def learn(b):
     pg.locator('textarea').last.fill('I want order a large latte.')
     click(pg, '보내기', wait=3500)
     capture(pg, 'learn-b-modal', '코치 표현 모달')
-    if pg.get_by_role('button', name='닫기').count():
+    if pg.get_by_role('button', name='닫기', exact=True).count() > 1:  # U3: 학습 화면 X도 이름이 '닫기'. 모달이 떴을 때만 모달(마지막) 닫기를 누른다
         click(pg, '닫기', wait=800)
     pg.route('**/functions/v1/lesson-turn', lambda r: r.fulfill(status=502, content_type='application/json', body='{"error":"ai_failed"}') if r.request.method == 'POST' else r.continue_())
     pg.locator('textarea').last.fill('Could I get it with oat milk?')
@@ -858,10 +858,10 @@ def auth(b):
     for cb in pg.get_by_role('checkbox').all():
         cb.click()
     capture(pg, 'auth-normal-email', '입력 후')
-    if pg.get_by_role('button', name='국외 이전 보기').count():
-        click(pg, '국외 이전 보기', wait=800)
+    if pg.get_by_role('link', name='국외 이전 보기').count():  # U3: 본문 링크(role=link)
+        pg.get_by_role('link', name='국외 이전 보기').last.click(); pg.wait_for_timeout(800)
         capture(pg, 'auth-normal-transfer', '국외 이전 펼침')
-        click(pg, '국외 이전 닫기', wait=500)
+        pg.get_by_role('link', name='국외 이전 닫기').last.click(); pg.wait_for_timeout(500)
     hold = lib.Hold(pg)
     click(pg, '코드 받기', wait=800)
     capture(pg, 'auth-loading', '요청 대기')
@@ -945,7 +945,8 @@ def banned(b):
     lib.sql(f"update public.profiles set banned = true, giveup_confirmed_count = 3 where user_id = '{BAN.uid}'")
     ctx, pg = page(b, BAN, '/', 5000)
     capture(pg, 'banned-normal')
-    pg.get_by_role('button', name='계정 삭제하기').first.click(); pg.wait_for_timeout(1000)
+    click(pg, '더 보기', wait=600)  # U3: 헤더 ⋯ → 고르기 시트 → 확인 시트(320ms 뒤)
+    click(pg, '계정 삭제하기', wait=1000)
     lib.fail_server(pg, '/functions/v1/delete-account')
     pg.get_by_role('button', name='삭제하기').last.click()
     capture(pg, 'banned-error', '계정 삭제 500', wait=2500)

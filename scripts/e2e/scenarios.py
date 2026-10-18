@@ -608,7 +608,9 @@ def s16(b, c: Check):
     until = sql1(f"select suspended_until from public.profiles where user_id = '{uid}';")
     ctx, page = session_page(b, email)
     c.ok('삭제 전: 반성문 화면', '/suspended' in page.url, page.url)
-    page.get_by_text('계정 삭제하기', exact=True).first.click()
+    click(page, '더 보기')  # U3: 바닥 글자 버튼 대신 헤더 ⋯ → 고르기 시트
+    page.wait_for_timeout(600)
+    click(page, '계정 삭제하기')  # 고르기 시트가 닫히고 320ms 뒤 확인 시트가 뜬다
     settle(page, 800)
     c.shot(page, '1삭제확인')
     click(page, '삭제하기')
