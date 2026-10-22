@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>그래고 학습 채팅 4안</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Black+Han+Sans&family=Gaegu:wght@400;700&family=Noto+Serif+KR:wght@400;600;700;900&family=Nanum+Brush+Script&display=swap">
+<style>
+  :root {
+    --pg-bg: #FAF8F3; --pg-fg: #1A1916; --pg-sub: #6F6A60; --pg-line: #DDD7CA;
+    --bg: #F3EFE6; --ink: #111111; --sub: #6B655B; --line: #D9D2C4; --card: #FBF9F4;
+    --red: #C8201A; --disabled: #BDB6A8;
+    --sans: 'Noto Sans KR', -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+    --hand: 'Gaegu', var(--sans);
+    --heavy: 'Black Han Sans', var(--sans);
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --pg-bg: #171613; --pg-fg: #ECE8DF; --pg-sub: #A39C8E; --pg-line: #35322B; color-scheme: dark; } }
+  :root[data-theme="dark"] { --pg-bg: #171613; --pg-fg: #ECE8DF; --pg-sub: #A39C8E; --pg-line: #35322B; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--pg-bg); color: var(--pg-fg); font-family: var(--sans); font-size: 15px; line-height: 1.6; font-weight: 500; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding-block: 36px 96px; padding-inline: 24px; }
+  h1 { font-size: 32px; font-weight: 900; margin: 0 0 6px; }
+  .lead { color: var(--pg-sub); max-width: 70ch; margin: 0 0 24px; }
+  .legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 20px; font-size: 13.5px; margin-bottom: 44px; border: 2px solid var(--pg-fg); border-radius: 6px; padding: 14px 18px; }
+  .legend b { display: block; font-weight: 800; }
+  section { margin-bottom: 64px; }
+  .head { display: grid; grid-template-columns: 56px minmax(0,1fr); gap: 16px; margin-bottom: 14px; }
+  .num { font-size: 40px; font-weight: 900; line-height: 1; letter-spacing: -1px; }
+  .head h2 { font-size: 20px; font-weight: 800; margin: 0 0 2px; }
+  .head p { margin: 0; font-size: 13.5px; color: var(--pg-sub); max-width: 72ch; }
+  .head p b { color: var(--pg-fg); }
+  .frames { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .fcap { font-size: 12px; font-weight: 700; color: var(--pg-sub); margin: 8px 0 0 4px; letter-spacing: .5px; }
+
+  /* 폰 프레임 공통 */
+  .frame { width: 360px; max-width: 100%; height: 880px; background: var(--bg); color: var(--ink); border: 1px solid var(--pg-line); border-radius: 28px; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+  .top { padding: 40px 20px 10px; display: grid; gap: 4px; border-bottom: 1px solid var(--line); }
+  .top .r { display: flex; justify-content: space-between; align-items: baseline; }
+  .top .who { font-size: 12px; font-weight: 800; letter-spacing: 1px; color: var(--sub); }
+  .top .time { font-size: 32px; font-weight: 900; letter-spacing: -1px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .gauge { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 4px; }
+  .gauge i { display: block; height: 100%; background: var(--ink); }
+  .msgs { flex: 1; padding: 16px 16px 8px; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; overflow: hidden; }
+  .msgs .lab { font-size: 11px; font-weight: 800; letter-spacing: 1px; color: var(--sub); margin-bottom: -6px; }
+  .l { align-self: flex-start; } .rgt { align-self: flex-end; } .c { align-self: center; }
+  .rgt .lab { text-align: right; }
+  .bar { border-top: 1px solid var(--line); padding: 10px 16px 18px; display: grid; gap: 8px; background: var(--bg); }
+  .modes { display: flex; gap: 6px; }
+  .mode { font-size: 13px; font-weight: 800; padding: 6px 12px; border-radius: 999px; border: 1.5px solid var(--ink); color: var(--ink); }
+  .mode.on { background: var(--ink); color: #fff; }
+  .mode.mind.on { background: #fff; color: var(--ink); border-style: dashed; }
+  .inrow { display: flex; gap: 8px; align-items: flex-end; }
+  .input { flex: 1; min-height: 48px; border: 2px solid var(--ink); border-radius: 12px; padding: 11px 14px; background: var(--card); font-size: 15px; color: var(--disabled); min-width: 0; }
+  .send { min-width: 72px; min-height: 48px; border-radius: 12px; background: var(--ink); color: #fff; font-weight: 800; font-size: 16px; display: grid; place-items: center; border: 2px solid var(--ink); }
+  .send.off { background: var(--disabled); border-color: var(--disabled); color: var(--card); }
+  .cnt { font-size: 12px; font-weight: 700; color: var(--sub); display: flex; justify-content: space-between; }
+  .cnt b { color: var(--red); }
+  .dim { position: absolute; inset: 0; background: rgba(0,0,0,.55); display: grid; place-items: center; padding: 24px; }
+
+  /* 말풍선 뼈대: 바깥 drop-shadow 외곽선 + 안쪽 모양 */
+  .bub { --o: 1.5px; display: inline-block; max-width: 82%; filter: drop-shadow(var(--o) 0 0 var(--ink)) drop-shadow(calc(var(--o)*-1) 0 0 var(--ink)) drop-shadow(0 var(--o) 0 var(--ink)) drop-shadow(0 calc(var(--o)*-1) 0 var(--ink)); }
+  .bub > div { background: #fff; color: var(--ink); padding: 10px 14px; position: relative; font-size: 15px; line-height: 22px; }
+  .bub.say > div { border-radius: 18px; }
+  .bub.say > div::after { content: ''; position: absolute; left: 18px; bottom: -11px; border-left: 3px solid transparent; border-right: 11px solid transparent; border-top: 13px solid #fff; }
+  .bub.say.me > div { background: var(--ink); color: #fff; }
+  .bub.say.me > div::after { left: auto; right: 18px; border-left: 11px solid transparent; border-right: 3px solid transparent; border-top-color: var(--ink); }
+  .bub.think > div { border-radius: 30px; font-family: var(--hand); font-weight: 700; font-size: 17px; line-height: 22px; }
+  .bub.think > div::before { content: ''; position: absolute; left: 16px; bottom: -12px; width: 10px; height: 10px; border-radius: 50%; background: #fff; }
+  .bub.think > div::after { content: ''; position: absolute; left: 6px; bottom: -22px; width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+  .bub.think.me > div::before { left: auto; right: 16px; } .bub.think.me > div::after { left: auto; right: 6px; }
+  .bub.spike > div { padding: 18px 28px 30px; font-weight: 800; clip-path: polygon(6% 18%, 18% 8%, 28% 16%, 40% 2%, 50% 14%, 62% 4%, 72% 16%, 86% 8%, 96% 20%, 90% 34%, 100% 48%, 90% 60%, 98% 74%, 84% 80%, 78% 92%, 64% 84%, 52% 92%, 42% 84%, 34% 86%, 28% 100%, 22% 86%, 10% 90%, 12% 72%, 0 60%, 8% 46%, 0 32%); }
+
+  /* 코치 모달 공통 뼈대 */
+  .coach { width: 100%; max-width: 300px; background: #fff; display: grid; gap: 6px; padding: 14px 16px; }
+  .coach .k { font-size: 11px; font-weight: 800; letter-spacing: 1px; color: var(--sub); }
+  .coach .ex { font-size: 18px; font-weight: 900; line-height: 1.3; }
+  .coach .mean { font-size: 14px; font-weight: 700; }
+  .coach .desc { font-size: 13px; color: var(--sub); line-height: 1.55; }
+  .coach .word { display: flex; justify-content: space-between; font-size: 13px; border-top: 1px solid var(--line); padding-top: 6px; }
+  .coach .word b { font-weight: 800; }
+  .coach .go { margin-top: 4px; min-height: 44px; border-radius: 10px; background: var(--ink); color: #fff; font-weight: 800; display: grid; place-items: center; font-size: 15px; }
+  .coach .quiz { display: grid; gap: 6px; }
+  .coach .opt { border: 1.5px solid var(--line); border-radius: 8px; padding: 7px 10px; font-size: 13px; font-weight: 600; }
+  .coach .opt.on { border-color: var(--ink); background: var(--bg); }
+
+  /* ===== B 기본 채팅 ===== */
+  .B .bub { filter: none; }
+  .B .bub.say > div { border-radius: 14px; border: 1px solid var(--line); background: var(--card); }
+  .B .bub.say > div::after { display: none; }
+  .B .bub.say.me > div { background: var(--ink); border-color: var(--ink); }
+  .B .bub.think > div { border-radius: 14px; background: transparent; border: 1.5px dashed var(--sub); color: var(--sub); font-family: var(--sans); font-size: 14px; font-weight: 600; line-height: 21px; }
+  .B .bub.think > div::before, .B .bub.think > div::after { display: none; }
+  .B .bub.think > div i { font-style: normal; font-size: 11px; font-weight: 800; letter-spacing: 1px; display: block; margin-bottom: 2px; }
+  .B .coach { border: 2px solid var(--ink); border-radius: 16px; background: var(--card); }
+  .B .coach.inline { max-width: 100%; width: 100%; border-width: 1px; border-color: var(--line); }
+
+  /* ===== D 웹소설 ===== */
+  .D { --serif: 'Noto Serif KR', 'Apple Myungjo', 'Batang', serif; }
+  .D .frame { font-family: var(--serif); }
+  .D .top { border-bottom: 1px solid var(--ink); }
+  .D .top .who { font-family: var(--serif); font-size: 12px; letter-spacing: 2px; font-weight: 700; }
+  .D .top .time { font-family: var(--serif); font-weight: 900; }
+  .D .msgs { gap: 12px; padding: 20px 20px 10px; }
+  .D .msgs .lab { font-family: var(--serif); font-size: 11px; letter-spacing: 2px; font-weight: 700; margin-bottom: -8px; }
+  .D .bub { filter: none; max-width: 86%; }
+  .D .bub > div { background: transparent; padding: 0; font-family: var(--serif); font-size: 16px; line-height: 1.8; font-weight: 600; }
+  .D .bub.say > div { border-radius: 0; }
+  .D .bub.say > div::after, .D .bub.think > div::before, .D .bub.think > div::after { display: none; }
+  .D .bub.say > div::before { content: '“'; } .D .bub.say > div span::after { content: '”'; }
+  .D .bub.say.me > div { background: transparent; color: var(--ink); font-weight: 900; text-align: right; }
+  .D .bub.think > div { font-family: var(--serif); font-size: 15px; font-weight: 400; color: var(--sub); line-height: 1.8; border-radius: 0; }
+  .D .bub.think.me > div { text-align: right; }
+  .D .nar { font-size: 14.5px; line-height: 1.8; color: var(--sub); text-indent: 1em; align-self: stretch; }
+  .D .bub.spike > div { clip-path: none; padding: 0; font-weight: 900; color: var(--red); }
+  .D .coach { background: transparent; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 12px 4px; max-width: 100%; width: 100%; font-family: var(--serif); }
+  .D .coach .k { font-family: var(--serif); letter-spacing: 2px; }
+  .D .coach .ex { font-family: var(--sans); font-weight: 800; }
+  .D .coach .mean { font-weight: 700; } .D .coach .desc { font-weight: 400; }
+  .D .coach .word { border-top: 1px solid var(--line); }
+  .D .coach .go { background: transparent; color: var(--ink); border-bottom: 1.5px solid var(--ink); border-radius: 0; display: flex; justify-content: space-between; align-items: center; padding: 0 2px; min-height: 40px; font-family: var(--serif); }
+  .D .coach .go::after { content: "›"; font-size: 22px; }
+  .D .coach .opt { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 8px 2px; font-family: var(--sans); }
+  .D .coach .opt.on { background: transparent; border-bottom: 1.5px solid var(--ink); font-weight: 800; }
+  .D .dim { background: var(--bg); }
+  .D .dim .coach { max-width: 300px; }
+  .D .bar { border-top: 1px solid var(--ink); }
+  .D .mode { border: 0; border-bottom: 1.5px solid transparent; border-radius: 0; padding: 4px 2px; font-family: var(--serif); font-weight: 700; color: var(--sub); margin-right: 10px; }
+  .D .mode.on, .D .mode.mind.on { background: transparent; color: var(--ink); border-bottom-color: var(--ink); border-style: solid; }
+  .D .input { border: 0; border-bottom: 1.5px solid var(--ink); border-radius: 0; background: transparent; padding: 10px 0; font-family: var(--serif); }
+  .D .send { background: transparent; color: var(--ink); border: 0; border-radius: 0; font-family: var(--serif); font-weight: 900; min-width: 48px; justify-items: end; }
+  .D .send.off { background: transparent; color: var(--disabled); border: 0; }
+  .D .cnt { font-family: var(--serif); }
+
+  /* ===== 모던 웹툰 말풍선 (A, C 공용) ===== */
+  .mb { position: relative; display: inline-block; max-width: 82%; }
+  .mb > div { background: transparent; color: var(--ink); padding: 11px 18px; position: relative; font-size: 15px; line-height: 22px; font-weight: 500; isolation: isolate; }
+  .mb > div::before { content: ''; position: absolute; inset: 0; z-index: -1; background: #fff; border: 1.3px solid var(--ink); border-radius: inherit; filter: url(#wob); }
+  .mb.s1 > div { border-radius: 46% 54% 42% 58% / 58% 44% 56% 42%; }
+  .mb.s2 > div { border-radius: 58% 42% 55% 45% / 45% 60% 40% 55%; }
+  .mb.s3 > div { border-radius: 40% 60% 48% 52% / 52% 40% 60% 48%; }
+  .mb.s4 > div { border-radius: 52% 48% 60% 40% / 42% 58% 42% 58%; }
+  .mb.say > div::after { content: ''; position: absolute; left: 26px; bottom: -17px; width: 20px; height: 19px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 19'%3E%3Cpath d='M19 0 L3 19 L0 0 Z' fill='%23fff' stroke='%23111' stroke-width='1.3' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat; }
+  .mb.say.me > div { color: #fff; }
+  .mb.say.me > div::before { background: var(--ink); }
+  .mb.say.me > div::after { left: auto; right: 26px; transform: scaleX(-1); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 19'%3E%3Cpath d='M19 0 L3 19 L0 0 Z' fill='%23111' stroke='%23111' stroke-width='1.3' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+  .mb.think > div { font-family: var(--hand); font-weight: 700; font-size: 17px; line-height: 22px; padding: 12px 20px; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; background: #fff; box-shadow: 0 0 0 5px #fff, 0 0 12px 9px rgba(255,255,255,.95); }
+  .mb.think > div::before { display: none; }
+  .mb.think > div > i { position: absolute; left: 14px; bottom: -16px; width: 11px; height: 11px; border-radius: 50%; background: #fff; box-shadow: 0 0 6px 3px rgba(255,255,255,.9); }
+  .mb.think > div::after { content: ''; position: absolute; left: 2px; bottom: -28px; width: 6px; height: 6px; border-radius: 50%; background: #fff; box-shadow: 0 0 5px 2px rgba(255,255,255,.9); }
+  .mb.think.me > div > i { left: auto; right: 14px; } .mb.think.me > div::after { left: auto; right: 2px; }
+  .mb.spike { filter: drop-shadow(1px 0 0 var(--ink)) drop-shadow(-1px 0 0 var(--ink)) drop-shadow(0 1px 0 var(--ink)) drop-shadow(0 -1px 0 var(--ink)); }
+  .mb.spike > div { background: #fff; padding: 20px 30px 30px 26px; font-weight: 800; border-radius: 0; clip-path: polygon(3% 30%, 12% 22%, 9% 6%, 24% 14%, 33% 0, 40% 12%, 55% 4%, 60% 16%, 76% 8%, 78% 20%, 97% 14%, 90% 32%, 100% 44%, 92% 54%, 99% 72%, 86% 74%, 90% 92%, 74% 82%, 66% 96%, 56% 84%, 44% 92%, 38% 82%, 30% 100%, 24% 80%, 8% 88%, 12% 70%, 0 60%, 7% 46%); }
+  .mb.spike > div::before { display: none; }
+  .mb.spike.p2 > div { clip-path: polygon(0 36%, 10% 26%, 6% 10%, 20% 18%, 28% 4%, 38% 14%, 48% 0, 56% 14%, 70% 6%, 74% 18%, 92% 10%, 88% 28%, 100% 36%, 92% 50%, 100% 66%, 86% 70%, 92% 88%, 76% 80%, 70% 100%, 58% 84%, 46% 96%, 40% 82%, 26% 92%, 22% 78%, 6% 84%, 10% 66%, 0 54%); }
+  .sfx2 { font-family: 'Nanum Brush Script', var(--hand); font-size: 58px; line-height: .9; color: var(--ink); -webkit-text-stroke: 1.2px var(--ink); display: inline-block; transform: rotate(-9deg); letter-spacing: -1px; }
+  .sfx2.red { color: var(--red); -webkit-text-stroke-color: var(--red); }
+  .sfx2.big { font-size: 76px; }
+
+  /* A 얇은 손선 */
+  .A .top .who { font-family: var(--hand); font-size: 15px; letter-spacing: 0; font-weight: 700; }
+  .A .coach { position: relative; isolation: isolate; background: transparent; border-radius: 18px 22px 20px 24px / 22px 18px 24px 20px; }
+  .A .coach::before { content: ''; position: absolute; inset: 0; z-index: -1; background: #fff; border: 1.3px solid var(--ink); border-radius: inherit; filter: url(#wob); }
+  .A .coach .k { font-family: var(--hand); font-size: 16px; letter-spacing: 0; color: var(--ink); }
+  .A .coach .go { border-radius: 14px 18px 16px 20px / 18px 14px 20px 16px; }
+  .A .input { position: relative; isolation: isolate; background: transparent; border: 0; border-radius: 18px 22px 20px 24px / 22px 18px 24px 20px; }
+  .A .input::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--card); border: 1.3px solid var(--ink); border-radius: inherit; filter: url(#wob); }
+  .A .send { border: 1.3px solid var(--ink); border-radius: 20px 16px 22px 18px / 16px 22px 18px 20px; }
+  .A .send.off { background: transparent; color: var(--disabled); border-color: var(--disabled); }
+  .A .mode { border: 1.3px solid var(--ink); border-radius: 14px 18px 16px 20px / 18px 14px 20px 16px; }
+  .A .mode.mind.on { border-style: solid; background: #fff; box-shadow: 0 0 0 3px #fff; }
+  .A .dim { background: rgba(243,239,230,.6); backdrop-filter: blur(2px); }
+
+  /* C 외곽선 없는 흰 덩어리 */
+  .C .mb > div::before { border: 0; filter: none; box-shadow: 0 1px 0 rgba(0,0,0,.06); }
+  .C .mb.say > div::after { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 19'%3E%3Cpath d='M19 0 L3 19 L0 0 Z' fill='%23fff'/%3E%3C/svg%3E"); bottom: -16px; }
+  .C .mb.say.me > div::after { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 19'%3E%3Cpath d='M19 0 L3 19 L0 0 Z' fill='%23111'/%3E%3C/svg%3E"); }
+  .C .mb.spike { filter: none; }
+  .C .mb.spike > div { color: var(--red); }
+  .C .top { border-bottom: 0; }
+  .C .top .who { font-size: 12px; letter-spacing: 1px; color: var(--sub); }
+  .C .msgs .lab { display: none; }
+  .C .coach { border: 0; border-radius: 20px; box-shadow: 0 2px 0 rgba(0,0,0,.06); }
+  .C .coach .k { color: var(--sub); }
+  .C .bar { border-top: 0; }
+  .C .input { border: 0; border-radius: 22px; background: #fff; }
+  .C .send { border: 0; border-radius: 22px; }
+  .C .send.off { background: transparent; color: var(--disabled); }
+  .C .mode { border: 0; background: rgba(0,0,0,.06); }
+  .C .mode.on { background: var(--ink); color: #fff; }
+  .C .mode.mind.on { background: #fff; color: var(--ink); border: 0; box-shadow: 0 0 0 4px #fff, 0 0 8px 6px rgba(255,255,255,.9); }
+  .C .dim { background: rgba(243,239,230,.75); backdrop-filter: blur(3px); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="wob" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter></svg>
+<div class="wrap">
+  <h1>그래고 학습 채팅 4안</h1>
+  <p class="lead">화자는 셋이다. 상대(AI)는 왼쪽, 나는 오른쪽, 코치는 가운데 모달. 채팅바에는 영어 답변과 속마음 두 모드가 있다. 안마다 왼쪽은 대화 흐름, 오른쪽은 코치 모달이 떠 있는 상태다. 장면은 스타벅스 주문.</p>
+  <div class="legend">
+    <div><b>상대 · 답변</b>왼쪽 둥근 풍선. 흰 바탕.</div>
+    <div><b>상대 · 속마음</b>왼쪽 구름 풍선. 손글씨. 너무 못하거나 잘하면 나온다.</div>
+    <div><b>나 · 영어 답변</b>오른쪽 둥근 풍선. 검정 바탕.</div>
+    <div><b>나 · 속마음</b>오른쪽 구름 풍선. 한국어 가능. 최소 글자 없음.</div>
+    <div><b>코치</b>가운데 모달. 표현, 뜻, 설명, 단어, 퀴즈. 적용 버튼으로 닫는다.</div>
+    <div><b>채팅바</b>모드 토글, 입력창, 전송. 영어 모드만 글자 수 게이지.</div>
+  </div>
+
+  <!-- ===== A ===== -->
+  <section class="A">
+    <div class="head"><div class="num">A</div><div><h2>웹툰 컷 · 얇은 손선</h2><p><b>1.3px 흔들리는 선, 풍선마다 다른 덩어리 모양, 얇고 긴 꼬리.</b> 생각 풍선은 외곽선 없이 가장자리가 번진다. 긁는 말은 들쭉날쭉한 가시 풍선 두 개가 겹친다. 효과음은 붓글씨. 약점: 선이 얇아 작은 화면에서 흐릿할 수 있다.</p></div></div>
+    <div class="frames">
+      <div>
+        <div class="frame">
+          <div class="top"><div class="r"><span class="who">스타벅스 · 나는 고객</span><span class="who">412자</span></div><div class="time">09:41</div><div class="gauge"><i style="width:37%"></i></div></div>
+          <div class="msgs">
+            <span class="lab l">직원</span>
+            <div class="mb say s1 l"><div>Would you like regular milk?</div></div>
+            <div class="mb think me rgt"><div><i></i>아 "대신"이 영어로 뭐였지.. 왜 이렇게 어려워!</div></div>
+            <div class="mb say me s2 rgt"><div>No. Oat milk please.</div></div>
+            <div class="mb think l"><div><i></i>짧지만 뜻은 통했군요. 이대로 넘어가도 될까..</div></div>
+            <div class="coach c">
+              <span class="k">코치</span>
+              <span class="ex">Could I have … instead?</span>
+              <span class="mean">대신 …로 받을 수 있을까요?</span>
+              <span class="desc">제안한 것을 다른 것으로 바꿔 달라고 할 때 씁니다.</span>
+              <div class="word"><b>instead</b><span>대신, 그 대신</span></div>
+            </div>
+            <span class="lab l">직원</span>
+            <div class="mb say s3 l"><div>We have hot coffee ready. Would you like one?</div></div>
+            <div class="mb say me s4 rgt"><div>Could I have iced coffee instead?</div></div>
+            <div class="mb think l"><div><i></i>생각보다 잘하시네요.</div></div>
+            <span class="sfx2 rgt" style="margin-top:-10px">딱!</span>
+          </div>
+          <div class="bar">
+            <div class="modes"><span class="mode on">영어 답변</span><span class="mode mind">속마음</span></div>
+            <div class="inrow"><div class="input">영어로 답해 보세요</div><div class="send off">전송</div></div>
+            <div class="cnt"><span>100자 이상</span><b>0/100</b></div>
+          </div>
+        </div>
+        <div class="fcap">대화 흐름 · 풍선마다 모양이 다르다</div>
+      </div>
+      <div>
+        <div class="frame">
+          <div class="top"><div class="r"><span class="who">스타벅스 · 나는 고객</span><span class="who">412자</span></div><div class="time">09:41</div><div class="gauge"><i style="width:37%"></i></div></div>
+          <div class="msgs">
+            <span class="lab l">직원</span>
+            <div class="mb say s2 l"><div>Would you like regular milk?</div></div>
+            <div class="mb say me s1 rgt"><div>No. Oat milk please.</div></div>
+            <div class="mb think me rgt"><div><i></i>아 하기 싫다. 그냥 한국말로 하면 안 되나</div></div>
+            <div class="mb spike l"><div>안 됩니다. 15분 중 9분 남았습니다.</div></div>
+            <div class="mb spike p2 l" style="margin-top:-6px;margin-left:40px"><div>옛날처럼 아무것도 하지 않고 계시네요.</div></div>
+            <span class="sfx2 big red rgt" style="margin-top:-12px">쩌적!</span>
+          </div>
+          <div class="bar">
+            <div class="modes"><span class="mode">영어 답변</span><span class="mode mind on">속마음</span></div>
+            <div class="inrow"><div class="input">속마음은 한국어로 써도 됩니다</div><div class="send">전송</div></div>
+            <div class="cnt"><span>글자 수 제한 없음</span><span>시간은 흐릅니다</span></div>
+          </div>
+          <div class="dim">
+            <div class="coach">
+              <span class="k">코치 · 퀴즈</span>
+              <span class="ex">"대신 아이스로 주시겠어요?"</span>
+              <span class="desc">영어로 고르세요.</span>
+              <div class="quiz"><div class="opt on">Could I have iced coffee instead?</div><div class="opt">Can you iced coffee change?</div><div class="opt">I want iced coffee, not hot.</div></div>
+              <div class="go">적용해 보기</div>
+            </div>
+          </div>
+        </div>
+        <div class="fcap">속마음 모드 + 코치 모달</div>
+      </div>
+      <div>
+        <div class="frame" style="height:auto;min-height:0;padding:28px 22px 32px;gap:26px">
+          <span class="who" style="font-size:12px;font-weight:800;letter-spacing:1px;color:var(--sub)">말풍선 네 모양</span>
+          <div class="mb say s1 l"><div>평소 말. 오늘도 시작하시겠습니까?</div></div>
+          <div class="mb say me s2 rgt" style="margin-top:4px"><div>내 영어 답변.</div></div>
+          <div class="mb think l" style="margin-top:6px"><div><i></i>혼잣말. 나의 이유, 속마음.</div></div>
+          <div class="mb spike l" style="margin-top:10px"><div>긁는 말. 하루 15분도 못 하시는 겁니까?</div></div>
+          <span class="sfx2 big red c" style="margin-top:-8px">쩌적!</span>
+          <span class="sfx2 c" style="margin-top:-18px">딱!</span>
+        </div>
+        <div class="fcap">모양 모음</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== B ===== -->
+  <section class="B">
+    <div class="head"><div class="num">B</div><div><h2>기본 채팅</h2><p><b>지금 디자인 시스템 그대로. 외곽선 없는 풍선, 속마음은 점선 풍선.</b> 코치는 흐름 안에서는 전체 폭 카드, 퀴즈일 때만 어두운 바탕 위 모달. 가장 조용하고 메신저 같다. 약점: 웹툰 느낌이 거의 없다. 속마음과 답변의 차이가 점선 하나뿐이다.</p></div></div>
+    <div class="frames">
+      <div>
+        <div class="frame">
+          <div class="top"><div class="r"><span class="who">스타벅스 · 나는 고객</span><span class="who">412자</span></div><div class="time">09:41</div><div class="gauge"><i style="width:37%"></i></div></div>
+          <div class="msgs">
+            <span class="lab l">직원</span>
+            <div class="bub say l"><div>Would you like regular milk?</div></div>
+            <div class="bub think me rgt"><div><i>속마음</i>아 "대신"이 영어로 뭐였지.. 왜 이렇게 어려워!</div></div>
+            <div class="bub say me rgt"><div>No. Oat milk please.</div></div>
+            <div class="bub think l"><div><i>직원 속마음</i>짧지만 뜻은 통했군요.</div></div>
+            <div class="coach inline c">
+              <span class="k">코치</span>
+              <span class="ex">Could I have … instead?</span>
+              <span class="mean">대신 …로 받을 수 있을까요?</span>
+              <span class="desc">제안한 것을 다른 것으로 바꿔 달라고 할 때 씁니다.</span>
+              <div class="word"><b>instead</b><span>대신, 그 대신</span></div>
+            </div>
+            <span class="lab l">직원</span>
+            <div class="bub say l"><div>We have hot coffee ready. Would you like one?</div></div>
+            <div class="bub say me rgt"><div>Could I have iced coffee instead?</div></div>
+            <div class="bub think l"><div><i>직원 속마음</i>생각보다 잘하시네요.</div></div>
+          </div>
+          <div class="bar">
+            <div class="modes"><span class="mode on">영어 답변</span><span class="mode mind">속마음</span></div>
+            <div class="inrow"><div class="input">영어로 답해 보세요</div><div class="send off">전송</div></div>
+            <div class="cnt"><span>100자 이상</span><b>0/100</b></div>
+          </div>
+        </div>
+        <div class="fcap">대화 흐름 · 코치는 전체 폭 카드</div>
+      </div>
+      <div>
+        <div class="frame">
+          <div class="top"><div class="r"><span class="who">스타벅스 · 나는 고객</span><span class="who">412자</span></div><div class="time">09:41</div><div class="gauge"><i style="width:37%"></i></div></div>
+          <div class="msgs">
+            <span class="lab l">직원</span>
+            <div class="bub say l"><div>Would you like regular milk?</div></div>
+            <div class="bub say me rgt"><div>No. Oat milk please.</div></div>
+            <div class="bub think me rgt"><div><i>속마음</i>아 하기 싫다. 그냥 한국말로 하면 안 되나</div></div>
+            <div class="bub say l"><div>안 됩니다. 15분 중 9분 남았습니다.</div></div>
+          </div>
+          <div class="bar">
+            <div class="modes"><span class="mode">영어 답변</span><span class="mode mind on">속마음</span></div>
+            <div class="inrow"><div class="input">속마음은 한국어로 써도 됩니다</div><div class="send">전송</div></div>
+            <div class="cnt"><span>글자 수 제한 없음</span><span>시간은 흐릅니다</span></div>
+          </div>
+          <div class="dim">
+            <div class="coach">
+              <span class="k">코치 · 퀴즈</span>
+              <span class="ex">"대신 아이스로 주시겠어요?"</span>
+              <span class="desc">영어로 고르세요.</span>
+              <div class="quiz"><div class="opt on">Could I have iced coffee instead?</div><div class="opt">Can you iced coffee change?</div><div class="opt">I want iced coffee, not hot.</div></div>
+              <div class="go">적용해 보기</div>
+            </div>
+          </div>
+        </div>
+        <div class="fcap">속마음 모드 + 코치 모달</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== C ===== -->
+  <section class="C">
+    <div class="head"><div class="num">C</div><div><h2>무선 · 흰 덩어리</h2><p><b>외곽선이 없다. 흰 덩어리가 아이보리 위에 놓인다.</b> 내 말은 검정 덩어리. 생각 풍선은 번진 흰 구름. 긁는 말은 가시 모양 흰 덩어리에 빨강 글자. 채팅바와 코치도 선 없이 흰 면만. 셋 중 가장 조용하면서 웹툰 모양을 유지한다. 약점: 흰색과 아이보리 대비가 약해 밝은 곳에서 풍선 경계가 흐려진다.</p></div></div>
+    <div class="frames">
+      <div>
+        <div class="frame">
+          <div class="top"><div class="r"><span class="who">스타벅스 · 나는 고객</span><span class="who">412자</span></div><div class="time">09:41</div><div class="gauge"><i style="width:37%"></i></div></div>
+          <div class="msgs">
+            <span class="lab l">직원</span>
+            <div class="mb say s1 l"><div>Would you like regular milk?</div></div>
+            <div class="mb think me rgt"><div><i></i>아 "대신"이 영어로 뭐였지.. 왜 이렇게 어려워!</div></div>
+            <div class="mb say me s2 rgt"><div>No. Oat milk please.</div></div>
+            <div class="mb think l"><div><i></i>짧지만 뜻은 통했군요. 이대로 넘어가도 될까..</div></div>
+            <div class="coach c">
+              <span class="k">코치</span>
+              <span class="ex">Could I have … instead?</span>
+              <span class="mean">대신 …로 받을 수 있을까요?</span>
+              <span class="desc">제안한 것을 다른 것으로 바꿔 달라고 할 때 씁니다.</span>
+              <div class="word"><b>instead</b><span>대신, 그 대신</span></div>
+            </div>
+            <span class="lab l">직원</span>
+            <div class="mb say s3 l"><div>We have hot coffee ready. Would you like one?</div></div>
+            <div class="mb say me s4 rgt"><div>Could I have iced coffee instead?</div></div>
+            <div class="mb think l"><div><i></i>생각보다 잘하시네요.</div></div>
+            <span class="sfx2 rgt" style="margin-top:-10px">딱!</span>
+          </div>
+          <div class="bar">
+            <div class="modes"><span class="mode on">영어 답변</span><span class="mode mind">속마음</span></div>
+            <div class="inrow"><div class="input">영어로 답해 보세요</div><div class="send off">전송</div></div>
+            <div class="cnt"><span>100자 이상</span><b>0/100</b></div>
+          </div>
+        </div>
+        <div class="fcap">대화 흐름 · 선 없이 면만</div>
+      </div>
+      <div>
+        <div class="frame">
+          <div class="top"><div class="r"><span class="who">스타벅스 · 나는 고객</span><span class="who">412자</span></div><div class="time">09:41</div><div class="gauge"><i style="width:37%"></i></div></div>
+          <div class="msgs">
+            <span class="lab l">직원</span>
+            <div class="mb say s2 l"><div>Would you like regular milk?</div></div>
+            <div class="mb say me s1 rgt"><div>No. Oat milk please.</div></div>
+            <div class="mb think me rgt"><div><i></i>아 하기 싫다. 그냥 한국말로 하면 안 되나</div></div>
+            <div class="mb spike l"><div>안 됩니다. 15분 중 9분 남았습니다.</div></div>
+            <div class="mb spike p2 l" style="margin-top:-6px;margin-left:40px"><div>옛날처럼 아무것도 하지 않고 계시네요.</div></div>
+            <span class="sfx2 big red rgt" style="margin-top:-12px">쩌적!</span>
+          </div>
+          <div class="bar">
+            <div class="modes"><span class="mode">영어 답변</span><span class="mode mind on">속마음</span></div>
+            <div class="inrow"><div class="input">속마음은 한국어로 써도 됩니다</div><div class="send">전송</div></div>
+            <div class="cnt"><span>글자 수 제한 없음</span><span>시간은 흐릅니다</span></div>
+          </div>
+          <div class="dim">
+            <div class="coach">
+              <span class="k">코치 · 퀴즈</span>
+              <span class="ex">"대신 아이스로 주시겠어요?"</span>
+              <span class="desc">영어로 고르세요.</span>
+              <div class="quiz"><div class="opt on">Could I have iced coffee instead?</div><div class="opt">Can you iced coffee change?</div><div class="opt">I want iced coffee, not hot.</div></div>
+              <div class="go">적용해 보기</div>
+            </div>
+          </div>
+        </div>
+        <div class="fcap">속마음 모드 + 코치 모달</div>
+      </div>
+      <div>
+        <div class="frame" style="height:auto;min-height:0;padding:28px 22px 32px;gap:26px">
+          <span class="who" style="font-size:12px;font-weight:800;letter-spacing:1px;color:var(--sub)">말풍선 네 모양</span>
+          <div class="mb say s1 l"><div>평소 말. 오늘도 시작하시겠습니까?</div></div>
+          <div class="mb say me s2 rgt" style="margin-top:4px"><div>내 영어 답변.</div></div>
+          <div class="mb think l" style="margin-top:6px"><div><i></i>혼잣말. 나의 이유, 속마음.</div></div>
+          <div class="mb spike l" style="margin-top:10px"><div>긁는 말. 하루 15분도 못 하시는 겁니까?</div></div>
+          <span class="sfx2 big red c" style="margin-top:-8px">쩌적!</span>
+          <span class="sfx2 c" style="margin-top:-18px">딱!</span>
+        </div>
+        <div class="fcap">모양 모음</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== D ===== -->
+  <section class="D">
+    <div class="head"><div class="num">D</div><div><h2>웹소설</h2><p><b>풍선이 없다. 명조체, 대사는 따옴표, 속마음은 회색 지문.</b> 상대는 왼쪽, 나는 오른쪽 정렬 굵은 글씨. 코치는 위아래 괘선으로 묶인 주석. 채팅바도 밑줄만 남긴다. 긁는 말은 빨강 글자 한 줄. 약점: 효과음과 큰 숫자가 설 자리가 없다. 눌리는 곳이 어디인지 밑줄만으로 알려야 한다.</p></div></div>
+    <div class="frames">
+      <div>
+        <div class="frame">
+          <div class="top"><div class="r"><span class="who">제12일 · 스타벅스</span><span class="who">412자</span></div><div class="time">09:41</div><div class="gauge"><i style="width:37%"></i></div></div>
+          <div class="msgs">
+            <div class="nar">직원이 컵을 들어 보이며 물었다.</div>
+            <div class="bub say l"><div><span>Would you like regular milk?</span></div></div>
+            <div class="bub think me rgt"><div>아 "대신"이 영어로 뭐였지. 왜 이렇게 어려워.</div></div>
+            <div class="bub say me rgt"><div><span>No. Oat milk please.</span></div></div>
+            <div class="bub think l"><div>짧지만 뜻은 통했군요. 이대로 넘어가도 될까.</div></div>
+            <div class="coach c">
+              <span class="k">코치</span>
+              <span class="ex">Could I have … instead?</span>
+              <span class="mean">대신 …로 받을 수 있을까요?</span>
+              <span class="desc">제안한 것을 다른 것으로 바꿔 달라고 할 때 씁니다.</span>
+              <div class="word"><b>instead</b><span>대신, 그 대신</span></div>
+            </div>
+            <div class="nar">직원은 다음 컵을 집었다.</div>
+            <div class="bub say l"><div><span>We have hot coffee ready. Would you like one?</span></div></div>
+            <div class="bub say me rgt"><div><span>Could I have iced coffee instead?</span></div></div>
+            <div class="bub think l"><div>생각보다 잘하시네요.</div></div>
+          </div>
+          <div class="bar">
+            <div class="modes"><span class="mode on">영어 답변</span><span class="mode mind">속마음</span></div>
+            <div class="inrow"><div class="input">영어로 답해 보세요</div><div class="send off">전송</div></div>
+            <div class="cnt"><span>100자 이상</span><b>0/100</b></div>
+          </div>
+        </div>
+        <div class="fcap">대화 흐름 · 코치는 괘선 주석</div>
+      </div>
+      <div>
+        <div class="frame">
+          <div class="top"><div class="r"><span class="who">제12일 · 스타벅스</span><span class="who">412자</span></div><div class="time">09:41</div><div class="gauge"><i style="width:37%"></i></div></div>
+          <div class="msgs">
+            <div class="nar">직원이 컵을 들어 보이며 물었다.</div>
+            <div class="bub say l"><div><span>Would you like regular milk?</span></div></div>
+            <div class="bub say me rgt"><div><span>No. Oat milk please.</span></div></div>
+            <div class="bub think me rgt"><div>아 하기 싫다. 그냥 한국말로 하면 안 되나.</div></div>
+            <div class="bub spike l"><div>안 됩니다. 15분 중 9분 남았습니다.</div></div>
+            <div class="nar">2분이 지났다. 당신은 아직 아무 말도 하지 않았다.</div>
+          </div>
+          <div class="bar">
+            <div class="modes"><span class="mode">영어 답변</span><span class="mode mind on">속마음</span></div>
+            <div class="inrow"><div class="input">속마음은 한국어로 써도 됩니다</div><div class="send">전송</div></div>
+            <div class="cnt"><span>글자 수 제한 없음</span><span>시간은 흐릅니다</span></div>
+          </div>
+          <div class="dim">
+            <div class="coach">
+              <span class="k">코치 · 퀴즈</span>
+              <span class="ex">"대신 아이스로 주시겠어요?"</span>
+              <span class="desc">영어로 고르세요.</span>
+              <div class="quiz"><div class="opt on">Could I have iced coffee instead?</div><div class="opt">Can you iced coffee change?</div><div class="opt">I want iced coffee, not hot.</div></div>
+              <div class="go">적용해 보기</div>
+            </div>
+          </div>
+        </div>
+        <div class="fcap">속마음 모드 + 코치 모달 (바탕을 아이보리로 덮는다)</div>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>그래고 디자인 시스템</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;600;700;800;900&display=swap">
+<style>
+  /* 레이아웃: 왼쪽 고정 목차 + 오른쪽 본문. 본문 안의 앱 견본은 앱 고유 색(아이보리 단일 테마)을 그대로 쓴다. */
+  :root {
+    /* 페이지 바탕 (문서 자체) */
+    --pg-bg: #FAF8F3;
+    --pg-fg: #1A1916;
+    --pg-sub: #6F6A60;
+    --pg-line: #DDD7CA;
+    --pg-card: #FFFFFF;
+    --pg-code: #EFEAE0;
+    /* 앱 토큰 = src/lib/theme.ts */
+    --bg: #F3EFE6;
+    --ink: #111111;
+    --sub: #6B655B;
+    --line: #D9D2C4;
+    --card: #FBF9F4;
+    --red: #C8201A;
+    --red-ink: #FFFFFF;
+    --red-soft: #F7DEDB;
+    --disabled: #BDB6A8;
+    --font: 'Noto Sans KR', -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --pg-bg: #171613; --pg-fg: #ECE8DF; --pg-sub: #A39C8E; --pg-line: #35322B; --pg-card: #1F1E1A; --pg-code: #2A2823;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --pg-bg: #171613; --pg-fg: #ECE8DF; --pg-sub: #A39C8E; --pg-line: #35322B; --pg-card: #1F1E1A; --pg-code: #2A2823;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--pg-bg); color: var(--pg-fg); font-family: var(--font); font-size: 15px; line-height: 1.6; font-weight: 500; }
+  a { color: inherit; }
+  h1, h2, h3 { margin: 0; line-height: 1.25; text-wrap: balance; letter-spacing: -0.01em; }
+  h1 { font-size: 34px; font-weight: 900; }
+  h2 { font-size: 22px; font-weight: 800; padding-top: 48px; margin-bottom: 8px; border-top: 2px solid var(--pg-fg); }
+  h3 { font-size: 15px; font-weight: 800; margin-top: 28px; margin-bottom: 10px; }
+  p { margin: 0 0 10px; max-width: 64ch; }
+  code { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 12.5px; background: var(--pg-code); padding: 1px 5px; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; max-width: 760px; font-size: 13.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--pg-line); vertical-align: top; }
+  th { font-weight: 800; color: var(--pg-sub); font-size: 12px; letter-spacing: .04em; }
+  .tbl { overflow-x: auto; }
+
+  .wrap { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding-block: 32px 96px; padding-inline: 24px; }
+  nav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; font-size: 13px; }
+  nav .brand { font-size: 20px; font-weight: 900; margin-bottom: 4px; }
+  nav .ver { color: var(--pg-sub); font-size: 12px; margin-bottom: 20px; }
+  nav a { display: block; text-decoration: none; padding: 5px 0; color: var(--pg-sub); font-weight: 600; }
+  nav a:hover, nav a:focus-visible { color: var(--pg-fg); outline: none; }
+  main { min-width: 0; }
+  .lead { font-size: 16px; color: var(--pg-sub); max-width: 60ch; }
+  .note { font-size: 13px; color: var(--pg-sub); max-width: 64ch; }
+
+  /* 견본 틀 */
+  .spec { background: var(--bg); border: 1px solid var(--pg-line); border-radius: 8px; padding: 24px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; color: var(--ink); }
+  .spec.red { background: var(--red); color: var(--red-ink); }
+  .spec.col { flex-direction: column; align-items: stretch; max-width: 460px; }
+  .spec.dim { background: rgba(0,0,0,.6); }
+  .specs { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .cap { font-size: 12px; color: var(--pg-sub); margin-top: 6px; }
+
+  /* 색 */
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .sw { border: 1px solid var(--pg-line); border-radius: 8px; overflow: hidden; background: var(--pg-card); }
+  .sw .chip { height: 72px; }
+  .sw .meta { padding: 8px 10px; font-size: 12.5px; line-height: 1.4; }
+  .sw .meta b { display: block; font-weight: 800; }
+  .sw .meta code { font-size: 11.5px; }
+
+  /* 글자 스케일: theme.ts의 T */
+  .t-hero { font-size: 64px; font-weight: 900; letter-spacing: -2px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .t-big { font-size: 40px; font-weight: 900; letter-spacing: -1px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .t-h1 { font-size: 28px; font-weight: 900; letter-spacing: -0.5px; line-height: 36px; }
+  .t-h2 { font-size: 20px; font-weight: 800; line-height: 28px; }
+  .t-body { font-size: 16px; font-weight: 500; line-height: 24px; }
+  .t-small { font-size: 13px; font-weight: 600; line-height: 18px; }
+  .t-label { font-size: 12px; font-weight: 800; letter-spacing: 1px; }
+  .type-row { display: grid; grid-template-columns: 110px minmax(0,1fr); gap: 16px; align-items: baseline; padding: 14px 0; border-bottom: 1px solid var(--pg-line); }
+  .type-row .k { font-size: 12px; color: var(--pg-sub); font-weight: 700; }
+  .type-row .k code { display: block; margin-top: 2px; }
+  .sub { color: var(--sub); }
+  .spec.red .sub { color: var(--red-ink); opacity: .85; }
+
+  /* 간격 */
+  .sp { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+  .sp div { background: var(--ink); color: var(--card); font-size: 11px; font-weight: 800; text-align: center; display: flex; align-items: flex-end; justify-content: center; }
+  .shape { width: 120px; height: 72px; border: 2px solid var(--ink); display: grid; place-items: center; font-size: 12px; font-weight: 800; background: var(--card); }
+
+  /* 컴포넌트: ui.tsx의 styles와 같은 치수 */
+  .btn { min-height: 56px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; padding: 0 16px; font: inherit; font-size: 20px; font-weight: 800; border: 0; cursor: pointer; min-width: 160px; color: var(--red-ink); background: var(--ink); }
+  .btn:active { opacity: .8; }
+  .btn:focus-visible { outline: 3px solid var(--sub); outline-offset: 2px; }
+  .btn.secondary { background: transparent; border: 2px solid var(--ink); color: var(--ink); }
+  .btn.danger { background: var(--red); }
+  .btn.inverse { background: var(--red-ink); color: var(--red); }
+  .btn[disabled] { background: var(--disabled); color: var(--card); cursor: default; }
+  .btn.block { display: flex; width: 100%; }
+
+  .field { display: grid; gap: 4px; width: 100%; }
+  .field .top { display: flex; justify-content: space-between; align-items: center; }
+  .input { border: 2px solid var(--ink); border-radius: 12px; padding: 16px; font: inherit; font-size: 16px; color: var(--ink); background: var(--card); width: 100%; }
+  .input.multi { min-height: 96px; }
+  .input.ro { background: transparent; color: var(--sub); }
+  .count { font-size: 13px; font-weight: 600; }
+  .count.bad, .err { color: var(--red); font-size: 13px; font-weight: 600; }
+  .hint { color: var(--sub); font-size: 13px; font-weight: 600; }
+
+  .stepper { border: 2px solid var(--ink); border-radius: 12px; padding: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .stepper button { width: 48px; height: 48px; border: 0; background: transparent; font: inherit; font-size: 20px; font-weight: 800; color: var(--ink); cursor: pointer; }
+
+  .gauge { height: 8px; border-radius: 4px; overflow: hidden; background: var(--line); width: 100%; }
+  .gauge i { display: block; height: 100%; background: var(--ink); }
+  .spec.red .gauge, .frame.red .gauge { background: rgba(255,255,255,.3); }
+  .spec.red .gauge i, .frame.red .gauge i { background: var(--red-ink); }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 4px; width: 100%; }
+  .rows { width: 100%; }
+  .row { display: flex; justify-content: space-between; padding: 16px 0; border-bottom: 1px solid var(--line); font-size: 16px; }
+  .row span:last-child { color: var(--sub); }
+
+  .tabbar { display: flex; height: 60px; border-top: 1px solid var(--line); background: var(--bg); width: 100%; }
+  .tabbar div { flex: 1; display: grid; place-items: center; font-size: 14px; font-weight: 800; color: var(--sub); }
+  .tabbar div.on { color: var(--ink); }
+
+  .chip-bot { width: 150px; min-height: 72px; padding: 16px; border-radius: 14px; border: 2px solid var(--ink); display: flex; flex-direction: column; justify-content: space-between; color: var(--ink); }
+  .chip-bot .l { font-size: 12px; font-weight: 800; letter-spacing: 1px; color: var(--sub); }
+  .chip-bot.on { background: var(--ink); color: var(--card); }
+  .chip-bot.on .l { color: var(--card); }
+  .spec.red .chip-bot, .frame.red .chip-bot { border-color: var(--red-ink); color: var(--red-ink); }
+  .spec.red .chip-bot .l, .frame.red .chip-bot .l { color: var(--red-ink); }
+  .spec.red .chip-bot.on, .frame.red .chip-bot.on { background: var(--red-ink); color: var(--red); }
+  .spec.red .chip-bot.on .l, .frame.red .chip-bot.on .l { color: var(--red); }
+
+  .bubble { max-width: 85%; border-radius: 14px; padding: 16px; font-size: 16px; line-height: 24px; }
+  .bubble.ai { align-self: flex-start; background: var(--card); border: 1px solid var(--line); color: var(--ink); }
+  .bubble.me { align-self: flex-end; background: var(--ink); color: var(--card); }
+  .chat { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+  .send-row { display: flex; align-items: center; gap: 16px; width: 100%; }
+  .send-row .g { flex: 1; display: grid; gap: 4px; }
+
+  .popup { width: 100%; max-width: 412px; background: var(--red); color: var(--red-ink); border-radius: 16px; padding: 24px; display: grid; gap: 16px; }
+
+  .cal { display: grid; grid-template-columns: repeat(7, 36px); gap: 6px; }
+  .cal div { height: 36px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; font-weight: 600; border: 1px solid var(--line); color: var(--sub); }
+  .cal .done { background: var(--ink); color: var(--card); border-color: var(--ink); }
+  .cal .miss { background: var(--red); color: var(--card); border-color: var(--red); }
+  .cal .coupon { border-color: var(--sub); }
+  .cal .before { border-color: transparent; }
+
+  .banner { background: var(--red); color: var(--red-ink); border-radius: 12px; padding: 16px; font-size: 13px; font-weight: 600; width: 100%; }
+
+  /* 화면 틀 */
+  .frames { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .frame { width: 340px; max-width: 100%; height: 700px; background: var(--bg); color: var(--ink); border: 1px solid var(--pg-line); border-radius: 28px; overflow: hidden; display: flex; flex-direction: column; }
+  .frame.red { background: var(--red); color: var(--red-ink); }
+  .frame .body { flex: 1; padding: 44px 24px 24px; display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
+  .frame .foot { padding: 8px 24px 20px; display: grid; gap: 8px; }
+  .frame .mid { padding: 24px 0; border-top: 2px solid currentColor; border-bottom: 2px solid currentColor; display: grid; gap: 8px; }
+  .frame .between { display: flex; justify-content: space-between; align-items: center; }
+  .frame .u { text-decoration: underline; }
+  .frame .scroll { display: flex; gap: 8px; overflow: hidden; }
+  .frame .chat-head { padding: 44px 24px 12px; display: grid; gap: 4px; border-bottom: 1px solid var(--line); }
+  .frame .chat-body { flex: 1; padding: 24px; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+  .frame .chat-foot { padding: 8px 24px 20px; display: grid; gap: 8px; border-top: 1px solid var(--line); }
+  .frame .ta { min-height: 88px; }
+
+  /* 메인색 후보 */
+  .cands { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .cand { border: 1px solid var(--pg-line); border-radius: 12px; overflow: hidden; background: var(--pg-card); }
+  .cand .top { padding: 20px; color: #FFFFFF; display: grid; gap: 6px; }
+  .cand .top .n { font-size: 40px; font-weight: 900; letter-spacing: -1px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .cand .top .b { margin-top: 8px; min-height: 48px; border-radius: 12px; background: #FFFFFF; display: grid; place-items: center; font-weight: 800; font-size: 17px; }
+  .cand .top .ivory { margin-top: 8px; background: #F3EFE6; color: #111; border-radius: 10px; padding: 10px 12px; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+  .cand .top .ivory i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+  .cand .meta { padding: 12px 16px; font-size: 13px; }
+  .cand .meta b { display: block; font-weight: 800; font-size: 14px; }
+
+  @media (max-width: 760px) {
+    .wrap { grid-template-columns: 1fr; gap: 24px; padding-inline: 16px; }
+    nav { position: static; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
+    nav .brand, nav .ver { width: 100%; margin: 0; }
+    .t-hero { font-size: 52px; }
+    .frame { height: auto; min-height: 640px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav>
+    <div class="brand">그래고</div>
+    <div class="ver">디자인 시스템 v1 · 2026-10-08</div>
+    <a href="#principle">원칙</a>
+    <a href="#color">색</a>
+    <a href="#type">글자</a>
+    <a href="#space">간격과 모양</a>
+    <a href="#comp">컴포넌트</a>
+    <a href="#screen">화면 레이아웃</a>
+    <a href="#accent">메인색 후보</a>
+  </nav>
+
+  <main>
+    <h1>그래고 디자인 시스템</h1>
+    <p class="lead">목표를 정하면 달성할 때까지 하게 만드는 앱. 글자와 숫자만 쓴다. 바탕은 아이보리, 글자는 검정, 경고는 빨강 하나다. 이 문서의 값은 <code>src/lib/theme.ts</code>와 <code>src/components/ui.tsx</code>에 있는 값과 같다.</p>
+
+    <h2 id="principle">원칙</h2>
+    <div class="tbl"><table>
+      <tr><th style="width:140px">항목</th><th>규칙</th></tr>
+      <tr><td>소재</td><td>글자와 숫자만. 마스코트, 일러스트, 아이콘 없음. 탭도 글자다.</td></tr>
+      <tr><td>색</td><td>아이보리 바탕, 검정 글자, 빨강 하나. 빨강은 독촉 상태와 포기 흐름에만 쓴다.</td></tr>
+      <tr><td>위계</td><td>화면마다 가장 큰 요소는 숫자다. 누적 분, 남은 시간, 연속 일수.</td></tr>
+      <tr><td>행동</td><td>화면마다 주 버튼은 하나. 검정 바탕 56px.</td></tr>
+      <tr><td>말투</td><td>정중한 존댓말. 사용자가 쓴 말과 기록으로만 긁는다.</td></tr>
+      <tr><td>폭</td><td>웹에서는 460px 안에 가둔다. 모바일은 좌우 여백 24px.</td></tr>
+    </table></div>
+
+    <h2 id="color">색</h2>
+    <p>토큰 9개. 색상 이름은 코드의 <code>C</code> 객체 키와 같다.</p>
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:#F3EFE6"></div><div class="meta"><b>bg</b><code>#F3EFE6</code>화면 바탕</div></div>
+      <div class="sw"><div class="chip" style="background:#FBF9F4"></div><div class="meta"><b>card</b><code>#FBF9F4</code>카드, 입력창, 말풍선(AI)</div></div>
+      <div class="sw"><div class="chip" style="background:#D9D2C4"></div><div class="meta"><b>line</b><code>#D9D2C4</code>구분선, 게이지 바탕</div></div>
+      <div class="sw"><div class="chip" style="background:#111111"></div><div class="meta"><b>ink</b><code>#111111</code>글자, 주 버튼, 테두리 2px</div></div>
+      <div class="sw"><div class="chip" style="background:#6B655B"></div><div class="meta"><b>sub</b><code>#6B655B</code>보조 글자, 라벨</div></div>
+      <div class="sw"><div class="chip" style="background:#BDB6A8"></div><div class="meta"><b>disabled</b><code>#BDB6A8</code>비활성 버튼, 플레이스홀더</div></div>
+      <div class="sw"><div class="chip" style="background:#C8201A"></div><div class="meta"><b>red</b><code>#C8201A</code>독촉 바탕, 포기, 위험 버튼, 미달 숫자</div></div>
+      <div class="sw"><div class="chip" style="background:#FFFFFF"></div><div class="meta"><b>redInk</b><code>#FFFFFF</code>빨강 위의 글자와 버튼</div></div>
+      <div class="sw"><div class="chip" style="background:#F7DEDB"></div><div class="meta"><b>redSoft</b><code>#F7DEDB</code>예비. 현재 미사용</div></div>
+    </div>
+    <h3>빨강을 쓰는 곳</h3>
+    <div class="tbl"><table>
+      <tr><th>쓰는 곳</th><th>형태</th></tr>
+      <tr><td>홈 독촉, 진행 중 이탈, 포기 대기</td><td>배경 전체. 글자와 버튼은 흰색</td></tr>
+      <tr><td>딴짓 팝업</td><td>빨강 상자, 흰 버튼</td></tr>
+      <tr><td>포기 신청, 삭제 버튼</td><td>빨강 버튼</td></tr>
+      <tr><td>글자 수 미달, 입력 오류</td><td>빨강 작은 글자</td></tr>
+      <tr><td>알림 꺼짐 배너, 달력 실패 칸</td><td>빨강 면</td></tr>
+      <tr><td>평소 홈, 온보딩, 기록, 설정</td><td>쓰지 않음</td></tr>
+    </table></div>
+
+    <h2 id="type">글자</h2>
+    <p>글꼴은 시스템 기본. 웹 견본은 Noto Sans KR. 숫자는 항상 <code>tabular-nums</code>. 7단계이고 코드의 <code>T</code> 키와 같다.</p>
+    <div class="spec col" style="max-width: 760px; gap: 0">
+      <div class="type-row"><div class="k">hero<code>64 / 900 / -2</code></div><div class="t-hero">1,245분</div></div>
+      <div class="type-row"><div class="k">big<code>40 / 900 / -1</code></div><div class="t-big">14:32</div></div>
+      <div class="type-row"><div class="k">h1<code>28 / 900 / 36</code></div><div class="t-h1">딴짓 중이십니까?</div></div>
+      <div class="type-row"><div class="k">h2<code>20 / 800 / 28</code></div><div class="t-h2">지금 시작</div></div>
+      <div class="type-row"><div class="k">body<code>16 / 500 / 24</code></div><div class="t-body">오늘 15분 채웠습니다. 내일도 하실 수 있겠습니까?</div></div>
+      <div class="type-row"><div class="k">small<code>13 / 600 / 18</code></div><div class="t-small">다음 마일스톤까지 255분</div></div>
+      <div class="type-row" style="border:0"><div class="k">label<code>12 / 800 / +1</code></div><div class="t-label sub">누적 학습</div></div>
+    </div>
+
+    <h2 id="space">간격과 모양</h2>
+    <p>간격 6단계. 화면 좌우 여백은 lg(24). 요소 사이 기본 간격은 md(16).</p>
+    <div class="spec">
+      <div class="sp">
+        <div style="width:4px;height:4px"></div>
+        <div style="width:8px;height:8px"></div>
+        <div style="width:16px;height:16px"></div>
+        <div style="width:24px;height:24px"></div>
+        <div style="width:32px;height:32px"></div>
+        <div style="width:48px;height:48px"></div>
+      </div>
+      <div class="t-small sub" style="width:100%">xs 4 · sm 8 · md 16 · lg 24 · xl 32 · xxl 48</div>
+    </div>
+    <h3>모서리와 선</h3>
+    <div class="spec">
+      <div class="shape" style="border-radius:14px">14 버튼, 카드</div>
+      <div class="shape" style="border-radius:12px">12 입력창, 스테퍼</div>
+      <div class="shape" style="border-radius:16px">16 팝업</div>
+      <div class="shape" style="border-width:1px;border-color:var(--line)">1px line 구분</div>
+      <div class="shape" style="border-radius:4px;height:8px;width:160px;border:0;background:var(--line)"></div>
+    </div>
+    <p class="cap">테두리는 2px 검정이 기본이다. 카드와 구분선만 1px line을 쓴다. 그림자는 쓰지 않는다.</p>
+
+    <h2 id="comp">컴포넌트</h2>
+    <p>코드 이름 기준. 모두 <code>ui.tsx</code>에 있다. 채팅 말풍선, 봇 칩, 달력 칸은 화면 파일 안에 있다.</p>
+
+    <h3>Button</h3>
+    <div class="spec">
+      <button class="btn">지금 시작</button>
+      <button class="btn secondary">계속하기</button>
+      <button class="btn danger">포기 신청</button>
+      <button class="btn" disabled>시작</button>
+    </div>
+    <div class="spec red"><button class="btn inverse">포기 철회</button><button class="btn inverse">이어서 하기</button></div>
+    <p class="cap">primary는 검정. secondary는 테두리 2px. danger는 빨강. inverse는 빨강 바탕 위에서만 쓴다. 높이 56, 글자 h2. 화면당 primary는 하나.</p>
+
+    <h3>Field</h3>
+    <div class="specs">
+      <div class="spec col">
+        <div class="field">
+          <div class="top"><span class="t-label sub">오늘의 이유</span><span class="count bad">12/20</span></div>
+          <textarea class="input multi" id="f1" aria-label="오늘의 이유">외국 거래처 메일을</textarea>
+          <span class="hint">어제와 같은 문장은 안 됩니다.</span>
+        </div>
+      </div>
+      <div class="spec col">
+        <div class="field">
+          <div class="top"><span class="t-label sub">오늘의 이유</span><span class="count">24/20</span></div>
+          <textarea class="input multi" id="f2" aria-label="오늘의 이유">외국 거래처 메일을 혼자 쓰고 싶어서</textarea>
+          <span class="err">어제와 같은 문장입니다.</span>
+        </div>
+      </div>
+      <div class="spec col">
+        <div class="field">
+          <span class="t-label sub">어제 이유</span>
+          <div class="input ro">회의에서 말 한마디 못 한 게 분해서</div>
+        </div>
+      </div>
+      <div class="spec col">
+        <div class="field">
+          <span class="t-label sub">목표 이름</span>
+          <input class="input" id="f3" placeholder="영어 이메일을 막힘없이 쓰기" aria-label="목표 이름">
+        </div>
+      </div>
+    </div>
+    <p class="cap">글자 수는 오른쪽 위. 미달이면 빨강. 읽기 전용은 테두리 없이 sub 색. 복사 버튼은 두지 않는다.</p>
+
+    <h3>Stepper</h3>
+    <div class="specs">
+      <div class="spec col"><div class="field"><span class="t-label sub">하루 학습 분</span><div class="stepper"><button type="button">−</button><span class="t-big">15</span><button type="button">+</button></div></div></div>
+      <div class="spec col"><div class="field"><span class="t-label sub">시작 시각</span><div class="stepper"><button type="button">−</button><span class="t-big">22:00</span><button type="button">+</button></div></div></div>
+    </div>
+
+    <h3>Gauge</h3>
+    <div class="specs">
+      <div class="spec col"><div class="gauge"><i style="width:62%"></i></div><span class="t-small sub">다음 마일스톤까지 255분</span></div>
+      <div class="spec col red"><div class="gauge"><i style="width:30%"></i></div><span class="t-small">남은 시간 5분</span></div>
+    </div>
+
+    <h3>Card와 Row</h3>
+    <div class="specs">
+      <div class="spec col">
+        <div class="card">
+          <span class="t-small sub">10월 7일 · 15분 · 비즈니스 이메일</span>
+          <span class="t-body">외국 거래처 메일을 혼자 쓰고 싶어서</span>
+          <span class="t-small sub">412자</span>
+        </div>
+      </div>
+      <div class="spec col">
+        <div class="rows">
+          <div class="row"><span>목표 관리</span><span>영어 이메일</span></div>
+          <div class="row"><span>알림 권한</span><span>켜짐</span></div>
+          <div class="row"><span>남은 쿠폰</span><span>2장</span></div>
+        </div>
+      </div>
+    </div>
+
+    <h3>탭 바</h3>
+    <div class="spec col" style="padding:0;max-width:460px"><div class="tabbar"><div class="on">홈</div><div>코치</div><div>기록</div><div>설정</div></div></div>
+    <p class="cap">아이콘 없음. 글자 14 / 800. 선택은 ink, 나머지는 sub.</p>
+
+    <h3>봇 칩</h3>
+    <div class="spec">
+      <div class="chip-bot on"><span class="t-small">비즈니스 이메일</span><span class="l">100자 이상</span></div>
+      <div class="chip-bot"><span class="t-small">원어민 프리토킹</span><span class="l">100자 이상</span></div>
+      <div class="chip-bot"><span class="t-small">IT 기사 3문장 요약</span><span class="l">150자 이상</span></div>
+    </div>
+    <div class="spec red">
+      <div class="chip-bot on"><span class="t-small">비즈니스 이메일</span><span class="l">100자 이상</span></div>
+      <div class="chip-bot"><span class="t-small">영단어 퀴즈</span><span class="l">60자 이상</span></div>
+    </div>
+
+    <h3>채팅 말풍선과 전송</h3>
+    <div class="spec col">
+      <div class="chat">
+        <div class="bubble ai">Let's start. Write an email asking your client to move the meeting to Thursday.</div>
+        <div class="bubble me">Dear Mr. Park, I am writing to ask if we could move our meeting to Thursday. I have a conflict on Wednesday afternoon and want to make sure I can give the discussion my full attention.</div>
+        <span class="t-body sub">입력 중</span>
+      </div>
+      <textarea class="input multi" id="c1" aria-label="메시지" placeholder="영어로 100자 이상"></textarea>
+      <div class="send-row">
+        <div class="g"><div class="gauge"><i style="width:86%"></i></div><span class="count bad">86/100</span></div>
+        <button class="btn" disabled style="min-width:120px">전송</button>
+      </div>
+    </div>
+    <p class="cap">내 말풍선은 ink, AI는 card에 1px 테두리. 최대 폭 85%. 전송은 최소 글자 수를 채워야 활성.</p>
+
+    <h3>팝업</h3>
+    <div class="spec dim" style="justify-content:center">
+      <div class="popup">
+        <div class="t-h1">딴짓 중이십니까?</div>
+        <div class="t-body">2분 동안 입력이 없었습니다. 시간은 멈춰 있습니다.</div>
+        <button class="btn inverse block">계속하기</button>
+      </div>
+    </div>
+    <p class="cap">바탕은 검정 60%. 진동 1회. 팝업 중에는 시간이 멈춘다.</p>
+
+    <h3>달력 칸과 배너</h3>
+    <div class="specs">
+      <div class="spec col">
+        <div class="cal">
+          <div class="before">29</div><div class="before">30</div><div class="done">1</div><div class="done">2</div><div class="miss">3</div><div class="done">4</div><div class="coupon">5</div>
+          <div class="done">6</div><div class="done">7</div><div>8</div><div>9</div><div>10</div><div>11</div><div>12</div>
+        </div>
+        <span class="t-small sub">■ 완료 ink · ■ 실패 red · □ 쿠폰 sub 테두리 · 지난 달 테두리 없음</span>
+      </div>
+      <div class="spec col"><div class="banner">알림이 꺼져 있습니다. 약속한 시간에 연락할 수 없습니다. 설정 열기</div></div>
+    </div>
+
+    <h2 id="screen">화면 레이아웃</h2>
+    <p>홈은 위, 가운데, 아래 세 영역이다. 위는 누적 숫자와 게이지. 가운데는 상태별로 바뀌고 위아래 2px 선으로 묶는다. 아래는 오늘의 봇. 주 버튼은 화면 바닥에 붙는다.</p>
+    <div class="frames">
+      <div class="frame">
+        <div class="body">
+          <div>
+            <div class="t-label sub">누적 학습</div>
+            <div class="t-hero">1,245분</div>
+            <div class="gauge" style="margin-top:4px"><i style="width:62%"></i></div>
+            <div class="between" style="margin-top:4px"><span class="t-small sub">1,500분까지 255분</span><span class="t-small">연속 12일</span></div>
+          </div>
+          <div class="mid">
+            <div class="t-small sub">영어 이메일을 막힘없이 쓰기</div>
+            <div class="t-label sub">시작까지</div>
+            <div class="t-big">02:14:08</div>
+            <div class="t-body">22:00에 15분. 오늘도 쉬는 날은 없습니다.</div>
+          </div>
+          <div class="between"><span class="t-h2 u">쿠폰 2장</span><span class="t-small sub">달성 선언까지 18일</span></div>
+          <div>
+            <div class="t-label sub" style="margin-bottom:4px">오늘의 봇</div>
+            <div class="scroll">
+              <div class="chip-bot on"><span class="t-small">비즈니스 이메일</span><span class="l">100자 이상</span></div>
+              <div class="chip-bot"><span class="t-small">원어민 프리토킹</span><span class="l">100자 이상</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="tabbar"><div class="on">홈</div><div>코치</div><div>기록</div><div>설정</div></div>
+      </div>
+
+      <div class="frame red">
+        <div class="body">
+          <div>
+            <div class="t-label">누적 학습</div>
+            <div class="t-hero">1,245분</div>
+            <div class="gauge" style="margin-top:4px"><i style="width:62%"></i></div>
+            <div class="between" style="margin-top:4px"><span class="t-small">1,500분까지 255분</span><span class="t-small">연속 12일</span></div>
+          </div>
+          <div class="mid">
+            <div class="t-small">영어 이메일을 막힘없이 쓰기</div>
+            <div class="t-label">약속 시각이 지났습니다</div>
+            <div class="t-big">23분 경과</div>
+            <div class="t-label" style="margin-top:8px">나의 이유</div>
+            <div class="t-body">외국 거래처 메일을 혼자 쓰고 싶어서</div>
+          </div>
+          <div class="between"><span class="t-h2 u">쿠폰 2장</span><span class="t-small">달성 선언까지 18일</span></div>
+        </div>
+        <div class="foot"><button class="btn inverse block">지금 시작</button></div>
+      </div>
+
+      <div class="frame">
+        <div class="chat-head">
+          <div class="between"><span class="t-label sub">비즈니스 이메일</span><span class="t-small sub">412자</span></div>
+          <div class="t-big">09:41</div>
+          <div class="gauge"><i style="width:37%"></i></div>
+        </div>
+        <div class="chat-body">
+          <div class="bubble ai">Let's start. Write an email asking your client to move the meeting to Thursday.</div>
+          <div class="bubble me">Dear Mr. Park, I am writing to ask if we could move our meeting to Thursday. I have a conflict on Wednesday afternoon.</div>
+          <div class="bubble ai">Good. One fix: "I have a conflict" is fine, but add why Thursday works for you.</div>
+        </div>
+        <div class="chat-foot">
+          <div class="input multi ta sub">영어로 100자 이상</div>
+          <div class="send-row">
+            <div class="g"><div class="gauge"><i style="width:0%"></i></div><span class="count bad">0/100</span></div>
+            <button class="btn" disabled style="min-width:120px">전송</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="cap">왼쪽부터 홈 대기, 홈 독촉, 채팅. 독촉은 배경 전체가 빨강이고 모든 글자와 게이지가 흰색으로 바뀐다. 버튼은 inverse.</p>
+
+    <h2 id="accent">메인색 후보</h2>
+    <p>빨강은 독촉 화면 전체를 덮는다. 후보를 고를 때는 흰 글자 대비와 아이보리 옆에 놓였을 때를 같이 본다. 세 후보 모두 흰 글자 대비 5:1 이상이다.</p>
+    <div class="cands">
+      <div class="cand">
+        <div class="top" style="background:#C8201A">
+          <div class="t-label">A · 현재</div><div class="n">23분 경과</div>
+          <div class="b" style="color:#C8201A">지금 시작</div>
+          <div class="ivory"><span>달력 실패 칸</span><i style="background:#C8201A"></i></div>
+        </div>
+        <div class="meta"><b>#C8201A 선명한 빨강</b>경고 신호가 가장 직접적이다. 아이보리와 대비가 세다.</div>
+      </div>
+      <div class="cand">
+        <div class="top" style="background:#B3261E">
+          <div class="t-label">B</div><div class="n">23분 경과</div>
+          <div class="b" style="color:#B3261E">지금 시작</div>
+          <div class="ivory"><span>달력 실패 칸</span><i style="background:#B3261E"></i></div>
+        </div>
+        <div class="meta"><b>#B3261E 가라앉은 빨강</b>채도를 낮춰 오래 봐도 덜 피로하다. 독촉 60회 동안 머무르는 화면에 맞다.</div>
+      </div>
+      <div class="cand">
+        <div class="top" style="background:#8E1B16">
+          <div class="t-label">C</div><div class="n">23분 경과</div>
+          <div class="b" style="color:#8E1B16">지금 시작</div>
+          <div class="ivory"><span>달력 실패 칸</span><i style="background:#8E1B16"></i></div>
+        </div>
+        <div class="meta"><b>#8E1B16 진홍</b>무겁고 점잖다. 존댓말 말투와 결이 맞지만 경고 느낌은 약해진다.</div>
+      </div>
+    </div>
+    <p class="cap">하나를 고르면 theme.ts의 red 값 하나만 바꾸면 된다. 다른 토큰은 그대로다.</p>
+  </main>
+</div>
+</body></html>

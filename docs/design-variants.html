@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>그래고 컴포넌트 12안</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&family=IBM+Plex+Mono:wght@500;600;700&family=Black+Han+Sans&family=Gaegu:wght@400;700&display=swap">
+<style>
+  :root {
+    --pg-bg: #FAF8F3; --pg-fg: #1A1916; --pg-sub: #6F6A60; --pg-line: #DDD7CA; --pg-card: #FFFFFF;
+    --bg: #F3EFE6; --ink: #111111; --sub: #6B655B; --line: #D9D2C4; --card: #FBF9F4;
+    --red: #C8201A; --red-ink: #FFFFFF; --disabled: #BDB6A8;
+    --sans: 'Noto Sans KR', -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+    --serif: 'Noto Serif KR', 'Apple Myungjo', 'Batang', serif;
+    --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --pg-bg: #171613; --pg-fg: #ECE8DF; --pg-sub: #A39C8E; --pg-line: #35322B; --pg-card: #1F1E1A; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --pg-bg: #171613; --pg-fg: #ECE8DF; --pg-sub: #A39C8E; --pg-line: #35322B; --pg-card: #1F1E1A; color-scheme: dark; }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--pg-bg); color: var(--pg-fg); font-family: var(--sans); font-size: 15px; line-height: 1.6; font-weight: 500; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding-block: 36px 96px; padding-inline: 24px; }
+  h1 { font-size: 32px; font-weight: 900; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .lead { color: var(--pg-sub); max-width: 64ch; margin: 0 0 32px; }
+  .toc { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; margin-bottom: 40px; }
+  .toc a { color: var(--pg-sub); text-decoration: none; font-weight: 700; }
+  .toc a:hover { color: var(--pg-fg); }
+
+  section { margin-bottom: 56px; }
+  .head { display: grid; grid-template-columns: 56px minmax(0,1fr); gap: 16px; align-items: start; margin-bottom: 12px; }
+  .num { font-size: 40px; font-weight: 900; line-height: 1; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+  .head h2 { font-size: 20px; font-weight: 800; margin: 0 0 2px; }
+  .head p { margin: 0; font-size: 13.5px; color: var(--pg-sub); max-width: 70ch; }
+  .head p b { color: var(--pg-fg); font-weight: 800; }
+
+  .panels { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; }
+  .panel { background: var(--bg); color: var(--ink); border: 1px solid var(--pg-line); padding: 24px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; border-radius: 8px; }
+  .panel.red { background: var(--red); color: var(--red-ink); }
+  .col { display: grid; gap: 16px; width: 100%; }
+  .btns { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; max-width: 420px; }
+  .pair .card, .pair .field { min-width: 0; }
+  @media (max-width: 760px) { .panels { grid-template-columns: 1fr; } .pair { grid-template-columns: 1fr; } .wrap { padding-inline: 16px; } }
+
+  /* 공통 뼈대. 안마다 변수만 바꾼다. */
+  .v { --r: 14px; --h: 56px; --bw: 2px; --fw: 800; --fs: 20px; --ls: 0; --font: var(--sans); --cr: 14px; --cbw: 1px; --cbc: var(--line); --cbg: var(--card); --sh: none; --ir: 12px; }
+  .v .btn { font-family: var(--font); min-height: var(--h); border-radius: var(--r); padding: 0 20px; min-width: 150px; display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs); font-weight: var(--fw); letter-spacing: var(--ls); border: var(--bw) solid var(--ink); background: var(--ink); color: var(--red-ink); cursor: pointer; box-shadow: var(--sh); line-height: 1.2; }
+  .v .btn.secondary { background: transparent; color: var(--ink); }
+  .v .btn.danger { background: var(--red); border-color: var(--red); color: var(--red-ink); }
+  .v .btn.disabled { background: var(--disabled); border-color: var(--disabled); color: var(--card); cursor: default; box-shadow: none; }
+  .v .btn.inverse { background: var(--red-ink); border-color: var(--red-ink); color: var(--red); }
+  .v .btn.inverse.ghost { background: transparent; color: var(--red-ink); }
+  .v .card { font-family: var(--font); background: var(--cbg); border: var(--cbw) solid var(--cbc); border-radius: var(--cr); padding: 16px; display: grid; gap: 4px; box-shadow: var(--sh); }
+  .v .card .s { font-size: 13px; font-weight: 600; color: var(--sub); }
+  .v .card .b { font-size: 16px; font-weight: 500; line-height: 24px; }
+  .v .field { display: grid; gap: 4px; }
+  .v .field label { font-size: 12px; font-weight: 800; letter-spacing: 1px; color: var(--sub); display: flex; justify-content: space-between; }
+  .v .field label i { font-style: normal; color: var(--red); letter-spacing: 0; font-size: 13px; }
+  .v .input { font-family: var(--font); border: var(--bw) solid var(--ink); border-radius: var(--ir); padding: 14px 16px; background: var(--card); color: var(--ink); font-size: 16px; min-height: 56px; }
+  .v .input .ph { color: var(--disabled); }
+
+  /* 01 현재 */
+  .v1 { }
+
+  /* 02 각진 */
+  .v2 { --r: 0; --cr: 0; --ir: 0; --bw: 2px; --sh: 4px 4px 0 var(--ink); --cbw: 2px; --cbc: var(--ink); }
+  .v2 .btn.disabled { box-shadow: none; }
+  .panel.red .v2 .btn.inverse { box-shadow: 4px 4px 0 rgba(0,0,0,.35); }
+
+  /* 03 알약 */
+  .v3 { --r: 999px; --cr: 24px; --ir: 999px; --fw: 700; --fs: 18px; --h: 52px; --bw: 1.5px; }
+  .v3 .btn { padding: 0 28px; }
+
+  /* 04 얇은 선 */
+  .v4 { --r: 10px; --bw: 1px; --fw: 700; --fs: 17px; --h: 52px; --cbw: 0; --cbg: transparent; --cr: 0; --ir: 8px; }
+  .v4 .card { border-top: 1px solid var(--ink); padding: 12px 0 0; }
+  .v4 .btn.secondary { border-color: var(--sub); }
+  .v4 .input { border-color: var(--sub); background: transparent; }
+
+  /* 05 도장 */
+  .v5 { --r: 6px; --bw: 3px; --fw: 900; --fs: 18px; --ls: 2px; --cr: 6px; --cbw: 3px; --cbc: var(--ink); --cbg: transparent; --ir: 6px; }
+  .v5 .btn { text-transform: uppercase; }
+  .v5 .card { outline: 1px solid var(--ink); outline-offset: 3px; }
+  .v5 .btn.secondary { outline: 1px solid var(--ink); outline-offset: 3px; }
+  .v5 .input { border-width: 3px; }
+
+  /* 06 신문 */
+  .v6 { --font: var(--serif); --r: 0; --bw: 0; --fw: 700; --fs: 20px; --cr: 0; --cbw: 0; --cbg: transparent; --ir: 0; }
+  .v6 .btn { border-top: 3px solid var(--ink); border-bottom: 1px solid var(--ink); background: transparent; color: var(--ink); padding: 0 8px; justify-content: space-between; min-width: 180px; }
+  .v6 .btn::after { content: '→'; margin-left: 16px; font-weight: 600; }
+  .v6 .btn.danger { color: var(--red); border-color: var(--red); background: transparent; }
+  .v6 .btn.disabled { color: var(--disabled); border-color: var(--disabled); background: transparent; }
+  .v6 .btn.inverse { color: var(--red-ink); border-color: var(--red-ink); background: transparent; }
+  .v6 .card { border-top: 3px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 10px 0; }
+  .v6 .card .b { font-family: var(--serif); font-weight: 600; }
+  .v6 .input { border: 0; border-bottom: 2px solid var(--ink); background: transparent; padding-left: 0; }
+
+  /* 07 터미널 */
+  .v7 { --font: var(--mono); --r: 2px; --bw: 1.5px; --fw: 700; --fs: 16px; --cr: 2px; --cbw: 1.5px; --cbc: var(--ink); --cbg: transparent; --ir: 2px; }
+  .v7 .btn::before { content: '[ '; opacity: .6; } .v7 .btn::after { content: ' ]'; opacity: .6; }
+  .v7 .card { border-style: dashed; }
+  .v7 .card .s { font-family: var(--mono); }
+  .v7 .input { font-family: var(--mono); }
+  .v7 .input .ph::before { content: '> '; }
+
+  /* 08 밑줄 */
+  .v8 { --r: 0; --bw: 0; --fw: 900; --fs: 24px; --cr: 0; --cbw: 0; --cbg: transparent; --ir: 0; --h: 48px; }
+  .v8 .btn { background: transparent; color: var(--ink); border-bottom: 4px solid var(--ink); padding: 0 2px 6px; min-width: 0; }
+  .v8 .btn.secondary { border-bottom-width: 1px; font-weight: 600; }
+  .v8 .btn.danger { background: transparent; color: var(--red); border-bottom-color: var(--red); }
+  .v8 .btn.disabled { background: transparent; color: var(--disabled); border-bottom-color: var(--disabled); }
+  .v8 .btn.inverse { background: transparent; color: var(--red-ink); border-bottom-color: var(--red-ink); }
+  .v8 .card { border-left: 4px solid var(--ink); padding: 2px 0 2px 14px; }
+  .v8 .input { border: 0; border-bottom: 2px solid var(--ink); background: transparent; padding-left: 0; }
+
+  /* 09 블록 */
+  .v9 { --r: 0; --bw: 0; --fw: 900; --fs: 22px; --h: 64px; --cr: 0; --cbw: 0; --cbg: var(--ink); --ir: 0; }
+  .v9 .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 100%; max-width: 420px; }
+  .v9 .btn { width: 100%; min-width: 0; }
+  .v9 .btn.secondary { background: var(--card); color: var(--ink); }
+  .v9 .card { color: var(--card); padding: 20px; }
+  .v9 .card .s { color: var(--line); }
+  .v9 .input { border: 0; background: var(--card); }
+  .panel.red .v9 .btn.inverse.ghost { background: rgba(0,0,0,.18); }
+
+  /* 10 종이 */
+  .v10 { --r: 6px; --bw: 1px; --fw: 700; --fs: 17px; --h: 50px; --cr: 6px; --cbw: 1px; --cbc: var(--line); --ir: 6px; --sh: 0 1px 0 var(--line), 0 2px 0 var(--card), 0 3px 0 var(--line); }
+  .v10 .btn { box-shadow: 0 2px 0 rgba(0,0,0,.35); }
+  .v10 .btn.secondary { background: var(--card); box-shadow: 0 2px 0 var(--line); border-color: var(--line); }
+  .v10 .btn.disabled { box-shadow: none; }
+  .v10 .input { box-shadow: inset 0 2px 0 var(--line); border-color: var(--line); }
+
+  /* 11 압축 */
+  .v11 { --r: 8px; --bw: 1.5px; --fw: 700; --fs: 15px; --h: 44px; --cr: 8px; --cbw: 1px; --ir: 8px; }
+  .v11 .btn { min-width: 110px; padding: 0 16px; }
+  .v11 .card { padding: 10px 12px; }
+  .v11 .card .b { font-size: 15px; line-height: 22px; }
+  .v11 .input { min-height: 44px; padding: 10px 12px; font-size: 15px; }
+
+  /* 12 무게 */
+  .v12 { --r: 20px; --bw: 3px; --fw: 900; --fs: 24px; --h: 68px; --ls: -0.5px; --cr: 20px; --cbw: 3px; --cbc: var(--ink); --ir: 16px; }
+  .v12 .btn { min-width: 180px; padding: 0 28px; }
+  .v12 .card { padding: 20px; }
+  .v12 .card .b { font-size: 18px; font-weight: 700; line-height: 26px; }
+  .v12 .input { min-height: 64px; font-size: 18px; }
+
+  /* ===== 웹툰 / 웹소설 방향 ===== */
+  .group { margin: 8px 0 28px; padding: 16px 20px; border: 2px solid var(--pg-fg); border-radius: 6px; }
+  .group h2 { font-size: 18px; font-weight: 900; margin: 0 0 4px; }
+  .group p { margin: 0; font-size: 13.5px; color: var(--pg-sub); max-width: 72ch; }
+  .group p b { color: var(--pg-fg); }
+  .scene { background: var(--bg); color: var(--ink); border: 1px solid var(--pg-line); border-radius: 8px; padding: 24px; width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 14px; min-height: 360px; position: relative; overflow: hidden; }
+  .scene .who { font-size: 12px; font-weight: 800; letter-spacing: 1px; color: var(--sub); }
+  .panels.three { grid-template-columns: minmax(0,380px) minmax(0,1fr) minmax(0,300px); }
+  @media (max-width: 980px) { .panels.three { grid-template-columns: 1fr; } }
+  .shapes { display: flex; flex-wrap: wrap; gap: 20px 24px; align-items: flex-start; width: 100%; }
+  .shapes > div { display: grid; gap: 8px; justify-items: start; }
+  .shapes .k { font-size: 12px; font-weight: 800; color: var(--sub); letter-spacing: 1px; }
+
+  /* 말풍선: 바깥 div의 drop-shadow 4방향이 외곽선이 된다. 안쪽 div가 모양이다. */
+  .bub { --o: 1.5px; filter: drop-shadow(var(--o) 0 0 var(--ink)) drop-shadow(calc(var(--o) * -1) 0 0 var(--ink)) drop-shadow(0 var(--o) 0 var(--ink)) drop-shadow(0 calc(var(--o) * -1) 0 var(--ink)); display: inline-block; max-width: 85%; }
+  .bub > div { background: #FFFFFF; color: var(--ink); padding: 12px 18px; position: relative; font-size: 16px; line-height: 24px; font-weight: 500; }
+  .bub.say > div { border-radius: 22px; }
+  .bub.say > div::after { content: ''; position: absolute; left: 26px; bottom: -13px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 12px solid transparent; border-top: 15px solid #FFFFFF; }
+  .bub.say.r > div::after { left: auto; right: 26px; border-left: 12px solid transparent; border-right: 4px solid transparent; }
+  .bub.me > div { background: var(--ink); color: #FFFFFF; }
+  .bub.me.say > div::after { border-top-color: var(--ink); }
+  .bub.think > div { border-radius: 40px; font-family: 'Gaegu', var(--sans); font-weight: 700; font-size: 19px; }
+  .bub.think > div::before { content: ''; position: absolute; left: 22px; bottom: -14px; width: 12px; height: 12px; border-radius: 50%; background: #FFFFFF; }
+  .bub.think > div::after { content: ''; position: absolute; left: 10px; bottom: -26px; width: 7px; height: 7px; border-radius: 50%; background: #FFFFFF; }
+  .bub.spike > div { padding: 22px 34px 38px; font-weight: 800; clip-path: polygon(6% 18%, 18% 8%, 28% 16%, 40% 2%, 50% 14%, 62% 4%, 72% 16%, 86% 8%, 96% 20%, 90% 34%, 100% 48%, 90% 60%, 98% 74%, 84% 80%, 78% 92%, 64% 84%, 52% 92%, 42% 84%, 34% 86%, 28% 100%, 22% 86%, 10% 90%, 12% 72%, 0 60%, 8% 46%, 0 32%); }
+  .bub.spike.red > div { background: var(--red); color: #FFFFFF; }
+  .sfx { font-family: 'Black Han Sans', var(--sans); font-size: 44px; line-height: 1; color: var(--ink); -webkit-text-stroke: 3px #FFFFFF; paint-order: stroke fill; letter-spacing: -2px; display: inline-block; transform: rotate(-7deg); }
+  .sfx.red { color: var(--red); }
+  .sfx.big { font-size: 64px; }
+  .tilt1 { transform: rotate(-3deg); } .tilt2 { transform: rotate(2.5deg); } .tilt3 { transform: rotate(-1.5deg); }
+  .self-r { align-self: flex-end; } .self-c { align-self: center; }
+
+  /* 손으로 그린 상자 */
+  .hand { border: 2.5px solid var(--ink); border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px; }
+
+  /* W1 웹툰 기본 컷 */
+  .w1 .btn { font-family: var(--sans); min-height: 56px; padding: 0 22px; min-width: 150px; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 900; background: var(--ink); color: #FFFFFF; cursor: pointer; border: 2.5px solid var(--ink); border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px; }
+  .w1 .btn.secondary { background: #FFFFFF; color: var(--ink); }
+  .w1 .btn.danger { background: var(--red); border-color: var(--ink); }
+  .w1 .btn.disabled { background: var(--disabled); border-color: var(--disabled); color: #FFFFFF; cursor: default; }
+  .w1 .btn.inverse { background: #FFFFFF; color: var(--red); border-color: #FFFFFF; }
+  .w1 .btn.inverse.ghost { background: transparent; color: #FFFFFF; }
+  .w1 .card { background: #FFFFFF; padding: 16px; display: grid; gap: 4px; border: 2.5px solid var(--ink); border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px; }
+  .w1 .card .s { font-size: 13px; font-weight: 600; color: var(--sub); } .w1 .card .b { font-size: 16px; line-height: 24px; }
+  .w1 .field { display: grid; gap: 4px; }
+  .w1 .field label { font-size: 12px; font-weight: 800; letter-spacing: 1px; color: var(--sub); display: flex; justify-content: space-between; }
+  .w1 .field label i { font-style: normal; color: var(--red); letter-spacing: 0; font-size: 13px; }
+  .w1 .input { border: 2.5px solid var(--ink); border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px; padding: 14px 18px; background: #FFFFFF; min-height: 56px; font-size: 16px; }
+  .w1 .input .ph { color: var(--disabled); }
+
+  /* W2 흩어진 컷: W1과 같은 부품, 배치만 다르다 */
+  .w2 .scene { min-height: 440px; }
+  .w2 .tap { position: absolute; right: 20px; bottom: 16px; font-size: 12px; font-weight: 800; letter-spacing: 1px; color: var(--sub); }
+
+  /* W3 굵은 선 */
+  .w3 .bub { --o: 3px; }
+  .w3 .btn { font-family: 'Black Han Sans', var(--sans); font-weight: 400; min-height: 60px; padding: 0 24px; min-width: 150px; display: inline-flex; align-items: center; justify-content: center; font-size: 24px; letter-spacing: 0; background: var(--ink); color: #FFFFFF; border: 3px solid var(--ink); border-radius: 4px; cursor: pointer; }
+  .w3 .btn.secondary { background: #FFFFFF; color: var(--ink); }
+  .w3 .btn.danger { background: var(--red); border-color: var(--ink); clip-path: polygon(4% 20%, 14% 6%, 26% 14%, 38% 0, 50% 10%, 62% 0, 74% 14%, 88% 6%, 98% 22%, 92% 40%, 100% 56%, 94% 74%, 100% 92%, 84% 100%, 70% 90%, 56% 100%, 42% 90%, 28% 100%, 14% 92%, 2% 98%, 6% 76%, 0 56%, 8% 40%); padding: 0 36px; border: 0; min-height: 68px; }
+  .w3 .btn.disabled { background: var(--disabled); border-color: var(--disabled); color: #FFFFFF; cursor: default; }
+  .w3 .btn.inverse { background: #FFFFFF; color: var(--red); border-color: var(--ink); }
+  .w3 .btn.inverse.ghost { background: transparent; color: #FFFFFF; border-color: #FFFFFF; }
+  .w3 .card { background: #FFFFFF; border: 3px solid var(--ink); border-radius: 4px; padding: 16px; display: grid; gap: 4px; box-shadow: 6px 6px 0 var(--ink); }
+  .w3 .card .s { font-size: 13px; font-weight: 700; color: var(--sub); } .w3 .card .b { font-size: 16px; line-height: 24px; font-weight: 600; }
+  .w3 .field { display: grid; gap: 4px; }
+  .w3 .field label { font-family: 'Black Han Sans', var(--sans); font-size: 16px; color: var(--ink); display: flex; justify-content: space-between; }
+  .w3 .field label i { font-style: normal; color: var(--red); font-family: var(--sans); font-weight: 800; font-size: 13px; }
+  .w3 .input { border: 3px solid var(--ink); border-radius: 4px; padding: 14px 16px; background: #FFFFFF; min-height: 56px; font-size: 16px; }
+  .w3 .input .ph { color: var(--disabled); }
+  .w3 .scene .who { font-family: 'Black Han Sans', var(--sans); font-size: 15px; letter-spacing: 0; color: var(--ink); }
+
+  /* N1 웹소설 뷰어 */
+  .n1 .scene, .n2 .scene, .n3 .scene { font-family: var(--serif); font-size: 16px; line-height: 1.9; gap: 0; }
+  .n1 .scene p, .n2 .scene p, .n3 .scene p { margin: 0; text-indent: 1em; }
+  .n1 .scene p.q, .n3 .scene p.q { text-indent: 0; margin: 10px 0; font-weight: 600; }
+  .n1 .scene p.me, .n3 .scene p.me { font-family: var(--sans); font-weight: 700; }
+  .n1 .scene .chap { font-size: 12px; font-weight: 700; letter-spacing: 2px; color: var(--sub); margin-bottom: 14px; font-family: var(--sans); }
+  .n1 .btn, .n2 .btn { font-family: var(--serif); min-height: 52px; padding: 0 6px; min-width: 150px; display: inline-flex; align-items: center; justify-content: space-between; font-size: 19px; font-weight: 700; background: transparent; color: var(--ink); border: 0; border-bottom: 1.5px solid var(--ink); cursor: pointer; gap: 24px; }
+  .n1 .btn::after, .n2 .btn::after { content: '›'; font-size: 26px; font-weight: 400; }
+  .n1 .btn.secondary, .n2 .btn.secondary { font-weight: 400; border-bottom-color: var(--line); }
+  .n1 .btn.danger, .n2 .btn.danger { color: var(--red); border-bottom-color: var(--red); }
+  .n1 .btn.disabled, .n2 .btn.disabled { color: var(--disabled); border-bottom-color: var(--disabled); cursor: default; }
+  .n1 .btn.inverse, .n2 .btn.inverse { color: #FFFFFF; border-bottom-color: #FFFFFF; }
+  .n1 .btn.inverse.ghost, .n2 .btn.inverse.ghost { font-weight: 400; opacity: .85; }
+  .n1 .card, .n2 .card { font-family: var(--serif); padding: 14px 0; display: grid; gap: 2px; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--line); }
+  .n1 .card .s, .n2 .card .s { font-family: var(--sans); font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--sub); }
+  .n1 .card .b, .n2 .card .b { font-size: 17px; line-height: 28px; font-weight: 600; }
+  .n1 .field, .n2 .field { display: grid; gap: 6px; }
+  .n1 .field label, .n2 .field label { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--sub); display: flex; justify-content: space-between; }
+  .n1 .field label i, .n2 .field label i { font-style: normal; color: var(--red); letter-spacing: 0; }
+  .n1 .input, .n2 .input { font-family: var(--serif); border: 0; border-bottom: 1.5px solid var(--ink); padding: 10px 0; background: transparent; min-height: 48px; font-size: 17px; }
+  .n1 .input .ph, .n2 .input .ph { color: var(--disabled); }
+
+  /* N2 대본형 */
+  .n2 .scene { font-family: var(--sans); line-height: 1.7; gap: 10px; }
+  .n2 .line { display: grid; grid-template-columns: 56px minmax(0,1fr); gap: 10px; align-items: baseline; }
+  .n2 .line b { font-size: 13px; font-weight: 900; letter-spacing: .5px; }
+  .n2 .line.me b { color: var(--red); }
+  .n2 .line.me span { font-weight: 700; }
+  .n2 .nar { font-family: var(--serif); color: var(--sub); font-size: 15px; padding-left: 66px; }
+  .n2 .note { margin-top: 6px; border-left: 3px solid var(--ink); padding: 8px 12px; background: #FFFFFF; font-size: 14px; line-height: 1.6; }
+  .n2 .note b { font-weight: 800; }
+
+  /* N3 혼합 */
+  .n3 .scene { gap: 6px; }
+  .n3 .scene .bub { margin: 8px 0 14px; }
+  .n3 .btn { font-family: var(--sans); min-height: 56px; padding: 0 22px; min-width: 150px; display: inline-flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 800; background: var(--ink); color: #FFFFFF; border: 2px solid var(--ink); border-radius: 28px 28px 28px 6px; cursor: pointer; }
+  .n3 .btn.secondary { background: #FFFFFF; color: var(--ink); }
+  .n3 .btn.danger { background: var(--red); border-color: var(--red); }
+  .n3 .btn.disabled { background: var(--disabled); border-color: var(--disabled); color: #FFFFFF; cursor: default; }
+  .n3 .btn.inverse { background: #FFFFFF; color: var(--red); border-color: #FFFFFF; }
+  .n3 .btn.inverse.ghost { background: transparent; color: #FFFFFF; }
+  .n3 .card { font-family: var(--serif); padding: 14px 0; display: grid; gap: 2px; border-top: 2px solid var(--ink); }
+  .n3 .card .s { font-family: var(--sans); font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--sub); }
+  .n3 .card .b { font-size: 17px; line-height: 28px; font-weight: 600; }
+  .n3 .field { display: grid; gap: 4px; }
+  .n3 .field label { font-size: 12px; font-weight: 800; letter-spacing: 1px; color: var(--sub); display: flex; justify-content: space-between; }
+  .n3 .field label i { font-style: normal; color: var(--red); letter-spacing: 0; }
+  .n3 .input { border: 2px solid var(--ink); border-radius: 28px 28px 28px 6px; padding: 14px 18px; background: #FFFFFF; min-height: 56px; font-size: 16px; }
+  .n3 .input .ph { color: var(--disabled); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>그래고 컴포넌트 18안</h1>
+  <p class="lead">위 6안은 웹툰과 웹소설 방향이다. 상황극 장면, 버튼 4종, 빨강 위 버튼 2종, 카드, 입력창을 같은 내용으로 두고 형태만 바꿨다. 아래 12안은 형태 실험이다. 색은 전부 같다.</p>
+  <div class="toc">
+    <a href="#w1">W1 웹툰 컷</a><a href="#w2">W2 흩어진 컷</a><a href="#w3">W3 굵은 선</a><a href="#n1">N1 웹소설 뷰어</a><a href="#n2">N2 대본</a><a href="#n3">N3 혼합</a>
+  </div>
+
+  <div class="group">
+    <h2>웹툰 / 웹소설 방향</h2>
+    <p>공통 장면은 스타벅스 주문이다. 사용자는 고객, 상대는 직원. 말풍선 모양이 말투를 정한다. <b>둥근 풍선</b>은 평소 말, <b>구름 풍선</b>은 혼잣말과 나의 이유, <b>가시 풍선</b>은 긁는 말, <b>풍선 없는 굵은 글자</b>는 효과음이다. 잘했을 때는 둥근 풍선 하나로 끝나고, 못할수록 풍선이 늘고 가시가 돋고 글자가 커진다.</p>
+  </div>
+
+  <!-- W1 -->
+  <section id="w1" class="w1">
+    <div class="head"><div class="num">W1</div><div><h2>웹툰 컷</h2><p><b>흰 풍선에 검은 외곽선. 버튼과 카드는 손으로 그린 상자.</b> 색은 아이보리, 흰색, 검정 셋. 풍선이 한 개씩 팝 하고 뜬다. 약점: 손그림 모서리가 모든 상자에 들어가면 금방 질린다.</p></div></div>
+    <div class="panels three">
+      <div class="scene">
+        <span class="who">스타벅스 · 주문 담당 직원</span>
+        <div class="bub say"><div>Would you like regular milk?</div></div>
+        <div class="bub think self-r"><div>우유 말고 귀리로 바꿔 달라고 해야 하는데..</div></div>
+        <div class="bub say me r self-r"><div>No. Oat milk, please.</div></div>
+        <div class="bub say"><div>We have hot coffee ready. Would you like one?</div></div>
+        <div class="bub spike self-c"><div>2분째 입력이 없으십니다.</div></div>
+        <span class="sfx self-r">쩌적!</span>
+      </div>
+      <div class="panel"><div class="col">
+        <div class="shapes">
+          <div><span class="k">평소 말</span><div class="bub say"><div>오늘도 시작하시겠습니까?</div></div></div>
+          <div><span class="k">혼잣말 · 나의 이유</span><div class="bub think"><div>외국 거래처 메일을 혼자 쓰고 싶어서</div></div></div>
+          <div><span class="k">긁는 말</span><div class="bub spike"><div>하루 15분도 못 하시는 겁니까?</div></div></div>
+          <div><span class="k">효과음</span><span class="sfx">헉!</span></div>
+        </div>
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button><button class="btn danger">포기 신청</button><button class="btn disabled">시작</button></div>
+        <div class="pair">
+          <div class="card"><span class="s">10월 7일 · 15분 · 스타벅스 주문</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span><span class="s">412자</span></div>
+          <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+        </div>
+      </div></div>
+      <div class="panel red"><div class="col"><div class="btns"><button class="btn inverse">지금 시작</button><button class="btn inverse ghost">포기 철회</button></div><div class="bub spike red"><div>23분 지났습니다. 옛날처럼 아무것도 하지 않고 계시네요.</div></div><span class="sfx big" style="color:#fff;-webkit-text-stroke:3px var(--ink)">콰광!</span></div></div>
+    </div>
+  </section>
+
+  <!-- W2 -->
+  <section id="w2" class="w1 w2">
+    <div class="head"><div class="num">W2</div><div><h2>흩어진 컷</h2><p><b>W1과 같은 부품. 풍선이 줄 맞춰 서지 않고 기울고 흩어진다.</b> 탭할 때마다 한 개씩 뜨고, 마지막 풍선에 "그래"가 들어 있다. 못한 날은 가시 풍선이 겹치고 효과음이 화면을 덮는다. 약점: 읽는 순서가 흐려질 수 있어 등장 순서로 보완해야 한다.</p></div></div>
+    <div class="panels three">
+      <div class="scene">
+        <span class="who">정각 알림 뒤 · 홈</span>
+        <div class="bub say tilt1" style="margin-left:4px"><div>22:00입니다. 오늘은 15분입니다.</div></div>
+        <div class="bub think tilt2 self-r" style="margin-right:12px"><div>지금 하기 싫은데..</div></div>
+        <div class="bub spike tilt3" style="margin-left:-10px"><div>'외국 거래처 메일' 때문에 시작하셨습니다. 오늘은 그 이유가 없습니까?</div></div>
+        <div class="bub say me r self-r tilt2" style="margin-top:6px"><div>그래.</div></div>
+        <span class="tap">탭해서 넘기기 · 3/4</span>
+      </div>
+      <div class="scene" style="background:var(--red);color:#fff">
+        <span class="who" style="color:#fff">독촉 · 23분 경과</span>
+        <div class="bub spike tilt2" style="margin-left:24px"><div>옛날처럼 아무것도 하지 않고 계시네요.</div></div>
+        <div class="bub spike tilt1 self-r" style="margin-top:-18px"><div>지금까지 1,245분을 쌓으셨습니다. 오늘 0분으로 끝내시겠습니까?</div></div>
+        <span class="sfx big tilt3 self-c" style="color:#fff;-webkit-text-stroke:3px var(--ink);margin-top:-6px">쩌적!!</span>
+        <div class="bub say me r self-r" style="margin-top:4px"><div>…그래.</div></div>
+        <span class="tap" style="color:#fff">탭해서 넘기기 · 4/4</span>
+      </div>
+      <div class="panel"><div class="col">
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button></div>
+        <div class="card tilt3"><span class="s">10월 7일 · 15분</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span></div>
+        <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- W3 -->
+  <section id="w3" class="w3">
+    <div class="head"><div class="num">W3</div><div><h2>굵은 선</h2><p><b>외곽선 3px, 제목과 버튼은 두꺼운 고딕, 카드에 검정 오프셋 그림자.</b> 만화 잡지 표지처럼 세다. 포기 버튼은 터지는 모양이다. 약점: 영어 학습 앱이 아니라 격투 게임처럼 보일 수 있다. 존댓말과 가장 멀다.</p></div></div>
+    <div class="panels three">
+      <div class="scene">
+        <span class="who">스타벅스 · 주문 담당 직원</span>
+        <div class="bub say"><div>Would you like regular milk?</div></div>
+        <div class="bub think self-r"><div>귀리 우유로 바꿔 달라고..</div></div>
+        <div class="bub say me r self-r"><div>Could I have oat milk instead?</div></div>
+        <span class="sfx self-c">딱!</span>
+        <div class="bub say"><div>좋습니다. "instead"를 바로 쓰셨습니다.</div></div>
+      </div>
+      <div class="panel"><div class="col">
+        <div class="shapes">
+          <div><span class="k">긁는 말</span><div class="bub spike"><div>하루 15분도 못 하시는 겁니까?</div></div></div>
+          <div><span class="k">효과음</span><span class="sfx big">헉!!</span></div>
+        </div>
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button><button class="btn danger">포기 신청</button><button class="btn disabled">시작</button></div>
+        <div class="pair">
+          <div class="card"><span class="s">10월 7일 · 15분 · 스타벅스 주문</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span><span class="s">412자</span></div>
+          <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+        </div>
+      </div></div>
+      <div class="panel red"><div class="col"><div class="btns"><button class="btn inverse">지금 시작</button><button class="btn inverse ghost">포기 철회</button></div><span class="sfx big" style="color:#fff;-webkit-text-stroke:3px var(--ink)">콰광!</span></div></div>
+    </div>
+  </section>
+
+  <!-- N1 -->
+  <section id="n1" class="n1">
+    <div class="head"><div class="num">N1</div><div><h2>웹소설 뷰어</h2><p><b>명조체 본문, 들여쓰기, 대사는 따옴표.</b> 상자가 하나도 없다. 직원 대사는 소설 지문처럼 흐르고, 내 대사만 고딕 굵게로 끼어든다. 긁는 말은 서술자의 한 줄이다. 버튼은 아래 괘선 한 줄. 약점: 효과음과 큰 숫자가 설 자리가 없다. 조용해서 독촉이 약해 보인다.</p></div></div>
+    <div class="panels three">
+      <div class="scene">
+        <div class="chap">제12일 · 스타벅스</div>
+        <p>직원이 컵을 들어 보이며 물었다.</p>
+        <p class="q">"Would you like regular milk?"</p>
+        <p>우유는 안 되는데. 귀리 우유로 바꿔 달라는 말이 입안에서 맴돌았다.</p>
+        <p class="q me">"No. Oat milk, please."</p>
+        <p>직원은 고개를 끄덕이고 다음 컵을 집었다.</p>
+        <p class="q">"We have hot coffee ready. Would you like one?"</p>
+        <p>2분이 지났다. 당신은 아직 아무 말도 하지 않았다.</p>
+      </div>
+      <div class="panel"><div class="col">
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button><button class="btn danger">포기 신청</button><button class="btn disabled">시작</button></div>
+        <div class="pair">
+          <div class="card"><span class="s">제11일 · 15분 · 412자</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span></div>
+          <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+        </div>
+      </div></div>
+      <div class="panel red"><div class="col"><div class="btns"><button class="btn inverse">지금 시작</button><button class="btn inverse ghost">포기 철회</button></div><p style="font-family:var(--serif);font-size:16px;line-height:1.9;margin:0">23분이 지났다. 1,245분을 쌓은 사람이 오늘은 0분으로 끝낼 참이다.</p></div></div>
+    </div>
+  </section>
+
+  <!-- N2 -->
+  <section id="n2" class="n2">
+    <div class="head"><div class="num">N2</div><div><h2>대본</h2><p><b>화자 이름이 왼쪽에 붙는 희곡 대본.</b> 직원, 나, 코치가 한눈에 구분된다. 지문은 명조 회색. 코치 설명은 왼쪽 선이 있는 메모 상자다. 역할극이라는 사실이 가장 또렷하다. 약점: 상황극에는 맞지만 홈이나 설정 화면에는 이 형식을 쓸 데가 없다.</p></div></div>
+    <div class="panels three">
+      <div class="scene">
+        <span class="who">제12일 · 스타벅스 · 나는 고객</span>
+        <div class="nar">카운터 앞. 직원이 컵에 이름을 적고 있다.</div>
+        <div class="line"><b>직원</b><span>Would you like regular milk?</span></div>
+        <div class="line me"><b>나</b><span>No. Oat milk, please.</span></div>
+        <div class="note"><b>Could I have … instead?</b><br>대신 …로 받을 수 있을까요? 제안한 것을 다른 것으로 바꿔 달라고 할 때 씁니다.</div>
+        <div class="line"><b>직원</b><span>We have hot coffee ready. Would you like one?</span></div>
+        <div class="line me"><b>나</b><span>Could I have iced coffee instead?</span></div>
+        <div class="line"><b>코치</b><span>바로 쓰셨습니다. 내일도 기억하실 수 있겠습니까?</span></div>
+      </div>
+      <div class="panel"><div class="col">
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button><button class="btn danger">포기 신청</button><button class="btn disabled">시작</button></div>
+        <div class="pair">
+          <div class="card"><span class="s">제11일 · 15분 · 412자</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span></div>
+          <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+        </div>
+      </div></div>
+      <div class="panel red"><div class="col"><div class="btns"><button class="btn inverse">지금 시작</button><button class="btn inverse ghost">포기 철회</button></div><div class="line" style="color:#fff"><b>코치</b><span>23분 지났습니다. 옛날처럼 아무것도 하지 않고 계시네요.</span></div></div></div>
+    </div>
+  </section>
+
+  <!-- N3 -->
+  <section id="n3" class="n3">
+    <div class="head"><div class="num">N3</div><div><h2>혼합</h2><p><b>지문은 소설, 대사는 말풍선, 긁기는 효과음.</b> 상대의 말과 내 말은 풍선으로 튀어나오고, 그 사이를 명조 지문이 잇는다. 버튼과 입력창은 풍선 꼬리처럼 한쪽 모서리만 각지다. 약점: 세 가지 문법이 한 화면에 있어 규칙을 엄격히 정해야 한다.</p></div></div>
+    <div class="panels three">
+      <div class="scene">
+        <span class="who" style="font-family:var(--sans)">제12일 · 스타벅스</span>
+        <p>직원이 컵을 들어 보이며 물었다.</p>
+        <div class="bub say"><div>Would you like regular milk?</div></div>
+        <p>우유는 안 되는데. 귀리 우유로 바꿔 달라는 말이 맴돌았다.</p>
+        <div class="bub say me r self-r"><div>No. Oat milk, please.</div></div>
+        <p>2분이 지났다.</p>
+        <span class="sfx self-c">쩌적!</span>
+      </div>
+      <div class="panel"><div class="col">
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button><button class="btn danger">포기 신청</button><button class="btn disabled">시작</button></div>
+        <div class="pair">
+          <div class="card"><span class="s">제11일 · 15분 · 412자</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span></div>
+          <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+        </div>
+      </div></div>
+      <div class="panel red"><div class="col"><div class="btns"><button class="btn inverse">지금 시작</button><button class="btn inverse ghost">포기 철회</button></div><div class="bub spike red" style="--o:1.5px"><div>지금까지 1,245분. 오늘 0분으로 끝내시겠습니까?</div></div></div></div>
+    </div>
+  </section>
+
+  <div class="group" style="margin-top:48px">
+    <h2>형태 실험 12안</h2>
+    <p>색을 그대로 두고 모서리, 선 굵기, 글꼴, 무게, 높이, 그림자만 바꾼 안이다.</p>
+  </div>
+  <div class="toc">
+    <a href="#v1">01 현재</a><a href="#v2">02 각진</a><a href="#v3">03 알약</a><a href="#v4">04 얇은 선</a><a href="#v5">05 도장</a><a href="#v6">06 신문</a>
+    <a href="#v7">07 터미널</a><a href="#v8">08 밑줄</a><a href="#v9">09 블록</a><a href="#v10">10 종이</a><a href="#v11">11 압축</a><a href="#v12">12 무게</a>
+  </div>
+
+  <!-- 01 -->
+  <section id="v1" class="v v1">
+    <div class="head"><div class="num">01</div><div><h2>현재</h2><p><b>기준.</b> 모서리 14, 테두리 2px, 글자 900. 약점: 앱 기본 템플릿처럼 보인다.</p></div></div>
+    <div class="panels">
+      <div class="panel"><div class="col">
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button><button class="btn danger">포기 신청</button><button class="btn disabled">시작</button></div>
+        <div class="pair">
+          <div class="card"><span class="s">10월 7일 · 15분 · 비즈니스 이메일</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span><span class="s">412자</span></div>
+          <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+        </div>
+      </div></div>
+      <div class="panel red"><div class="btns"><button class="btn inverse">지금 시작</button><button class="btn inverse ghost">포기 철회</button></div></div>
+    </div>
+  </section>
+
+  <!-- 02 -->
+  <section id="v2" class="v v2">
+    <div class="head"><div class="num">02</div><div><h2>각진</h2><p><b>모서리 0, 2px 검정선, 오른쪽 아래 4px 그림자.</b> 눌리는 느낌이 물리적이다. 강제성과 결이 맞다. 약점: 거칠어서 존댓말 말투와 어긋날 수 있다.</p></div></div>
+    <div class="panels">
+      <div class="panel"><div class="col">
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button><button class="btn danger">포기 신청</button><button class="btn disabled">시작</button></div>
+        <div class="pair">
+          <div class="card"><span class="s">10월 7일 · 15분 · 비즈니스 이메일</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span><span class="s">412자</span></div>
+          <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+        </div>
+      </div></div>
+      <div class="panel red"><div class="btns"><button class="btn inverse">지금 시작</button><button class="btn inverse ghost">포기 철회</button></div></div>
+    </div>
+  </section>
+
+  <!-- 03 -->
+  <section id="v3" class="v v3">
+    <div class="head"><div class="num">03</div><div><h2>알약</h2><p><b>완전히 둥근 버튼, 카드 24, 글자 700.</b> 부드럽고 요즘 앱 같다. 약점: 긁는 앱의 긴장감이 빠진다.</p></div></div>
+    <div class="panels">
+      <div class="panel"><div class="col">
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button><button class="btn danger">포기 신청</button><button class="btn disabled">시작</button></div>
+        <div class="pair">
+          <div class="card"><span class="s">10월 7일 · 15분 · 비즈니스 이메일</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span><span class="s">412자</span></div>
+          <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+        </div>
+      </div></div>
+      <div class="panel red"><div class="btns"><button class="btn inverse">지금 시작</button><button class="btn inverse ghost">포기 철회</button></div></div>
+    </div>
+  </section>
+
+  <!-- 04 -->
+  <section id="v4" class="v v4">
+    <div class="head"><div class="num">04</div><div><h2>얇은 선</h2><p><b>1px 선, 카드는 바탕 없이 위 선 하나.</b> 글자만 남는다. 원칙 "글자와 숫자만"에 가장 가깝다. 약점: 주 버튼 말고는 눌리는 것인지 알기 어렵다.</p></div></div>
+    <div class="panels">
+      <div class="panel"><div class="col">
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button><button class="btn danger">포기 신청</button><button class="btn disabled">시작</button></div>
+        <div class="pair">
+          <div class="card"><span class="s">10월 7일 · 15분 · 비즈니스 이메일</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span><span class="s">412자</span></div>
+          <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+        </div>
+      </div></div>
+      <div class="panel red"><div class="btns"><button class="btn inverse">지금 시작</button><button class="btn inverse ghost">포기 철회</button></div></div>
+    </div>
+  </section>
+
+  <!-- 05 -->
+  <section id="v5" class="v v5">
+    <div class="head"><div class="num">05</div><div><h2>도장</h2><p><b>3px 굵은 선, 바깥에 1px 선 하나 더, 자간 넓게.</b> 계약서에 찍는 도장 같다. 약속과 대가라는 주제에 맞다. 약점: 작은 화면에서 선이 두 겹이라 답답할 수 있다.</p></div></div>
+    <div class="panels">
+      <div class="panel"><div class="col">
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button><button class="btn danger">포기 신청</button><button class="btn disabled">시작</button></div>
+        <div class="pair">
+          <div class="card"><span class="s">10월 7일 · 15분 · 비즈니스 이메일</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span><span class="s">412자</span></div>
+          <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+        </div>
+      </div></div>
+      <div class="panel red"><div class="btns"><button class="btn inverse">지금 시작</button><button class="btn inverse ghost">포기 철회</button></div></div>
+    </div>
+  </section>
+
+  <!-- 06 -->
+  <section id="v6" class="v v6">
+    <div class="head"><div class="num">06</div><div><h2>신문</h2><p><b>명조체, 버튼은 위 3px 아래 1px 괘선, 화살표.</b> 상자가 하나도 없다. 긁는 문장이 기사처럼 읽힌다. 약점: 버튼이 버튼으로 안 보일 수 있다. 명조는 숫자 크게 쓸 때 힘이 약하다.</p></div></div>
+    <div class="panels">
+      <div class="panel"><div class="col">
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button><button class="btn danger">포기 신청</button><button class="btn disabled">시작</button></div>
+        <div class="pair">
+          <div class="card"><span class="s">10월 7일 · 15분 · 비즈니스 이메일</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span><span class="s">412자</span></div>
+          <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+        </div>
+      </div></div>
+      <div class="panel red"><div class="btns"><button class="btn inverse">지금 시작</button><button class="btn inverse ghost">포기 철회</button></div></div>
+    </div>
+  </section>
+
+  <!-- 07 -->
+  <section id="v7" class="v v7">
+    <div class="head"><div class="num">07</div><div><h2>터미널</h2><p><b>고정폭 글꼴, 대괄호, 점선 카드.</b> 기계가 사람을 감시하는 느낌. 1분마다 오는 독촉과 어울린다. 약점: 영어 학습 앱치고 차갑다. 한글 고정폭은 선택지가 적다.</p></div></div>
+    <div class="panels">
+      <div class="panel"><div class="col">
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button><button class="btn danger">포기 신청</button><button class="btn disabled">시작</button></div>
+        <div class="pair">
+          <div class="card"><span class="s">2026-10-07 15min email</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span><span class="s">412 chars</span></div>
+          <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+        </div>
+      </div></div>
+      <div class="panel red"><div class="btns"><button class="btn inverse">지금 시작</button><button class="btn inverse ghost">포기 철회</button></div></div>
+    </div>
+  </section>
+
+  <!-- 08 -->
+  <section id="v8" class="v v8">
+    <div class="head"><div class="num">08</div><div><h2>밑줄</h2><p><b>상자 없음. 큰 글자에 밑줄 4px. 카드는 왼쪽 세로선.</b> 가장 가볍다. 화면의 큰 숫자가 더 돋보인다. 약점: 손가락으로 누를 영역이 보이지 않아 실제 앱에서는 터치 영역을 따로 잡아야 한다.</p></div></div>
+    <div class="panels">
+      <div class="panel"><div class="col">
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button><button class="btn danger">포기 신청</button><button class="btn disabled">시작</button></div>
+        <div class="pair">
+          <div class="card"><span class="s">10월 7일 · 15분 · 비즈니스 이메일</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span><span class="s">412자</span></div>
+          <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+        </div>
+      </div></div>
+      <div class="panel red"><div class="btns"><button class="btn inverse">지금 시작</button><button class="btn inverse ghost">포기 철회</button></div></div>
+    </div>
+  </section>
+
+  <!-- 09 -->
+  <section id="v9" class="v v9">
+    <div class="head"><div class="num">09</div><div><h2>블록</h2><p><b>모서리 0, 버튼은 폭을 꽉 채운 64px 띠. 카드는 검정 반전.</b> 벽돌을 쌓은 것처럼 무겁다. 선택지가 둘이면 반반으로 나눈다. 약점: 화면이 금방 무거워진다. 버튼 4개를 나란히 둘 수 없다.</p></div></div>
+    <div class="panels">
+      <div class="panel"><div class="col">
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button><button class="btn danger">포기 신청</button><button class="btn disabled">시작</button></div>
+        <div class="pair">
+          <div class="card"><span class="s">10월 7일 · 15분 · 비즈니스 이메일</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span><span class="s">412자</span></div>
+          <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+        </div>
+      </div></div>
+      <div class="panel red"><div class="btns"><button class="btn inverse">지금 시작</button><button class="btn inverse ghost">포기 철회</button></div></div>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section id="v10" class="v v10">
+    <div class="head"><div class="num">10</div><div><h2>종이</h2><p><b>모서리 6, 1px 선, 아래로 2px 짧은 그림자. 카드는 종이가 겹친 듯한 선.</b> 손에 잡히는 물건 같다. 약점: 그림자가 들어가서 "글자와 숫자만" 원칙에서 반걸음 벗어난다.</p></div></div>
+    <div class="panels">
+      <div class="panel"><div class="col">
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button><button class="btn danger">포기 신청</button><button class="btn disabled">시작</button></div>
+        <div class="pair">
+          <div class="card"><span class="s">10월 7일 · 15분 · 비즈니스 이메일</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span><span class="s">412자</span></div>
+          <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+        </div>
+      </div></div>
+      <div class="panel red"><div class="btns"><button class="btn inverse">지금 시작</button><button class="btn inverse ghost">포기 철회</button></div></div>
+    </div>
+  </section>
+
+  <!-- 11 -->
+  <section id="v11" class="v v11">
+    <div class="head"><div class="num">11</div><div><h2>압축</h2><p><b>높이 44, 모서리 8, 글자 15 / 700.</b> 모든 부품이 작아서 큰 숫자와 대비가 커진다. 설정과 기록 화면에 유리하다. 약점: 주 버튼이 작아져 "하나만 누르면 된다"는 압박이 약하다.</p></div></div>
+    <div class="panels">
+      <div class="panel"><div class="col">
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button><button class="btn danger">포기 신청</button><button class="btn disabled">시작</button></div>
+        <div class="pair">
+          <div class="card"><span class="s">10월 7일 · 15분 · 비즈니스 이메일</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span><span class="s">412자</span></div>
+          <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+        </div>
+      </div></div>
+      <div class="panel red"><div class="btns"><button class="btn inverse">지금 시작</button><button class="btn inverse ghost">포기 철회</button></div></div>
+    </div>
+  </section>
+
+  <!-- 12 -->
+  <section id="v12" class="v v12">
+    <div class="head"><div class="num">12</div><div><h2>무게</h2><p><b>높이 68, 글자 24 / 900, 3px 선, 모서리 20.</b> 모든 것이 한 단계 크다. 버튼 하나가 화면을 지배한다. 약점: 한 화면에 둘 이상 두면 바로 좁아진다. 온보딩과 홈에만 맞다.</p></div></div>
+    <div class="panels">
+      <div class="panel"><div class="col">
+        <div class="btns"><button class="btn">지금 시작</button><button class="btn secondary">계속하기</button><button class="btn danger">포기 신청</button><button class="btn disabled">시작</button></div>
+        <div class="pair">
+          <div class="card"><span class="s">10월 7일 · 15분 · 비즈니스 이메일</span><span class="b">외국 거래처 메일을 혼자 쓰고 싶어서</span><span class="s">412자</span></div>
+          <div class="field"><label>오늘의 이유 <i>12/20</i></label><div class="input"><span class="ph">어제와 다른 문장으로</span></div></div>
+        </div>
+      </div></div>
+      <div class="panel red"><div class="btns"><button class="btn inverse">지금 시작</button><button class="btn inverse ghost">포기 철회</button></div></div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

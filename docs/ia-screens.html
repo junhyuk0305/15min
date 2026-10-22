@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>그래고 화면 IA</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&display=swap">
+<style>
+  :root {
+    --pg-bg: #FAF8F3; --pg-fg: #1A1916; --pg-sub: #6F6A60; --pg-line: #DDD7CA;
+    --bg: #F3EFE6; --ink: #111111; --sub: #6B655B; --line: #D9D2C4; --card: #FBF9F4;
+    --red: #C8201A; --disabled: #BDB6A8;
+    --sans: 'Noto Sans KR', -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+    --serif: 'Noto Serif KR', 'Apple Myungjo', 'Batang', serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --pg-bg: #171613; --pg-fg: #ECE8DF; --pg-sub: #A39C8E; --pg-line: #35322B; color-scheme: dark; } }
+  :root[data-theme="dark"] { --pg-bg: #171613; --pg-fg: #ECE8DF; --pg-sub: #A39C8E; --pg-line: #35322B; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--pg-bg); color: var(--pg-fg); font-family: var(--sans); font-size: 15px; line-height: 1.6; font-weight: 500; }
+  .wrap { max-width: 1340px; margin: 0 auto; padding-block: 36px 96px; padding-inline: 24px; }
+  h1 { font-size: 32px; font-weight: 900; margin: 0 0 6px; }
+  .lead { color: var(--pg-sub); max-width: 72ch; margin: 0 0 20px; }
+  .tree { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; line-height: 1.7; white-space: pre; overflow-x: auto; border: 1px solid var(--pg-line); border-radius: 8px; padding: 14px 18px; margin-bottom: 36px; }
+  .tree a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--pg-line); }
+  .tree a:hover { border-bottom-color: var(--pg-fg); }
+  h2 { font-size: 22px; font-weight: 900; margin: 56px 0 4px; padding-top: 24px; border-top: 2px solid var(--pg-fg); }
+  .note { color: var(--pg-sub); font-size: 13.5px; margin: 0 0 18px; max-width: 80ch; }
+  .row { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; }
+  .cap { font-size: 12px; color: var(--pg-sub); margin: 8px 0 0 2px; max-width: 300px; }
+  .cap b { color: var(--pg-fg); font-weight: 800; }
+
+  /* ===== 폰 프레임 ===== */
+  .ph { width: 300px; height: 620px; background: var(--bg); color: var(--ink); border: 1px solid var(--pg-line); border-radius: 24px; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+  .ph.red { background: var(--red); color: #fff; }
+  .ph .bd { flex: 1; padding: 36px 20px 16px; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+  .ph .ft { padding: 8px 20px 18px; display: grid; gap: 8px; }
+  .ph .tabs { display: flex; height: 60px; border-top: 1px solid var(--line); }
+  .ph .tabs div { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11px; font-weight: 800; color: var(--sub); }
+  .ph .tabs div::before { content: ''; width: 22px; height: 22px; background: currentColor; -webkit-mask: var(--ic) center / contain no-repeat; mask: var(--ic) center / contain no-repeat; }
+  .ph .tabs div.on { color: var(--ink); }
+  .ph .tabs .t-home { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M3 11 L12 4 L21 11 V20 H15 V14 H9 V20 H3 Z'/%3E%3C/svg%3E"); }
+  .ph .tabs .t-coach { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M4 5 H20 V16 H11 L7 20 V16 H4 Z'/%3E%3C/svg%3E"); }
+  .ph .tabs .t-archive { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M4 6 H20 V20 H4 Z M4 10 H20 M8 4 V8 M16 4 V8'/%3E%3C/svg%3E"); }
+  .ph .tabs .t-settings { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M4 7 H20 M4 12 H20 M4 17 H20 M9 5 V9 M15 10 V14 M8 15 V19'/%3E%3C/svg%3E"); }
+  .ph .back { font-size: 13px; font-weight: 800; color: var(--sub); }
+  .ph .dim { position: absolute; inset: 0; background: rgba(0,0,0,.5); display: grid; place-items: center; padding: 20px; }
+  .ph .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--bg); border-radius: 20px 20px 0 0; padding: 18px 20px 20px; display: grid; gap: 10px; box-shadow: 0 -2px 0 var(--line); }
+
+  /* 글자 */
+  .lab { font-size: 11px; font-weight: 800; letter-spacing: 1px; color: var(--sub); }
+  .red .lab { color: rgba(255,255,255,.8); }
+  .h1 { font-size: 24px; font-weight: 900; line-height: 1.3; letter-spacing: -0.3px; }
+  .h2 { font-size: 17px; font-weight: 800; line-height: 1.4; }
+  .body { font-size: 15px; line-height: 1.6; }
+  .sm { font-size: 12.5px; font-weight: 600; color: var(--sub); line-height: 1.5; }
+  .red .sm { color: rgba(255,255,255,.85); }
+  .serif { font-family: var(--serif); }
+  .num { font-family: var(--serif); font-weight: 900; font-size: 48px; line-height: 1.05; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+  .num.md { font-size: 34px; }
+  .between { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .gauge { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .gauge i { display: block; height: 100%; background: var(--ink); }
+  .red .gauge { background: rgba(255,255,255,.3); } .red .gauge i { background: #fff; }
+  .mid { padding: 16px 0; border-top: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; display: grid; gap: 6px; }
+  .hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
+
+  /* 익숙한 부품 */
+  .btn { min-height: 50px; border-radius: 12px; background: var(--ink); color: #fff; font-weight: 800; font-size: 16px; display: flex; align-items: center; justify-content: center; padding: 0 16px; border: 1.5px solid var(--ink); }
+  .btn.sec { background: transparent; color: var(--ink); }
+  .btn.dan { background: var(--red); border-color: var(--red); color: #fff; }
+  .btn.dis { background: var(--disabled); border-color: var(--disabled); color: var(--card); }
+  .btn.inv { background: #fff; color: var(--red); border-color: #fff; }
+  .btn.inv.ghost { background: transparent; color: #fff; border-color: #fff; }
+  .btn.big { min-height: 56px; font-size: 18px; }
+  .in { min-height: 48px; border: 1.5px solid var(--ink); border-radius: 10px; background: var(--card); padding: 12px 14px; font-size: 15px; color: var(--disabled); }
+  .in.filled { color: var(--ink); }
+  .in.ta { min-height: 92px; }
+  .in.ro { border-color: var(--line); color: var(--sub); background: transparent; }
+  .field { display: grid; gap: 5px; }
+  .field .between .cnt { font-size: 12px; font-weight: 700; } .cnt.bad { color: var(--red); }
+  .seg { display: flex; border: 1.5px solid var(--ink); border-radius: 10px; overflow: hidden; }
+  .seg div { flex: 1; text-align: center; padding: 8px 0; font-size: 13px; font-weight: 800; color: var(--ink); }
+  .seg div.on { background: var(--ink); color: #fff; }
+  .step { display: flex; align-items: center; justify-content: space-between; border: 1.5px solid var(--ink); border-radius: 10px; padding: 6px 8px; background: var(--card); }
+  .step b { width: 40px; height: 40px; display: grid; place-items: center; font-size: 20px; font-weight: 800; }
+  .step span { font-family: var(--serif); font-weight: 900; font-size: 28px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 3px; }
+  .list .it { display: flex; justify-content: space-between; padding: 13px 0; border-bottom: 1px solid var(--line); font-size: 15px; font-weight: 600; }
+  .list .it span:last-child { color: var(--sub); font-weight: 500; }
+  .list .it.danger { color: var(--red); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid var(--ink); border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 800; }
+  .chip.on { background: var(--ink); color: #fff; }
+  .banner { background: var(--red); color: #fff; border-radius: 10px; padding: 10px 12px; font-size: 12.5px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .banner u { white-space: nowrap; }
+  .dots { display: flex; gap: 6px; justify-content: center; }
+  .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line); } .dots i.on { background: var(--ink); }
+  .bots { display: flex; gap: 8px; overflow: hidden; }
+  .bot { flex: 0 0 120px; border: 1.5px solid var(--ink); border-radius: 12px; padding: 10px 12px; display: grid; gap: 2px; font-size: 13px; font-weight: 700; }
+  .bot small { font-size: 11px; font-weight: 800; letter-spacing: .5px; color: var(--sub); }
+  .bot.on { background: var(--ink); color: #fff; } .bot.on small { color: rgba(255,255,255,.75); }
+  .red .bot { border-color: #fff; color: #fff; } .red .bot small { color: rgba(255,255,255,.8); }
+  .red .bot.on { background: #fff; color: var(--red); } .red .bot.on small { color: var(--red); }
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal div { aspect-ratio: 1; border-radius: 6px; display: grid; place-items: center; font-size: 12px; font-weight: 600; border: 1px solid var(--line); color: var(--sub); }
+  .cal .done { background: var(--ink); color: var(--card); border-color: var(--ink); }
+  .cal .miss { background: var(--red); color: #fff; border-color: var(--red); }
+  .cal .coupon { border: 1.5px solid var(--sub); color: var(--ink); }
+  .cal .rest { border-color: transparent; color: var(--disabled); }
+  .cal .before { border-color: transparent; }
+
+  /* ===== 채팅 (D안) ===== */
+  .chat .bd { padding: 0; gap: 0; }
+  .chat .top { padding: 36px 20px 10px; display: grid; gap: 2px; border-bottom: 1px solid var(--ink); }
+  .chat .msgs { flex: 1; padding: 16px 20px 8px; display: flex; flex-direction: column; justify-content: flex-end; gap: 14px; overflow: hidden; font-family: var(--serif); }
+  .chat .grp { display: flex; flex-direction: column; gap: 4px; }
+  .chat .grp.r { align-items: flex-end; text-align: right; }
+  .chat .grp .who { font-size: 10.5px; letter-spacing: 2px; font-weight: 700; color: var(--sub); font-family: var(--serif); }
+  .chat .q { font-size: 15px; line-height: 1.7; font-weight: 600; max-width: 92%; }
+  .chat .q::before { content: '“'; } .chat .q::after { content: '”'; }
+  .chat .grp.r .q { font-weight: 900; }
+  .chat .th { font-size: 14px; line-height: 1.7; font-weight: 400; color: var(--sub); max-width: 92%; }
+  .chat .nar { font-size: 13.5px; line-height: 1.7; color: var(--sub); text-indent: 1em; }
+  .chat .coach { border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 10px 2px; display: grid; gap: 4px; }
+  .chat .coach .k { font-size: 10.5px; letter-spacing: 2px; font-weight: 700; color: var(--sub); }
+  .chat .coach .ex { font-family: var(--sans); font-size: 16px; font-weight: 800; }
+  .chat .coach .mean { font-size: 13.5px; font-weight: 700; }
+  .chat .coach .desc { font-size: 12.5px; color: var(--sub); line-height: 1.55; }
+  .chat .coach .word { display: flex; justify-content: space-between; font-size: 12.5px; border-top: 1px solid var(--line); padding-top: 5px; }
+  .chat .coach .word b { font-weight: 800; }
+  .chat .scold { color: var(--red); font-weight: 900; font-size: 15px; line-height: 1.7; }
+  .chat .bar { border-top: 1px solid var(--line); padding: 10px 16px 16px; display: grid; gap: 8px; background: var(--bg); }
+  .chat .bar .seg { max-width: 170px; }
+  .chat .inrow { display: flex; gap: 8px; align-items: stretch; }
+  .chat .inrow .in { flex: 1; min-width: 0; }
+  .chat .send { min-width: 64px; border-radius: 10px; background: var(--ink); color: #fff; font-weight: 800; font-size: 15px; display: grid; place-items: center; }
+  .chat .send.off { background: var(--disabled); color: var(--card); }
+  .chat .cnt { font-size: 12px; font-weight: 700; color: var(--sub); display: flex; justify-content: space-between; }
+  .chat .cnt b { color: var(--red); }
+  .modal { width: 100%; background: var(--card); border: 1.5px solid var(--ink); border-radius: 14px; padding: 16px; display: grid; gap: 8px; }
+  .modal .k { font-size: 11px; letter-spacing: 1px; font-weight: 800; color: var(--sub); }
+  .modal .ex { font-size: 17px; font-weight: 800; }
+  .modal .opt { border: 1.5px solid var(--line); border-radius: 10px; padding: 9px 12px; font-size: 13.5px; font-weight: 600; }
+  .modal .opt.on { border-color: var(--ink); background: var(--bg); }
+  .modal.redm { background: var(--red); border-color: var(--red); color: #fff; }
+  .ex-row { display: flex; gap: 8px; }
+  .bubble-demo { font-family: var(--serif); display: grid; gap: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>그래고 화면 IA</h1>
+  <p class="lead">docs/화면구성.md의 화면을 전부 그렸다. 채팅은 D안(웹소설)이다. 같은 화자가 이어 말하면 4px, 화자가 바뀌면 14px 띄운다. 버튼, 입력창, 채팅바는 테두리와 채움이 분명한 익숙한 형태를 쓴다. 숫자는 명조 굵게, 나머지 글자는 고딕이다.</p>
+  <div class="tree">그래고
+├─ <a href="#onb">온보딩</a> (첫 실행만)  O1 후킹 · O2 문제 · O3 약속 · O4 경고와 알림
+├─ <a href="#goal">목표 설정 채팅</a>  N0 목표 없음 → N1 목표와 상황 → N2 꼬리 질문 → N3 확인. 달성 뒤 A3도 이 흐름
+├─ 탭: 홈
+│   ├─ <a href="#home">H 홈</a> (상태 8가지: 대기 · 임박 · 유예 · 독촉 · 진행 중 이탈 · 완료 · 쿠폰 · 포기 대기)
+│   ├─ <a href="#session">세션</a>  S1 오늘의 이유 → S2 채팅 (속마음 모드 · 코치 모달 · 딴짓 팝업) → S3 소감 → S4 완료
+│   ├─ <a href="#coupon">C 쿠폰 시트</a>
+│   └─ <a href="#achieve">달성</a>  A1 확인 → A2 달성 → A3 새 목표 (목표 설정 채팅 재사용)
+├─ 탭: <a href="#bots">코치</a>  B1 목록 · B2 만들기
+├─ 탭: <a href="#archive">기록</a>  R1 달력과 카드 · R2 상세
+└─ 탭: <a href="#settings">설정</a>  T1 설정 · T2 목표 관리 · 포기 G1 확인 · G3 삭제 경고 · T3 알림 안내</div>
+
+  <!-- ===== 온보딩 ===== -->
+  <h2 id="onb">온보딩</h2>
+  <p class="note">4장. O1~O3는 스와이프. O4에서 알림 권한을 거부하면 넘어가지 못한다. 목표, 이유, 시각, 분, 학습 방식은 여기서 묻지 않고 홈의 목표 설정 채팅에서 정한다.</p>
+  <div class="row">
+    <div><div class="ph"><div class="bd">
+      <span class="lab">하루 15분이면</span>
+      <div class="num">5,475<span style="font-size:22px">분</span></div><span class="sm">1년</span>
+      <div class="num md">16,425<span style="font-size:18px">분</span></div><span class="sm">3년</span>
+      <div class="num md">27,375<span style="font-size:18px">분</span></div><span class="sm">5년</span>
+      <div style="flex:1"></div>
+      <div class="dots"><i class="on"></i><i></i><i></i><i></i></div>
+    </div><div class="ft"><div class="btn">다음</div></div></div><div class="cap"><b>O1 후킹.</b> 큰 숫자만.</div></div>
+
+    <div><div class="ph"><div class="bd">
+      <div style="flex:1"></div>
+      <div class="h1 serif">그 15분,<br>매일 앉기 어려우셨죠?</div>
+      <div class="body serif" style="color:var(--sub)">시작은 몇 번이나 하셨습니다. 이어진 적이 없었을 뿐입니다.</div>
+      <div style="flex:1"></div>
+      <div class="dots"><i></i><i class="on"></i><i></i><i></i></div>
+    </div><div class="ft"><div class="btn">다음</div></div></div><div class="cap"><b>O2 문제 제기.</b></div></div>
+
+    <div><div class="ph"><div class="bd">
+      <div style="flex:1"></div>
+      <div class="h1 serif">해내실 때까지<br>물고 늘어지겠습니다.</div>
+      <div class="body serif" style="color:var(--sub)">안 하시면 1분마다 연락합니다. 하시면 조용합니다.</div>
+      <div style="flex:1"></div>
+      <div class="dots"><i></i><i></i><i class="on"></i><i></i></div>
+    </div><div class="ft"><div class="btn">다음</div></div></div><div class="cap"><b>O3 약속.</b></div></div>
+
+    <div><div class="ph"><div class="bd">
+      <span class="lab">4 / 4</span>
+      <div class="h1 serif">약속한 시간에<br>오지 않으면<br>1분마다 연락합니다.</div>
+      <div class="card"><span class="sm">최대 60회. 완료하면 멈춥니다.</span><span class="sm">쿠폰 3장을 드립니다. 쓰면 그날은 쉽니다.</span></div>
+      <div style="flex:1"></div>
+      <div class="banner"><span>알림을 거부하면 진행할 수 없습니다.</span></div>
+    </div><div class="ft"><div class="btn big">동의하고 알림 켜기</div></div></div><div class="cap"><b>O4 경고와 알림 권한.</b> 동의하면 홈으로. 홈은 목표 없음 상태.</div></div>
+  </div>
+
+  <!-- ===== 목표 설정 채팅 ===== -->
+  <h2 id="goal">목표 설정 채팅</h2>
+  <p class="note">첫 목표와 달성 뒤 새 목표 모두 이 흐름이다. 그래고가 묻고 사용자가 한국어로 답한다. 목표, 상황(장소, 내 역할, 상대, 해결할 것), 이유 20자, 기간, 시작 시각, 하루 분, 요일을 채울 때까지 꼬리 질문을 이어간다. 답이 모호하면 보기를 주며 좁힌다. 다 채우면 확인 카드.</p>
+  <div class="row">
+    <div><div class="ph"><div class="bd">
+      <div style="flex:1"></div>
+      <span class="lab">목표</span>
+      <div class="h1 serif">아직 목표가<br>없습니다.</div>
+      <div class="body serif" style="color:var(--sub)">그래고와 이야기하며 정합니다. 5분이면 됩니다.</div>
+      <div style="flex:1"></div>
+    </div><div class="ft"><div class="btn big">목표 정하기</div></div><div class="tabs"><div class="on t-home">홈</div><div class="t-coach">코치</div><div class="t-archive">기록</div><div class="t-settings">설정</div></div></div><div class="cap"><b>N0 목표 없음.</b> 온보딩 직후 홈. 주 버튼 하나.</div></div>
+
+    <div><div class="ph chat"><div class="bd">
+      <div class="top"><div class="between"><span class="lab">목표 정하기</span><span class="lab">1 / 3 목표와 상황</span></div><div class="gauge" style="margin-top:6px"><i style="width:20%"></i></div></div>
+      <div class="msgs">
+        <div class="grp"><span class="who">그래고</span><div class="q">무엇을 해내고 싶으십니까? 한 줄이면 됩니다.</div></div>
+        <div class="grp r"><span class="who">나</span><div class="q">영어로 주문하고 싶어요</div></div>
+        <div class="grp"><span class="who">그래고</span><div class="q">어디에서 주문하십니까?</div><div class="q">카페, 식당, 공항처럼 실제로 가는 곳으로 말씀해 주십시오.</div></div>
+        <div class="grp r"><span class="who">나</span><div class="q">스타벅스요. 출장 가면 꼭 가요</div></div>
+        <div class="grp"><span class="who">그래고</span><div class="q">거기서 누구와 말하십니까?</div><div class="q">그 사람에게 무엇을 해결하고 싶으십니까?</div></div>
+      </div>
+      <div class="bar"><div class="inrow"><div class="in">한국어로 답하셔도 됩니다</div><div class="send">전송</div></div><div class="cnt"><span>장소 · 상대 · 해결할 것</span><span>글자 수 제한 없음</span></div></div>
+    </div></div><div class="cap"><b>N1 목표와 상황.</b> 장소, 상대, 목적을 꼬리 질문으로 좁힌다.</div></div>
+
+    <div><div class="ph chat"><div class="bd">
+      <div class="top"><div class="between"><span class="lab">목표 정하기</span><span class="lab">2 / 3 이유와 약속</span></div><div class="gauge" style="margin-top:6px"><i style="width:60%"></i></div></div>
+      <div class="msgs">
+        <div class="grp"><span class="who">그래고</span><div class="q">주문할 때 어디서 막히십니까?</div></div>
+        <div class="grp r"><span class="who">나</span><div class="q">우유 바꾸는 거랑 사이즈요</div></div>
+        <div class="grp"><span class="who">그래고</span><div class="q">그러면 첫 상황은 "스타벅스에서 옵션을 바꿔 주문하는 고객"입니다.</div><div class="q">이 목표를 왜 하십니까? 20자 이상으로 적어 주십시오. 나중에 바꿀 수 없습니다.</div></div>
+        <div class="grp r"><span class="who">나</span><div class="q">해외 출장 때마다 손짓으로 주문하는 게 창피해서</div></div>
+        <div class="grp"><span class="who">그래고</span><div class="q">몇 시에, 하루 몇 분 하시겠습니까? 5분에서 30분 사이입니다.</div></div>
+        <div class="grp r"><span class="who">나</span><div class="q">밤 10시에 15분</div></div>
+        <div class="grp"><span class="who">그래고</span><div class="q">무슨 요일에 하십니까? 주 5일 이상입니다.</div></div>
+      </div>
+      <div class="bar"><div class="ex-row"><span class="chip on">월~금</span><span class="chip">매일</span><span class="chip">직접 고르기</span></div><div class="inrow"><div class="in">답하거나 위에서 고르세요</div><div class="send">전송</div></div></div>
+    </div></div><div class="cap"><b>N2 꼬리 질문.</b> 이유 20자, 시각, 분, 요일. 보기가 있는 질문은 칩으로도 답한다.</div></div>
+
+    <div><div class="ph"><div class="bd">
+      <span class="lab">3 / 3 확인</span>
+      <div class="h2">이렇게 시작합니다</div>
+      <div class="list">
+        <div class="it"><span>목표</span><span>스타벅스에서 영어로 주문하기</span></div>
+        <div class="it"><span>상황</span><span>옵션을 바꿔 주문하는 고객</span></div>
+        <div class="it"><span>상대</span><span>주문 담당 직원</span></div>
+        <div class="it"><span>기간</span><span>30일</span></div>
+        <div class="it"><span>매일</span><span>22:00 · 15분 · 월~금</span></div>
+      </div>
+      <div class="field"><span class="lab">나의 이유</span><div class="in ro serif">해외 출장 때마다 손짓으로 주문하는 게 창피해서</div></div>
+      <span class="sm">내일 22:00부터 시작합니다. 이름과 이유는 바꿀 수 없습니다.</span>
+    </div><div class="ft"><div class="btn big">이걸로 시작</div><div class="btn sec">채팅으로 돌아가기</div></div></div><div class="cap"><b>N3 확인.</b> 채팅에서 추린 내용을 카드로. 시작하면 홈 대기 상태.</div></div>
+  </div>
+
+  <!-- ===== 홈 ===== -->
+  <h2 id="home">홈</h2>
+  <p class="note">목표가 생긴 뒤의 홈. 위는 누적 숫자, 가운데는 상태별로 바뀌며 위아래 선으로 묶인다. 아래는 오늘의 코치. 빨강은 독촉, 이탈, 포기 대기에만.</p>
+  <div class="row">
+    <div><div class="ph"><div class="bd">
+      <div><span class="lab">누적 학습</span><div class="num">1,245<span style="font-size:20px">분</span></div><div class="gauge" style="margin-top:6px"><i style="width:62%"></i></div><div class="between" style="margin-top:4px"><span class="sm">1,500분까지 255분</span><span class="sm" style="color:var(--ink)">연속 12일</span></div></div>
+      <div class="mid"><span class="sm">스타벅스에서 영어로 주문하기</span><span class="lab">시작까지</span><div class="num md">02:14:08</div><span class="body serif">22:00에 15분. 오늘도 쉬는 날은 없습니다.</span></div>
+      <div class="between"><span class="h2" style="text-decoration:underline">쿠폰 2장</span><span class="sm">달성 선언까지 18일</span></div>
+      <div><span class="lab">오늘의 코치</span><div class="bots" style="margin-top:6px"><div class="bot on">비즈니스 이메일<small>100자 이상</small></div><div class="bot">원어민 프리토킹<small>100자 이상</small></div></div></div>
+    </div><div class="tabs"><div class="on t-home">홈</div><div class="t-coach">코치</div><div class="t-archive">기록</div><div class="t-settings">설정</div></div></div><div class="cap"><b>H 대기.</b> 주 버튼 없음.</div></div>
+
+    <div><div class="ph"><div class="bd">
+      <div><span class="lab">누적 학습</span><div class="num">1,245<span style="font-size:20px">분</span></div><div class="gauge" style="margin-top:6px"><i style="width:62%"></i></div><div class="between" style="margin-top:4px"><span class="sm">1,500분까지 255분</span><span class="sm" style="color:var(--ink)">연속 12일</span></div></div>
+      <div class="mid"><span class="sm">스타벅스에서 영어로 주문하기</span><span class="lab">시작까지</span><div class="num md">00:12:40</div><span class="body serif">오늘 할 분: 15분</span></div>
+      <div class="between"><span class="h2" style="text-decoration:underline">쿠폰 2장</span><span class="sm">달성 선언까지 18일</span></div>
+    </div><div class="ft"><div class="btn big">지금 시작</div></div><div class="tabs"><div class="on t-home">홈</div><div class="t-coach">코치</div><div class="t-archive">기록</div><div class="t-settings">설정</div></div></div><div class="cap"><b>H 임박 / 유예.</b> 사전 알림 뒤. 주 버튼 하나.</div></div>
+
+    <div><div class="ph red"><div class="bd">
+      <div><span class="lab">누적 학습</span><div class="num">1,245<span style="font-size:20px">분</span></div><div class="gauge" style="margin-top:6px"><i style="width:62%"></i></div><div class="between" style="margin-top:4px"><span class="sm">1,500분까지 255분</span><span class="sm">연속 12일</span></div></div>
+      <div class="mid"><span class="sm">스타벅스에서 영어로 주문하기</span><span class="lab">약속 시각이 지났습니다</span><div class="num md">23분 경과</div><span class="lab" style="margin-top:6px">나의 이유</span><span class="body serif">해외 출장 때마다 손짓으로 주문하는 게 창피해서</span></div>
+      <div class="between"><span class="h2" style="text-decoration:underline">쿠폰 2장</span><span class="sm">달성 선언까지 18일</span></div>
+    </div><div class="ft"><div class="btn big inv">지금 시작</div></div></div><div class="cap"><b>H 독촉.</b> 배경 전체 빨강. 깜빡임 1회.</div></div>
+
+    <div><div class="ph red"><div class="bd">
+      <div><span class="lab">누적 학습</span><div class="num">1,245<span style="font-size:20px">분</span></div><div class="gauge" style="margin-top:6px"><i style="width:62%"></i></div></div>
+      <div class="mid"><span class="sm">스타벅스에서 영어로 주문하기</span><span class="lab">하다 말고 나가셨습니다</span><div class="num md">5분 남음</div><span class="body serif">돌아오시면 하던 대화를 이어갑니다.</span></div>
+    </div><div class="ft"><div class="btn big inv">이어서 하기</div></div></div><div class="cap"><b>H 진행 중 이탈.</b></div></div>
+
+    <div><div class="ph"><div class="bd">
+      <div><span class="lab">누적 학습</span><div class="num">1,260<span style="font-size:20px">분</span></div><div class="gauge" style="margin-top:6px"><i style="width:64%"></i></div><div class="between" style="margin-top:4px"><span class="sm">1,500분까지 240분</span><span class="sm" style="color:var(--ink)">연속 13일</span></div></div>
+      <div class="mid"><span class="sm">스타벅스에서 영어로 주문하기</span><span class="lab">오늘</span><div class="num md">15분 완료</div><span class="body serif">"instead를 처음 입에 붙였다. 내일은 사이즈 바꾸기."</span></div>
+      <div class="between"><span class="h2" style="text-decoration:underline">쿠폰 2장</span><span class="sm">달성 선언까지 17일</span></div>
+    </div><div class="tabs"><div class="on t-home">홈</div><div class="t-coach">코치</div><div class="t-archive">기록</div><div class="t-settings">설정</div></div></div><div class="cap"><b>H 완료.</b> 소감 첫 줄.</div></div>
+
+    <div><div class="ph"><div class="bd">
+      <div><span class="lab">누적 학습</span><div class="num">1,245<span style="font-size:20px">분</span></div><div class="gauge" style="margin-top:6px"><i style="width:62%"></i></div></div>
+      <div class="mid"><span class="sm">스타벅스에서 영어로 주문하기</span><span class="lab">오늘은 쉽니다</span><div class="num md">쿠폰 1장</div><span class="body serif">남은 쿠폰 1장. 다음 쿠폰은 2주 연속에 받습니다. 연속은 내일 0일부터.</span></div>
+    </div><div class="tabs"><div class="on t-home">홈</div><div class="t-coach">코치</div><div class="t-archive">기록</div><div class="t-settings">설정</div></div></div><div class="cap"><b>H 쿠폰 사용.</b></div></div>
+
+    <div><div class="ph red"><div class="bd">
+      <div><span class="lab">누적 학습</span><div class="num">1,245<span style="font-size:20px">분</span></div></div>
+      <div class="mid"><span class="lab">포기 확정까지</span><div class="num md">18:42:10</div><span class="body serif">이 시간이 지나면 목표와 기록이 사라집니다.</span><span class="lab" style="margin-top:6px">처음 이유</span><span class="body serif">해외 출장 때마다 손짓으로 주문하는 게 창피해서</span></div>
+    </div><div class="ft"><div class="btn big inv">포기 철회</div></div></div><div class="cap"><b>H 포기 대기.</b> 24시간. 철회하면 원래대로.</div></div>
+
+    <div><div class="ph"><div class="bd">
+      <div class="banner"><span>알림이 꺼져 있습니다. 약속한 시간에 연락할 수 없습니다.</span><u>설정 열기</u></div>
+      <div><span class="lab">누적 학습</span><div class="num">1,245<span style="font-size:20px">분</span></div><div class="gauge" style="margin-top:6px"><i style="width:62%"></i></div></div>
+      <div class="mid"><span class="sm">스타벅스에서 영어로 주문하기</span><span class="lab">시작까지</span><div class="num md">02:14:08</div></div>
+      <div class="between"><span class="h2" style="text-decoration:underline">쿠폰 2장</span><span class="h2" style="text-decoration:underline">달성 선언</span></div>
+    </div><div class="tabs"><div class="on t-home">홈</div><div class="t-coach">코치</div><div class="t-archive">기록</div><div class="t-settings">설정</div></div></div><div class="cap"><b>H 보조.</b> 알림 꺼짐 배너, 30일 뒤 달성 선언 링크.</div></div>
+  </div>
+
+  <!-- ===== 세션 ===== -->
+  <h2 id="session">세션</h2>
+  <p class="note">S1 이유 → S2 채팅 → S3 소감 → S4 완료. 채팅은 화자 셋. 직원은 왼쪽, 나는 오른쪽, 코치는 가운데. 속마음은 회색 지문. 같은 화자가 이어 말하면 붙여 쓴다.</p>
+  <div class="row">
+    <div><div class="ph"><div class="bd">
+      <span class="back">‹ 홈</span>
+      <div class="h2">오늘은 왜 하십니까?</div>
+      <span class="sm">스타벅스에서 영어로 주문하기</span>
+      <div class="field"><span class="lab">어제 이유</span><div class="in ro serif">회의에서 말 한마디 못 한 게 분해서</div></div>
+      <div class="field"><div class="between"><span class="lab">오늘의 이유</span><span class="cnt bad">9/20</span></div><div class="in ta filled serif">출장이 다음 주라서</div><span class="sm">20자 이상. 어제와 같은 문장은 안 됩니다.</span></div>
+    </div><div class="ft"><div class="btn big dis">시작</div></div></div><div class="cap"><b>S1 오늘의 이유.</b> 복사 버튼 없음.</div></div>
+
+    <div><div class="ph chat"><div class="bd">
+      <div class="top"><div class="between"><span class="lab">스타벅스 · 나는 고객</span><span class="lab">412자</span></div><div class="num md">09:41</div><div class="gauge"><i style="width:37%"></i></div></div>
+      <div class="msgs">
+        <div class="nar">직원이 컵을 들어 보이며 물었다.</div>
+        <div class="grp"><span class="who">직원</span><div class="q">Would you like regular milk?</div><div class="q">We also have oat and soy.</div></div>
+        <div class="grp r"><span class="who">나</span><div class="th">아 "대신"이 영어로 뭐였지. 왜 이렇게 어려워.</div><div class="q">No. Oat milk please.</div></div>
+        <div class="grp"><span class="who">직원</span><div class="th">짧지만 뜻은 통했군요. 이대로 넘어가도 될까.</div></div>
+        <div class="coach"><span class="k">코치</span><span class="ex">Could I have … instead?</span><span class="mean">대신 …로 받을 수 있을까요?</span><span class="desc">제안한 것을 다른 것으로 바꿔 달라고 할 때 씁니다.</span><div class="word"><b>instead</b><span>대신, 그 대신</span></div></div>
+        <div class="grp"><span class="who">직원</span><div class="q">We have hot coffee ready. Would you like one?</div></div>
+        <div class="grp r"><span class="who">나</span><div class="q">Could I have iced coffee instead?</div></div>
+        <div class="grp"><span class="who">직원</span><div class="th">생각보다 잘하시네요.</div></div>
+      </div>
+      <div class="bar"><div class="seg"><div class="on">영어 답변</div><div>속마음</div></div><div class="inrow"><div class="in">영어로 답해 보세요</div><div class="send off">전송</div></div><div class="cnt"><span>100자 이상</span><b>0/100</b></div></div>
+    </div></div><div class="cap"><b>S2 채팅.</b> 직원이 두 문장 이으면 4px, 화자가 바뀌면 14px.</div></div>
+
+    <div><div class="ph chat"><div class="bd">
+      <div class="top"><div class="between"><span class="lab">스타벅스 · 나는 고객</span><span class="lab">412자</span></div><div class="num md">09:41</div><div class="gauge"><i style="width:37%"></i></div></div>
+      <div class="msgs">
+        <div class="grp"><span class="who">직원</span><div class="q">Would you like regular milk?</div></div>
+        <div class="grp r"><span class="who">나</span><div class="q">No. Oat milk please.</div><div class="th">아 하기 싫다. 그냥 한국말로 하면 안 되나.</div></div>
+        <div class="grp"><span class="who">직원</span><div class="scold">안 됩니다. 15분 중 9분 남았습니다.</div></div>
+        <div class="nar">2분이 지났다. 당신은 아직 아무 말도 하지 않았다.</div>
+      </div>
+      <div class="bar"><div class="seg"><div>영어 답변</div><div class="on">속마음</div></div><div class="inrow"><div class="in">속마음은 한국어로 써도 됩니다</div><div class="send">전송</div></div><div class="cnt"><span>글자 수 제한 없음</span><span>시간은 흐릅니다</span></div></div>
+    </div></div><div class="cap"><b>S2 속마음 모드.</b> 긁는 말은 빨강 한 줄.</div></div>
+
+    <div><div class="ph chat"><div class="bd">
+      <div class="top"><div class="between"><span class="lab">스타벅스 · 나는 고객</span><span class="lab">412자</span></div><div class="num md">09:41</div><div class="gauge"><i style="width:37%"></i></div></div>
+      <div class="msgs">
+        <div class="grp"><span class="who">직원</span><div class="q">Would you like regular milk?</div></div>
+        <div class="grp r"><span class="who">나</span><div class="q">No. Oat milk please.</div></div>
+      </div>
+      <div class="bar"><div class="seg"><div class="on">영어 답변</div><div>속마음</div></div><div class="inrow"><div class="in">영어로 답해 보세요</div><div class="send off">전송</div></div></div>
+      <div class="dim"><div class="modal"><span class="k">코치 · 퀴즈</span><span class="ex">"대신 아이스로 주시겠어요?"</span><span class="sm">영어로 고르세요.</span><div class="opt on">Could I have iced coffee instead?</div><div class="opt">Can you iced coffee change?</div><div class="opt">I want iced coffee, not hot.</div><div class="btn" style="margin-top:4px">적용해 보기</div></div></div>
+    </div></div><div class="cap"><b>S2 코치 모달.</b> 퀴즈와 플래시카드. 어두운 바탕.</div></div>
+
+    <div><div class="ph chat"><div class="bd">
+      <div class="top"><div class="between"><span class="lab">스타벅스 · 나는 고객</span><span class="lab">412자</span></div><div class="num md">07:12</div><div class="gauge"><i style="width:52%"></i></div></div>
+      <div class="msgs">
+        <div class="grp"><span class="who">직원</span><div class="q">We have hot coffee ready. Would you like one?</div></div>
+      </div>
+      <div class="bar"><div class="seg"><div class="on">영어 답변</div><div>속마음</div></div><div class="inrow"><div class="in">영어로 답해 보세요</div><div class="send off">전송</div></div></div>
+      <div class="dim"><div class="modal redm"><span class="k" style="color:rgba(255,255,255,.8)">2분 동안 입력 없음</span><span class="h1">딴짓 중이십니까?</span><span class="body">시간은 멈춰 있습니다. 돌아오시면 다시 흐릅니다.</span><div class="btn inv" style="margin-top:4px">계속하기</div></div></div>
+    </div></div><div class="cap"><b>S2 딴짓 팝업.</b> 진동 1회. 팝업 중 시간 정지.</div></div>
+
+    <div><div class="ph"><div class="bd">
+      <span class="lab">오늘 15분 · 412자</span>
+      <div class="h2">오늘은 어떠셨습니까?</div>
+      <div class="field"><div class="between"><span class="lab">오늘의 소감</span><span class="cnt">24/20</span></div><div class="in ta filled serif">instead를 처음 입에 붙였다. 내일은 사이즈 바꾸기.</div></div>
+      <span class="sm">3분 회고는 완료 뒤 코치와 영어로 이어집니다.</span>
+    </div><div class="ft"><div class="btn big">완료</div></div></div><div class="cap"><b>S3 오늘의 소감.</b> 20자 미만이면 비활성.</div></div>
+
+    <div><div class="ph"><div class="bd">
+      <span class="lab">오늘</span><div class="num">15<span style="font-size:20px">분</span></div>
+      <div class="between"><div><span class="lab">누적</span><div class="num md">1,260분</div></div><div><span class="lab">연속</span><div class="num md">13일</div></div></div>
+      <hr class="hr">
+      <div class="body serif">오늘 15분 채웠습니다.</div>
+      <div class="body serif" style="color:var(--sub)">내일도 하실 수 있겠습니까?</div>
+    </div><div class="ft"><div class="btn big">확인</div></div></div><div class="cap"><b>S4 완료.</b> 격려 한 문장, 흔드는 한 문장.</div></div>
+  </div>
+
+  <!-- ===== 쿠폰 ===== -->
+  <h2 id="coupon">쿠폰 시트</h2>
+  <div class="row">
+    <div><div class="ph red"><div class="bd">
+      <div><span class="lab">누적 학습</span><div class="num">1,245<span style="font-size:20px">분</span></div></div>
+      <div class="mid"><span class="lab">약속 시각이 지났습니다</span><div class="num md">23분 경과</div></div>
+      <div class="sheet" style="color:var(--ink)">
+        <span class="lab">쿠폰</span>
+        <div class="num md">2장 남음</div>
+        <span class="sm">다음 쿠폰은 2주 연속에 받습니다. 지금 연속 12일.</span>
+        <div class="banner"><span>쓰면 연속이 0일로 돌아갑니다.</span></div>
+        <div class="btn big">쿠폰 쓰기</div><div class="btn sec">닫기</div>
+      </div>
+    </div></div><div class="cap"><b>C 쿠폰 시트.</b> 홈의 쿠폰 표시에서 연다. 독촉 중에도 열린다.</div></div>
+  </div>
+
+  <!-- ===== 달성 ===== -->
+  <h2 id="achieve">달성</h2>
+  <div class="row">
+    <div><div class="ph"><div class="bd">
+      <span class="back">‹ 홈</span>
+      <div class="h2">달성을 선언하시겠습니까?</div>
+      <div class="list"><div class="it"><span>시작일</span><span>9월 8일</span></div><div class="it"><span>경과</span><span>30일</span></div><div class="it"><span>누적</span><span>1,260분</span></div></div>
+      <div class="field"><span class="lab">처음 이유</span><div class="in ro serif">해외 출장 때마다 손짓으로 주문하는 게 창피해서</div></div>
+    </div><div class="ft"><div class="btn big">달성 선언</div></div></div><div class="cap"><b>A1 확인.</b></div></div>
+
+    <div><div class="ph"><div class="bd">
+      <div style="flex:1"></div>
+      <div class="num" style="font-size:64px">30<span style="font-size:24px">일</span></div>
+      <div class="num md">1,260분</div>
+      <hr class="hr">
+      <div class="body serif">30일을 해내셨습니다.</div>
+      <div class="body serif" style="color:var(--sub)">여기서 쉬면 원래대로 돌아갑니다.</div>
+      <div style="flex:1"></div>
+    </div><div class="ft"><div class="btn big">다음 목표 정하기</div></div></div><div class="cap"><b>A2 달성.</b> 닫기 없음.</div></div>
+
+    <div><div class="ph chat"><div class="bd">
+      <div class="top"><div class="between"><span class="lab">다음 목표 정하기</span><span class="lab">1 / 3</span></div><div class="gauge" style="margin-top:6px"><i style="width:10%"></i></div></div>
+      <div class="msgs">
+        <div class="grp"><span class="who">그래고</span><div class="q">30일을 해내셨습니다. 여기서 멈추면 원래대로 돌아갑니다.</div><div class="q">다음은 무엇을 해내시겠습니까?</div></div>
+      </div>
+      <div class="bar"><div class="inrow"><div class="in">한국어로 답하셔도 됩니다</div><div class="send">전송</div></div><div class="cnt"><span>닫기 없음</span><span></span></div></div>
+    </div></div><div class="cap"><b>A3 새 목표.</b> 목표 설정 채팅 N1~N3 재사용. 닫기 없음.</div></div>
+  </div>
+
+  <!-- ===== 코치 ===== -->
+  <h2 id="bots">코치</h2>
+  <div class="row">
+    <div><div class="ph"><div class="bd">
+      <div class="h2">코치</div>
+      <span class="lab">기본</span>
+      <div class="list"><div class="it"><span>비즈니스 이메일</span><span>100자</span></div><div class="it"><span>원어민 프리토킹</span><span>100자</span></div><div class="it"><span>IT 기사 3문장 요약</span><span>150자</span></div><div class="it"><span>영단어 퀴즈</span><span>60자</span></div></div>
+      <span class="lab">내 코치</span>
+      <div class="list"><div class="it"><span>스타벅스 직원</span><span>80자</span></div></div>
+    </div><div class="ft"><div class="btn">새 코치</div></div><div class="tabs"><div class="t-home">홈</div><div class="on t-coach">코치</div><div class="t-archive">기록</div><div class="t-settings">설정</div></div></div><div class="cap"><b>B1 목록.</b></div></div>
+
+    <div><div class="ph"><div class="bd">
+      <span class="back">‹ 코치</span>
+      <div class="h2">코치 만들기</div>
+      <div class="field"><span class="lab">이름</span><div class="in filled">스타벅스 직원</div></div>
+      <div class="field"><span class="lab">역할 설명</span><div class="in ta filled">주문을 받는 직원. 옵션을 묻고, 품절이면 대안을 제안한다.</div></div>
+      <div class="field"><span class="lab">최소 글자 수</span><div class="step"><b>−</b><span>80</span><b>+</b></div></div>
+    </div><div class="ft"><div class="btn big">저장</div></div></div><div class="cap"><b>B2 만들기와 수정.</b></div></div>
+  </div>
+
+  <!-- ===== 기록 ===== -->
+  <h2 id="archive">기록</h2>
+  <div class="row">
+    <div><div class="ph"><div class="bd">
+      <div class="between"><div class="h2">10월</div><span class="sm">■ 완료 · ■ 실패 · □ 쿠폰</span></div>
+      <div class="cal">
+        <div class="before">29</div><div class="before">30</div><div class="done">1</div><div class="done">2</div><div class="miss">3</div><div class="rest">4</div><div class="rest">5</div>
+        <div class="done">6</div><div class="done">7</div><div class="coupon">8</div><div>9</div><div>10</div><div class="rest">11</div><div class="rest">12</div>
+      </div>
+      <div class="card"><span class="sm">10월 7일 · 15분 · 스타벅스 직원 · 412자</span><span class="body serif">출장이 다음 주라서 더는 미룰 수 없어서</span></div>
+      <div class="card"><span class="sm">10월 6일 · 15분 · 스타벅스 직원 · 380자</span><span class="body serif">회의에서 말 한마디 못 한 게 분해서</span></div>
+    </div><div class="tabs"><div class="t-home">홈</div><div class="t-coach">코치</div><div class="on t-archive">기록</div><div class="t-settings">설정</div></div></div><div class="cap"><b>R1 달력과 카드.</b> 쉬는 요일은 흐리게.</div></div>
+
+    <div><div class="ph chat"><div class="bd">
+      <div class="top"><span class="back">‹ 기록</span><span class="lab" style="margin-top:6px">10월 7일 · 15분 · 스타벅스 직원 · 412자</span><div class="h2 serif">출장이 다음 주라서 더는 미룰 수 없어서</div></div>
+      <div class="msgs" style="justify-content:flex-start">
+        <div class="grp"><span class="who">직원</span><div class="q">Would you like regular milk?</div></div>
+        <div class="grp r"><span class="who">나</span><div class="q">No. Oat milk please.</div></div>
+        <div class="coach"><span class="k">코치</span><span class="ex">Could I have … instead?</span></div>
+        <div class="grp r"><span class="who">나</span><div class="q">Could I have iced coffee instead?</div></div>
+        <div class="nar">소감. instead를 처음 입에 붙였다. 내일은 사이즈 바꾸기.</div>
+      </div>
+    </div></div><div class="cap"><b>R2 상세.</b> 이유, 채팅 전체, 소감.</div></div>
+  </div>
+
+  <!-- ===== 설정 ===== -->
+  <h2 id="settings">설정</h2>
+  <div class="row">
+    <div><div class="ph"><div class="bd">
+      <div class="h2">설정</div>
+      <div class="list"><div class="it"><span>목표 관리</span><span>스타벅스 주문 ›</span></div><div class="it"><span>알림 권한</span><span>켜짐</span></div><div class="it"><span>남은 쿠폰</span><span>2장</span></div><div class="it"><span>앱 정보</span><span>1.0.0</span></div></div>
+    </div><div class="tabs"><div class="t-home">홈</div><div class="t-coach">코치</div><div class="t-archive">기록</div><div class="on t-settings">설정</div></div></div><div class="cap"><b>T1 설정.</b></div></div>
+
+    <div><div class="ph"><div class="bd">
+      <span class="back">‹ 설정</span>
+      <div class="h2">목표 관리</div>
+      <div class="field"><span class="lab">목표 이름</span><div class="in ro">스타벅스에서 영어로 주문하기</div></div>
+      <div class="field"><span class="lab">처음 이유</span><div class="in ro serif">해외 출장 때마다 손짓으로 주문하는 게 창피해서</div></div>
+      <div class="ex-row"><div class="field" style="flex:1"><span class="lab">시작 시각</span><div class="step"><b>−</b><span>22:00</span><b>+</b></div></div><div class="field" style="flex:1"><span class="lab">분</span><div class="step"><b>−</b><span>15</span><b>+</b></div></div></div>
+      <span class="sm">다음 날부터 적용됩니다.</span>
+      <div class="list"><div class="it danger"><span>포기</span><span>›</span></div></div>
+    </div><div class="ft"><div class="btn big">저장</div></div></div><div class="cap"><b>T2 목표 관리.</b> 이름과 이유는 읽기 전용.</div></div>
+
+    <div><div class="ph red"><div class="bd">
+      <span class="lab">포기 1회째 · 남은 횟수 2회</span>
+      <div class="h1 serif">이 모든 시간을<br>정말 버리시겠습니까?</div>
+      <div class="between"><div><span class="lab">경과</span><div class="num md">12일</div></div><div><span class="lab">누적</span><div class="num md">1,245분</div></div></div>
+      <div><span class="lab">처음 이유</span><div class="body serif">해외 출장 때마다 손짓으로 주문하는 게 창피해서</div></div>
+      <div class="body serif" style="opacity:.9">옛날처럼 아무것도 하지 않던 때로 돌아가시는 겁니다.</div>
+    </div><div class="ft"><div class="btn big inv">계속하기</div><div class="btn inv ghost">포기 신청</div></div></div><div class="cap"><b>G1 포기 확인.</b> 계속하기가 더 크다. 신청하면 24시간 대기.</div></div>
+
+    <div><div class="ph red"><div class="bd">
+      <span class="lab">포기 3회째</span>
+      <div class="h1 serif">지금 포기하면<br>목표와 기록이<br>전부 삭제됩니다.</div>
+      <div class="body serif" style="opacity:.9">대기 없이 즉시 삭제됩니다. 이 계정은 정지됩니다.</div>
+      <div style="flex:1"></div>
+    </div><div class="ft"><div class="btn big inv">계속하기</div><div class="btn inv ghost">삭제</div></div></div><div class="cap"><b>G3 삭제 경고.</b> 4번째 신청. 확인 즉시 삭제.</div></div>
+
+    <div><div class="ph"><div class="bd">
+      <span class="back">‹ 설정</span>
+      <div class="h2">알림이 꺼져 있습니다</div>
+      <div class="body serif">약속한 시간에 연락할 수 없습니다. 그래고는 연락이 전부입니다.</div>
+      <div class="card"><span class="sm">설정 › 알림 › 그래고 › 허용</span></div>
+    </div><div class="ft"><div class="btn big">설정 열기</div></div></div><div class="cap"><b>T3 알림 안내.</b></div></div>
+  </div>
+</div>
+</body>
+</html>

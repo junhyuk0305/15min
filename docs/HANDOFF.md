@@ -22,7 +22,7 @@
 
 | 순서 | 할 일 | 왜 | 어디서 | 끝나면 넣을 값과 넣는 곳 |
 |---|---|---|---|---|
-| 1 | 앱 이름 표기, slug, 번들 ID 확정 | 첫 스토어 업로드 뒤에는 번들 ID를 바꿀 수 없다. 지금 값은 slug `timebulldog`, ID `com.dochackchack.timebulldog`, EAS 프로젝트 `@chackchack/timebulldog` | `app.json` | 바꾸면 `app.json`의 `slug`, `ios.bundleIdentifier`, `android.package`를 고치고 `npx eas-cli@latest init`을 다시 한다 |
+| 1 | 앱 이름 표기, slug, 번들 ID 확정 | 첫 스토어 업로드 뒤에는 번들 ID를 바꿀 수 없다. 지금 값은 slug `timebulldog`, ID `com.dochackchack.graego`(2026-10-22 timebulldog에서 바꿈), EAS 프로젝트 `@chackchack/timebulldog` | `app.json` | 바꾸면 `app.json`의 `slug`, `ios.bundleIdentifier`, `android.package`를 고치고 `npx eas-cli@latest init`을 다시 한다 |
 | 2 | Supabase 프로젝트 생성 | 서버(DB, 인증, AI 함수)가 여기 있다 | supabase.com 대시보드. 리전은 서울(ap-northeast-2) 권장 | Project URL과 anon key는 7번 EAS 환경변수로. service role key와 access token은 본인 PC에만 둔다. 처리방침의 `[리전]`을 채운다 |
 | 3 | Gemini API 키 발급과 결제 연결 | AI 수업 전부가 이 키로 돈다. 무료 등급은 입력이 Google 제품 개선에 쓰일 수 있어 실사용자 데이터는 유료 등급으로 처리한다 | Google AI Studio. 결제 계정 연결, Google Cloud 예산 알림과 지출 상한 설정 | `npx supabase secrets set GEMINI_API_KEY=<키>`. 선택: `npx supabase secrets set AI_MODEL_MAIN=gemini-3.8-flash AI_MODEL_LIGHT=gemini-3.5-flash-lite AI_DAILY_LIMIT=150 AI_GOAL_SETUP_LIMIT=30 AI_GLOBAL_DAILY_LIMIT=20000`. `AI_FAKE`는 넣지 않는다 |
 | 4 | 마이그레이션 적용과 함수 배포 | 표, 권한, 상태 변경 RPC, cron, AI 함수를 운영에 올린다 | 저장소 폴더 | `npx supabase link --project-ref <ref>` → `npx supabase db push` → `npx supabase functions deploy goal-setup lesson-turn review-quiz retro reflection delete-account`. 대시보드 Integrations > Cron에서 작업(포기 확정, 정지 해제, 매시 판정, 매일 보관 삭제)이 켜졌는지 본다 |
@@ -128,3 +128,27 @@ UX 고도화 중 묻지 않고 기본값으로 정했고, 오너가 보고 바�
 - 큰 글자는 웹에서 글자를 1.5배로 키운 12화면만 봤다. 시스템 글자 크기 최대는 실기기에서 본다.
 - 실제 Gemini 응답. 모든 화면 확인은 `AI_FAKE=1` 고정 응답으로 했다.
 - 작은 화면(360×640, 375×667) 사진은 이번에 다시 찍지 않았다. `docs/화면상태/small/`은 MVP 때 사진이다.
+
+## 6. 진행 현황과 할 일 (2026-10-22)
+
+### 6.1 끝난 것
+- 운영 Supabase 프로젝트 "그래고"(서울, ref `nksvcgprsefxigyzuisk`)에 연결했다. 마이그레이션 11개 적용, 함수 6개 배포, cron 4개 켜짐, `email_hash_pepper` 있음.
+- `GEMINI_API_KEY`를 서버 비밀 값에 넣었다. 선택 값(`AI_MODEL_*`, 한도)은 넣지 않아 코드 기본값으로 돈다.
+- EAS production, preview 환경에 `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`를 넣었다. development 환경과 Sentry DSN은 비어 있다.
+- 번들 ID를 `com.dochackchack.graego`로 바꿨다(iOS, Android). slug와 EAS 프로젝트는 그대로다.
+- iOS preview(internal) 빌드를 iPhone 1대에 설치했다. 배포 인증서는 같은 팀의 기존 인증서를 재사용했다. 원격 푸시(APNs)는 설정하지 않았다(로컬 알림만 쓴다).
+
+### 6.2 할 일
+
+| 순서 | 할 일 | 상태와 메모 |
+|---|---|---|
+| 1 | 회원가입, 이메일 작업 | 운영 메일 템플릿이 기본값이라 코드 대신 링크가 간다. Confirm signup과 Magic Link를 `supabase/templates/otp.html`로 바꾸고 OTP 길이 6을 확인한다. Confirm email, Secure password change, 비밀번호 12자도 켠다. 지금은 기본 이메일 발송을 쓴다(시간당 몇 통). 테스터가 늘기 전에 커스텀 SMTP를 연결하고 처리방침 `[SMTP 제공자]`를 채운다 |
+| 2 | iPhone에서 실제 흐름 확인 | 1번 뒤 가입, 목표 정하기, 다음 날 학습, 회고를 실제 Gemini로 한 번 돈다. 5.2 실기기 목록도 이 기기로 본다 |
+| 3 | Android preview 빌드 | `npx eas-cli@latest build --profile preview --platform android`. 옛 AAB는 옛 번들 ID라 못 쓴다 |
+| 4 | AI 평가 | `GEMINI_API_KEY=<키> npm run eval`. 출시 차단 항목이다 |
+| 5 | 테스터 배포 방식 | Android는 APK 링크. iOS는 몇 명이면 기기 등록 뒤 재빌드, 많으면 TestFlight(App Store Connect 앱 생성, `ascAppId`, production 빌드와 submit) |
+| 6 | 비용 안전판 | Google Cloud 예산 알림과 지출 상한 |
+| 7 | 약관과 처리방침 | 1절 12번. 자리표시자, 법무 확인, 공개 URL |
+| 8 | 결정 대기 | 0절(가입 연령 등)과 5.3절 |
+| 9 | 심사용 데모 계정 | 1절 13번. 운영 DB에는 아직 없다 |
+| 10 | 커밋과 원격 저장소 | `app.json` 번들 ID, `docs/기획서.md` v9, 새 문서 8개가 커밋되지 않았다. 원격 저장소가 없다 |
