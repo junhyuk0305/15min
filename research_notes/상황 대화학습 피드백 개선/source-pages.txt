@@ -1,0 +1,1899 @@
+=== PAGE 1 ===
+2026
+ 학년도
+ 2
+학기
+ ·  Week 07
+Noticing &
+Corrective Feedback
+주목하기
+· 
+교정
+피드백
+· AI 
+피드백
+지시문
+01
+
+=== PAGE 2 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+오늘
+수업의
+구성
+02
+01
+준비와
+1
+단계
+지시
+없이
+만든
+앱
+내가
+만든
+앱과
+교수자
+AI 
+앱
+비교
+02
+이론
+비계
+· 
+교정
+피드백
+이론
+설명과
+개념별
+적용
+퀴즈
+03
+2
+단계
+· 3
+단계
+AI 
+붙이기
+· 
+지침
+· 
+원칙
+조별로
+내
+앱에
+AI 
+연결
+,
+조
+지시문으로
+실행
+04
+조별
+비교
+세
+단계
+비교
+· 
+보고
+같은
+문장
+, 
+다른
+지시문
+.
+우리
+학습자에게
+맞는
+것
+
+=== PAGE 3 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+수업
+시작
+: 
+내
+Emoji Diary 
+만들기
+03
+지금
+ · 
+내가
+ 만드는
+ 앱
+ (Codex)
+AI 
+오류
+피드백
+앱을
+그냥
+만들어
+달라고
+하기
+1
+ 새
+폴더
+W07_emoji
+ -
+diary 
+만들기
+2
+ Codex
+에서
+이
+폴더를
+프로젝트로
+열기
+3
+ P0 
+붙여
+넣기
+→ 
+결과는
+1
+단계에서
+개인
+프로젝트
+폴더가
+아닌
+새
+폴더에서
+오늘
+ 이
+ 앱으로
+ 하는
+ 세
+ 단계
+같은
+앱
+, 
+달라지는
+것은
+AI 
+연결과
+지시문
+1
+ 1
+단계
+: 
+지시
+없이
+(
+지금
+만드는
+그대로
+)
+2
+ 2
+단계
+: 
+조별로
+AI 
+붙이고
+지침
+넣기
+3
+ 3
+단계
+: 
+원칙만
+주고
+AI
+에
+맡기기
+교수자의
+AI 
+연결
+앱은
+1
+단계에서
+시연
+지금
+할
+일
+ 새
+폴더에서
+Codex
+에
+P0
+ 활동지
+ 0
+번
+ 남길
+기록
+ 없음
+(
+결과는
+1
+단계에서
+)
+
+=== PAGE 4 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+1
+단계
+: 
+지시
+없이
+(
+내
+앱
+· 
+교수자
+시연
+앱
+)
+04
+①
+ 내
+ 앱
+ · 
+연결
+ 방법을
+ 지시하지
+ 않고
+ 만든
+ 앱
+피드백은
+어디서
+오나
+제출
+결과
+: 
+피드백
+· 
+에러
+· 
+키
+요청
+Codex
+에
+확인
+질문
+→ 
+파일과
+줄로
+근거
+AI 
+서비스
+· 
+규칙
+코드
+· 
+없음
+중
+무엇
+②
+ 교수자
+ 시연
+ · AI 
+ 연결
+ 앱
+AI
+에
+그냥
+맡기면
+?
+정답을
+바로
+주나
+오류를
+한꺼번에
+고치나
+맞는
+문장에
+표현을
+덧붙이나
+②
+ 교수자
+ 앱의
+ prompts.md (
+ 최소
+ 지시문
+)
+“
+학습자
+문장의
+문법
+오류에
+피드백해
+줘
+.”   →   
+검사
+문장
+A~D (Activity Guide 1
+번
+)
+지금
+할
+일
+ 내
+앱에
+A~D 
+제출
+, 
+확인
+질문
+ 활동지
+ 1
+번
+ 남길
+기록
+ 두
+앱의
+반응
+, 
+피드백
+출처와
+근거
+
+=== PAGE 5 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+앱을
+만드는
+AI
+와
+앱
+안에서
+일하는
+AI
+05
+만드는
+ AI
+Codex
+앱을
+만들
+때만
+일함
+결과물
+Emoji Diary
+HTML · JavaScript 
+파일
+앱
+ 안에서
+ 일하는
+ AI
+AI 
+서비스
+제출할
+때마다
+응답
+코드
+작성
+ API
+로
+호출
+연결
+ 호출할
+때마다
+누구
+계정으로
+쓰는지
+확인
+(API 
+키
+또는
+ChatGPT 
+로그인
+)
+연결
+전에는
+AI
+를
+부르는
+코드만
+있고
+실제로는
+작동하지
+않음
+2
+주차
+ Google AI Studio 
+ 앱은
+ 왜
+ 바로
+ 피드백이
+ 나왔나
+AI Studio(Google)
+가
+Gemini 
+연결을
+대신
+해
+줌
+. Codex 
+앱은
+내
+컴퓨터의
+파일
+→ 
+연결은
+직접
+
+=== PAGE 6 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+API: 
+앱이
+AI 
+서비스에
+주문하는
+창구
+06
+학습자
+앱
+ · Emoji Diary
+Yesterday I fly a rocket ...
+Feedback  [
+힌트
+1] 
+다시
+읽어
+보세요
+.
+API
+주문
+창구
+누구
+계정
+?
+AI 
+ 서비스
+ (
+주방
+)
+GPT 
+모델
+지시문대로
+피드백을
+만들어
+돌려줌
+요청
+응답
+요청
+응답
+요청에
+ 담는
+ 것
+지시문
++ 
+학습자
+문장
++ 
+계정
+정보
+응답
+AI
+의
+피드백
+→ 
+앱의
+Feedback 
+칸
+연결
+계정
+정보를
+앱에
+넣는
+단계
+(
+로그인
+또는
+API 
+키
+)
+식당
+ 비유
+앱
+= 
+손님
+자리
+· API = 
+주문
+창구
+· AI 
+서비스
+= 
+주방
+· 
+로그인
+또는
+API 
+키
+= 
+회원
+카드
+
+=== PAGE 7 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+피드백과
+제
+2
+언어
+습득
+: 
+세
+가설
+07
+OUTPUT · Swain 
+ 1985
+ , 
+1995
+출력
+가설
+(Output Hypothesis)
+산출
+과정에서
+빈틈
+인식
+,
+가설
+검증
+, 
+언어에
+대한
+성찰
+3
+주차
+출력
+가설
+복습
+INTERACTION · Long 1996
+상호작용
+가설
+(Interaction Hypothesis)
+의사소통
+문제
+발생
+시
+의미
+협상과
+피드백에
+의한
+주의
+전환
+: 
+의미
+→ 
+형태
+“Sorry? You ... what?”
+NOTICING · Schmidt 
+ 1990
+주목
+가설
+(Noticing Hypothesis)
+입력
+속
+형태에
+대한
+주목이
+intake
+의
+조건
+input → noticing → intake
+
+=== PAGE 8 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+Q: 
+어느
+가설로
+설명할까
+08
+다음
+장면을
+가장
+잘
+설명하는
+가설은
+?   
+출력
+· 
+상호작용
+· 
+주목
+장면
+ 1
+영어
+일기를
+쓰다가
+'
+현장
+학습
+'
+을
+영어로
+몰라
+쓰기를
+멈춤
+→
+장면
+ 2
+AI
+가
+“Sorry? You ... what?”
+이라고
+되묻자
+학생이
+자기
+문장의
+동사를
+다시
+봄
+→
+장면
+ 3
+피드백
+화면에서
+굵게
+표시된
+went
+를
+보고
+그제야
+과거형을
+알아봄
+→
+
+=== PAGE 9 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+사회문화
+이론
+: 
+근접발달영역
+(Vygotsky, 1978)
+09
+ZONE OF PROXIMAL DEVELOPMENT
+아직
+어려움
+ZPD
+혼자
+가능
+도움을
+받아
+해낸
+것
+→ 
+점차
+혼자
+가능한
+영역으로
+1
+ 실제
+발달
+수준
+혼자
+해결할
+수
+있는
+수준
+2
+ 잠재적
+발달
+수준
+성인의
+안내나
+더
+유능한
+또래와의
+협력으로
+해결
+가능
+3
+ 근접발달영역
+(ZPD)
+두
+수준
+사이의
+거리
+. 
+가르침과
+피드백이
+작동하는
+영역
+배움의
+방향
+: 
+타인
+조절
+(other
+-
+regulation) → 
+자기
+조절
+(self
+-
+regulation)
+도구
+: 
+교사
+· 
+또래의
+말과
+단서에
+의한
+매개
+(mediation)
+
+=== PAGE 10 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+비계
+(scaffolding, Wood, Bruner & Ross, 1976)
+10
+SCAFFOLDING
+공사
+중에만
+세우고
+,
+건물이
+완성되면
+걷어
+내는
+임시
+발판
+튜터가
+ 하는
+ 여섯
+ 가지
+ 일
+ (Wood, Bruner & Ross, 
+ 1976
+ )
+1
+ 흥미
+끌기
+ 과제에
+관심을
+갖게
+함
+2
+ 과제
+단순화
+ 학습자가
+다룰
+단계만
+남김
+3
+ 방향
+유지
+ 목표에서
+벗어나지
+않게
+함
+4
+ 핵심
+특징
+표시
+ 놓친
+부분
+· 
+오류
+지점을
+짚음
+5
+ 좌절
+관리
+ 부담과
+실패감을
+줄임
+6
+ 시범
+ 해결
+방법을
+직접
+보여
+줌
+
+=== PAGE 11 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+비계의
+예
+: 
+곱셈을
+배우는
+초등학교
+3
+학년
+11
+문제
+ 23 
+×
+4 = ?        
+학생
+ “
+모르겠어요
+...”
+그림으로
+ 나누기
+ (
+넓이
+ 모형
+)
+20
+ 3
+4
+ 20 
+×
+4 = 80
+3
+×
+4
+=12
+80 + 12 = 92
+필요할
+ 때만
+, 
+적은
+ 도움부터
+1
+ 다시
+생각해
+보게
+하기
+“
+어디까지
+했니
+? 
+한
+번
+더
+해
+볼까
+?”
+2
+ 문제
+나누기
+“23
+을
+20
+과
+3
+으로
+나눠
+볼까
+?”
+3
+ 부분
+계산
+안내
+“20 
+×
+4
+는
+? 3 
+×
+4
+는
+?”
+4
+ 시범
+“80 + 12 = 92. 
+나눠서
+곱하고
+더해
+.”
+다음
+문제
+34 
+×
+3: “
+나눠
+볼까
+?” 
+한마디로
+해결
+→ 
+도움
+줄이기
+
+=== PAGE 12 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+비계의
+예
+: 
+과거시제를
+익히는
+중학생의
+한
+주
+12
+월요일
+ · 
+도움
+ 많이
+교사가
+이끎
+(
+타인
+조절
+)
+S  Yesterday I go to the zoo.
+T  “go → went. 
+지난
+일이라
+과거형
+.”
+시범
+(
+고친
+형태
+제시
+)
+수요일
+ · 
+도움
+ 조금
+함께
+해결
+S  Yesterday I eat pizza.
+T  “yesterday
+는
+과거
+. 
+동사는
+?”
+S  “Ate!”
+규칙
+단서로
+자기
+수정
+금요일
+ · 
+도움
+ 없음
+학습자가
+스스로
+(
+자기
+조절
+)
+S  Yesterday I buyed ...
+bought a cap.
+도움
+없이
+자기
+수정
+교정
+ 피드백
+ = 
+영어
+ 오류에
+ 대한
+ 비계
+도움의
+양을
+학습자
+반응에
+맞추고
+점차
+줄이기
+. 
+앱의
+AI 
+피드백도
+같은
+원리로
+설계
+
+=== PAGE 13 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+차이에
+주목하기
+(Schmidt & Frota, 1986)
+13
+NOTICING THE GAP
+학습자
+발화와
+목표
+형태의
+차이
+포르투갈어
+학습
+일기
+연구
+(Schmidt 
+본인
+).
+수업에서
+배운
+형태를
+대화
+입력에서
+주목한
+뒤에야
+자기
+발화에
+사용
+.
+앱
+설계
+: 
+두
+문장
+병치
+,
+바뀐
+부분
+표시
+학습자
+문장
+Last weekend I 
+go
+ to the zoo.
+피드백
+화면
+Last weekend I 
+went
+ to the zoo.
+학습자가
+주목한
+것
+last weekend → 
+동사의
+과거형
+
+=== PAGE 14 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+Error
+와
+mistake (Corder, 1967)
+14
+ERROR · 
+ 규칙
+ 미습득
+규칙을
+모르거나
+잘못
+앎
+I builded / I goed  (
+규칙의
+과잉
+일반화
+)
+같은
+오류의
+반복
+단서만으로는
+자기
+수정이
+어려움
+MISTAKE · 
+ 일시적
+ 실수
+알고
+있으나
+순간적
+실수
+-
+s
+를
+아는
+학습자의
+발화
+중
+He go
+비일관적
+출현
+단서만으로
+자기
+수정
+가능
+앱에서의
+ 구별
+ 방법
+한
+번
+더
+기회를
+준
+뒤
+반응
+확인
+. 
+단서로
+수정하면
+mistake, 
+끝까지
+수정하지
+못하면
+error
+일
+가능성
+
+=== PAGE 15 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+Q: Error
+인가
+, mistake
+인가
+15
+세
+학생의
+오류는
+error
+일까
+, mistake
+일까
+?   
+근거도
+함께
+민수
+말할
+때마다
+I goed, I eated, I buyed
+→
+지아
+평소
+She likes
+를
+잘
+씀
+발표
+중
+She like ...
+곧바로
+likes
+로
+다시
+말함
+→
+하준
+He don't
+라고
+씀
+“3
+인칭이면
+?” 
+한마디에
+He doesn't
+로
+고침
+→
+
+=== PAGE 16 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+교정
+피드백
+여섯
+유형
+(Lyster & Ranta, 1997)
+16
+학습자
+발화
+ I builded a house yesterday.
+explicit correction
+명시적
+교정
+· 
+오류
+지적과
+정답
+제시
+“Not builded. Built.”
+recast
+고쳐
+말하기
+· 
+지적
+없이
+바르게
+재진술
+“Oh, you built a house?”
+clarification request
+명료화
+요청
+· 
+이해하지
+못한
+듯
+되묻기
+“Sorry? What did you do?”
+metalinguistic feedback
+메타언어적
+피드백
+· 
+규칙
+관련
+단서
+“Build is irregular. Past form?”
+elicitation
+유도
+· 
+발화를
+멈추고
+학습자가
+완성
+“
+Yesterday you ...?
+”
+repetition
+반복
+· 
+오류
+부분을
+올린
+억양으로
+“I builded?” 
+
+
+=== PAGE 17 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+여섯
+유형을
+비계로
+보기
+: 
+대략적인
+도움의
+양
+17
+유형
+ 적음
+ 많음
+도움의
+양
+(
+대략
+)
+clarification request
+ 명료화
+요청
+repetition
+ 반복
+elicitation
+ 유도
+metalinguistic feedback
+ 메타언어적
+피드백
+recast
+ 고쳐
+말하기
+explicit correction
+ 명시적
+교정
+답을
+주지
+않고
+고칠
+기회를
+줌
+ 맞는
+형태를
+줌
+교정
+ 피드백은
+ 비계의
+ 한
+ 형태
+ · 
+순서가
+ 아닌
+ 대략적
+ 분류
+같은
+유형도
+단서의
+구체성
+· 
+강세
+· 
+말투에
+따라
+도움의
+양이
+달라짐
+. 
+학습자
+반응을
+보며
+조절
+= 
+단계적
+도움
+
+=== PAGE 18 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+확인
+연습
+: 
+여섯
+응답의
+유형
+18
+학습자
+ She have two cats.   
+교사의
+응답은
+어떤
+유형
+?
+응답
+ 1
+“
+She has two cats?
+That's nice!
+”
+응답
+ 2
+“Not have.
+She has two cats.”
+응답
+ 3
+“She ... ?”
+응답
+ 4
+“She HAVE?” 
+응답
+ 5
+“
+Sorry? Can you
+say that again?
+”
+응답
+ 6
+“With she, he, it, what
+happens to the verb?”
+
+=== PAGE 19 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+Uptake
+와
+repair
+19
+UPTAKE · REPAIR
+피드백
+직후
+학습자의
+반응
+uptake  
+피드백
+직후
+학습자의
+반응
+repair  
+그
+반응
+안에서의
+실제
+수정
+같은
+연구
+: 
+학습자의
+자기
+수정은
+고칠
+기회를
+주는
+피드백
+뒤에
+더
+많음
+T  “Oh, you built a house?”
+S  “Yes, with my dad.”
+그냥
+지나감
+· uptake 
+없음
+T  “Yesterday you ...?”
+S  “Built! I built a house.”
+자기
+수정
+· repair
+T  
+“
+I builded?
+” 
+S  “Um ... building?”
+반응했으나
+수정
+실패
+· uptake
+만
+
+=== PAGE 20 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+Q: 
+피드백
+뒤
+학습자의
+반응
+20
+학습자
+ Last weekend I go to the zoo.   
+각
+반응은
+?   uptake 
+없음
+· uptake
+만
+· repair
+대화
+ 1
+T  
+“
+Go? Last weekend?
+” 
+S  
+“
+Um ... goed?
+”
+→
+대화
+ 2
+T  “Last weekend you ...?”
+S  “Went! I went to the zoo.”
+→
+대화
+ 3
+T  “Oh, you went to the zoo?”
+S  “Yes! I saw two monkeys.”
+→
+
+=== PAGE 21 ===
+AI
+ -
+BASED EDTECH · WEEK 
+ 07
+Recast
+가
+잘
+드러나지
+않는
+이유
+21
+교사
+ 학생
+교사의
+속마음
+go → went
+로
+고쳐
+줬다
+학생의
+속마음
+응
+, 
+내
+말을
+알아들으셨네
+“Oh, you went to the zoo?”
+ “
+Yes! I saw two monkeys.
+”
+같은
+한
+문장
+, 
+다른
+해석
+: 
+교사의
+교정
+→ 
+학생은
+맞장구로
+수용
+, 
+비교할
+여유
+없음
+recast
+ 의
+ 장점
+짧게
+, 
+바뀐
+부분만
+, 
+강세를
+두면
+더
+잘
+드러남
+. 
+대화
+흐름
+유지로
+유창성
+활동에
+적합
+
+=== PAGE 22 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+단계적
+도움
+(Aljaafreh & Lantolf, 1994)
+22
+REGULATORY SCALE
+비계를
+교정
+피드백에
+적용한
+연구
+튜터와
+학습자의
+글쓰기
+교정
+대화
+관찰
+.
+가장
+암시적인
+도움에서
+시작해
+못
+고칠
+때만
+한
+단계씩
+명시적으로
+.
+수정에
+필요한
+단계
+수
+=
+학습자의
+현재
+수준에
+대한
+정보
+조절
+ 척도
+: 
+암시적
+ → 
+명시적
+ ·  
+수정에
+ 필요한
+ 단계
+ 수
+ = 
+현재
+ 수준
+1
+ 오류
+존재만
+알림
+“
+다시
+읽어
+보세요
+. 
+고칠
+곳이
+하나
+있어요
+.”
+2
+ 오류
+위치
+“
+동사를
+살펴보세요
+.”
+3
+ 규칙
+단서
+“last weekend
+는
+과거예요
+. 
+동사는
+?”
+4
+ 고친
+형태와
+이유
+“go → went. 
+지난
+일이라
+과거형을
+써요
+.”
+
+=== PAGE 23 ===
+AI
+ -
+BASED EDTECH · WEEK 
+ 07
+Q: 
+가장
+적은
+도움부터
+23
+학습자
+ Yesterday my dog eat my homework.   
+네
+단서를
+암시적
+→ 
+명시적
+순서로
+가
+“eat → ate.
+지난
+일이라
+과거형을
+써요
+.”
+→ (    )
+단계
+나
+“
+동사를
+살펴보세요
+.
+”
+→ (    )
+단계
+다
+“
+다시
+읽어
+보세요
+.
+고칠
+곳이
+하나
+있어요
+.”
+→ (    )
+단계
+라
+“yesterday
+는
+과거예요
+.
+동사는
+?”
+→ (    )
+단계
+
+=== PAGE 24 ===
+AI
+ -
+BASED EDTECH · WEEK 
+ 07
+피드백
+방식의
+선택
+기준
+24
+학습자
+수준
+초급일수록
+오류
+위치를
+스스로
+찾기
+어려움
+목표
+정확성
+: 
+즉시
+교정
+유창성
+: 
+흐름
+유지
+,
+활동
+후
+교정
+시점
+즉시
+교정
+또는
+활동
+후
+일괄
+제시
+말과
+글
+말
+: 
+일회성
+글
+: 
+반복
+열람
+error
+ 와
+ mistake
+ 까지
+ 포함한
+ 판단
+학습자와
+상황에
+따라
+달라지는
+선택
+. 
+앱에서는
+이
+선택을
+사전에
+결정해야
+함
+
+=== PAGE 25 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+입력
+강화와
+피드백
+화면
+(Sharwood Smith, 1993)
+25
+INPUT ENHANCEMENT
+시각적
+강조를
+통한
+주목
+유도
+굵게
+, 
+색
+, 
+밑줄로
+형태를
+두드러지게
+하는
+방법
+. 
+교실에서
+교사의
+억양이
+하는
+역할을
+앱에서는
+화면이
+담당
+.
+A 
+답
+제시
+, B 
+위치만
+,
+C 
+위치와
+단서
+A  
+문장
+전체를
+고쳐
+제시
+Yesterday I built a house.
+바뀐
+부분은
+학습자가
+직접
+찾아야
+함
+B  
+틀린
+부분에
+밑줄만
+Yesterday I 
+builded
+ a house.
+위치만
+제시
+, 
+답은
+학습자가
+C  
+밑줄
++ 
+단서
+Yesterday I 
+builded
+ a house.   ← 
+동사의
+과거형
+?
+위치와
+규칙
+단서
+제시
+, 
+답은
+학습자가
+
+=== PAGE 26 ===
+AI
+ -
+BASED EDTECH · WEEK 07
+Q: Emoji Diary
+의
+피드백
+화면
+26
+학습자
+ Yesterday two dinosaur eat my ramen.   
+도움의
+양은
+?   
+오류를
+하나만
+, 
+아니면
+모두
+?
+화면
+ A
+Yesterday two 
+dinosaur
+ eat
+my ramen.
+→ 
+도움
+:         / 
+오류
+:
+화면
+ B
+Yesterday two dinosaur 
+eat
+my ramen.
+← 
+과거형
+?
+→ 
+도움
+:         / 
+오류
+:
+화면
+ C
+Yesterday two 
+dinosaurs
+ ate
+my ramen.
+→ 
+도움
+:         / 
+오류
+:

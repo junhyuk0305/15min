@@ -58,7 +58,7 @@ function lessonTurn(c: TurnContext): TurnOutput {
         expression: { en: "I'd like …, please.", ko: '…로 하고 싶습니다.', note: '원하는 것을 정중하게 말할 때 씁니다.' },
         words: [{ en: 'prefer', ko: '더 좋아하다', note: '둘 중 하나를 고를 때 씁니다.' }],
       },
-      coach_note: '원하는 것을 말할 때는 아래 표현을 써 보십시오.',
+      coach_note: '동사 앞에 빠진 말이 있는지 확인하십시오.',
       hidden_correction: "I'd like to order a coffee, please.",
       subsituation_done: false,
     };

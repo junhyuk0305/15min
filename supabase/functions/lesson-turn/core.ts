@@ -6,6 +6,7 @@ import {
   buildTurnInput,
   buildVariantInput,
   type CoachModal,
+  type Feedback,
   OPENING_SCHEMA,
   OPENING_SYSTEM,
   type OpeningContext,
@@ -20,18 +21,18 @@ import {
   type VariantContext,
   type VariantOutput,
 } from '../_shared/prompts/lesson-turn.ts';
-import { charCount, hasHangul, leaksFullAnswer, normalizeBase, sameQuestion, toneProblems } from '../_shared/text.ts';
+import { charCount, hasHangul, itemAppearsIn, leaksFullAnswer, normalizeBase, sameQuestion, toneProblems } from '../_shared/text.ts';
 
 export const FN = 'lesson-turn';
 
 export const NOT_ENGLISH_NOTE = COACH_COPY.notEnglish;
 export const MAX_PARTNER_CHARS = 400;
 
-export type FinalTurn = TurnOutput & { trimmed: string[] };
+export type FinalTurn = TurnOutput & { trimmed: string[]; feedback: Feedback | null };
 
 function isKnown(c: TurnContext, kind: 'word' | 'expression', en: string): boolean {
   const b = normalizeBase(kind, en).toLowerCase();
-  return c.knownItems.some((i) => i.kind === kind && i.base.toLowerCase() === b);
+  return c.knownItems.some((i) => i.kind === kind && i.state !== 'seen' && i.base.toLowerCase() === b);
 }
 
 /**
@@ -42,7 +43,7 @@ function isKnown(c: TurnContext, kind: 'word' | 'expression', en: string): boole
  * - subsituation_done은 교정 없이(natural) 답했을 때만.
  */
 export function finalizeTurn(raw: TurnOutput, c: TurnContext): FinalTurn {
-  const out: FinalTurn = { ...raw, trimmed: [] };
+  const out: FinalTurn = { ...raw, trimmed: [], feedback: null };
   if (c.koreanDetected) out.verdict = 'not_english';
   if (out.verdict !== 'needs_correction') {
     out.coach_modal = null;
@@ -51,6 +52,18 @@ export function finalizeTurn(raw: TurnOutput, c: TurnContext): FinalTurn {
   if (out.verdict === 'natural') out.coach_note = null;
   if (out.verdict === 'not_english' && (!out.coach_note || !hasHangul(out.coach_note))) out.coach_note = NOT_ENGLISH_NOTE;
   if (out.verdict !== 'natural') out.subsituation_done = false;
+
+  const target = out.coach_modal?.expression?.en;
+  if (out.verdict === 'needs_correction' && target) {
+    const key = normalizeBase('expression', target).toLowerCase();
+    const taught = c.knownItems.some((i) => i.kind === 'expression'
+      && i.state !== undefined && i.state !== 'seen'
+      && normalizeBase('expression', i.base).toLowerCase() === key);
+    const supported = c.previousFeedback
+      && normalizeBase('expression', c.previousFeedback.target).toLowerCase() === key;
+    out.feedback = { target: normalizeBase('expression', target), stage: taught && !supported ? 'cue' : 'pattern' };
+    if (out.feedback.stage === 'cue') out.coach_modal = null;
+  }
 
   if (out.coach_modal) {
     let exprLeft = c.budget.expressions;
@@ -73,6 +86,8 @@ export function finalizeTurn(raw: TurnOutput, c: TurnContext): FinalTurn {
     for (const w of out.coach_modal.words.slice(2)) out.trimmed.push(`word:${w.en}`);
     out.coach_modal = expression || words.length ? { expression, words } : null;
   }
+  // 새 표현 상한으로 패턴을 못 보여 주면 구체적인 단서로 이어 간다.
+  if (out.feedback && !out.coach_modal?.expression) out.feedback.stage = 'cue';
   return out;
 }
 
@@ -95,6 +110,12 @@ export function checkTurn(raw: TurnOutput, f: FinalTurn, c: TurnContext): string
   if (f.verdict === 'needs_correction') {
     if (!raw.coach_modal?.expression) e.push('needs_correction에는 coach_modal.expression이 하나 있어야 합니다');
     if (!raw.hidden_correction?.trim()) e.push('needs_correction에는 hidden_correction이 있어야 합니다');
+    if (f.feedback?.stage === 'cue' && (!f.coach_note?.trim() || !hasHangul(f.coach_note))) {
+      e.push('단서 단계에는 카드 없이도 이해되는 한국어 coach_note가 있어야 합니다');
+    }
+    if (f.feedback?.stage === 'cue' && itemAppearsIn('expression', f.feedback.target, f.coach_note ?? '')) {
+      e.push('단서 단계 coach_note에 목표 패턴을 주지 않습니다. 오류 위치와 규칙만 짚습니다');
+    }
     const m = raw.coach_modal;
     if (m?.expression) {
       if (hasHangul(m.expression.en) || !m.expression.en.trim()) e.push('expression.en은 영어 패턴입니다');
@@ -106,8 +127,8 @@ export function checkTurn(raw: TurnOutput, f: FinalTurn, c: TurnContext): string
       if (!hasHangul(w.ko)) e.push('words.ko는 한국어 뜻입니다');
       for (const p of toneProblems(w.note)) e.push(`word.note 말투: ${p}`);
     }
-    if (leaksFullAnswer(modalTexts(raw.coach_modal, raw.coach_note), raw.hidden_correction)) {
-      e.push('모달이나 코치 안내에 교정된 문장 전체가 들어갔습니다. 패턴만 가르칩니다');
+    if (leaksFullAnswer([...modalTexts(raw.coach_modal, raw.coach_note), f.partner], raw.hidden_correction)) {
+      e.push('모달, 코치 안내 또는 상대 대사에 교정된 문장 전체가 들어갔습니다. 패턴만 가르칩니다');
     }
     if (c.previousPartner && sameQuestion(f.partner, c.previousPartner)) {
       e.push('교정 뒤 같은 질문을 반복했습니다. 말투와 내용이 다른 새 질문을 씁니다');

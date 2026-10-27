@@ -148,7 +148,13 @@ const CONCURRENCY = 3;
 
 type LessonCases = {
   situations: Record<string, { scene: TurnContext['situation']; subsituations: string[] }>;
-  cases: { id: string; situation: string; type: 'correct' | 'short' | 'wrong' | 'korean' | 'escape'; cursor: number; partner: string; user: string }[];
+  cases: {
+    id: string; situation: string; type: 'correct' | 'short' | 'wrong' | 'korean' | 'escape';
+    cursor: number; partner: string; user: string;
+    knownItems?: TurnContext['knownItems']; previousFeedback?: TurnContext['previousFeedback'];
+    budget?: TurnContext['budget'];
+    expectedStage?: 'cue' | 'pattern';
+  }[];
 };
 
 async function evalLesson() {
@@ -159,23 +165,24 @@ async function evalLesson() {
       situation: sit.scene,
       subsituations: sit.subsituations,
       cursor: c.cursor,
-      knownItems: [],
-      budget: { expressions: 3, words: 3 },
+      knownItems: c.knownItems ?? [],
+      previousFeedback: c.previousFeedback,
+      budget: c.budget ?? { expressions: 3, words: 3 },
       dialogue: [{ role: 'partner', text: c.partner }],
       previousPartner: c.partner,
       koreanDetected: hasHangul(c.user),
       learnerText: c.user,
     };
     const r = await timed('lesson-turn', () => runTurn(ai, ctx));
-    samples.push({ fn: 'lesson-turn', id: c.id, input: { partner: c.partner, learner: c.user }, output: r.ok ? r.value : { error: r.error } });
+    samples.push({ fn: 'lesson-turn', id: c.id, input: { partner: c.partner, learner: c.user, knownItems: ctx.knownItems, previousFeedback: ctx.previousFeedback, budget: ctx.budget }, output: r.ok ? r.value : { error: r.error } });
     if (!r.ok) {
       failures.push({ fn: 'lesson-turn', id: c.id, why: `호출 실패: ${r.error}` });
-      return { c, r: null as FinalTurn | null, leak: false, repeat: false, redirectOk: false };
+      return { c, r: null as FinalTurn | null, leak: false, repeat: false, redirectOk: false, feedbackBad: false };
     }
     const v = r.value;
     let leak = false;
-    if (v.coach_modal) {
-      const shown = modalTexts(v.coach_modal, v.coach_note);
+    if (v.verdict === 'needs_correction') {
+      const shown = [...modalTexts(v.coach_modal, v.coach_note), v.partner];
       leak = leaksFullAnswer(shown, v.hidden_correction);
       if (!leak) leak = (await judge('lesson-leak', { partner: c.partner, learner: c.user, shown: shown.join('\n') })).violation;
     }
@@ -183,26 +190,38 @@ async function evalLesson() {
     if (v.verdict === 'needs_correction') {
       repeat = sameQuestion(v.partner, c.partner) || (await judge('lesson-repeat', { previous: c.partner, partner: v.partner })).violation;
     }
+    const feedbackBad = v.verdict === 'needs_correction' && (await judge('lesson-feedback', {
+      scene: JSON.stringify(sit.scene), previous: c.partner, learner: c.user,
+      target: v.feedback?.target ?? '', stage: v.feedback?.stage ?? '',
+      note: v.coach_note ?? '', partner: v.partner,
+      budget: JSON.stringify(ctx.budget), known: JSON.stringify(ctx.knownItems),
+    })).violation;
     let redirectOk = false;
     if (c.type === 'escape') {
       const j = await judge('lesson-redirect', { scene: JSON.stringify(sit.scene), learner: c.user, partner: v.partner });
       redirectOk = v.verdict === 'off_topic' && !j.violation;
       if (!redirectOk) failures.push({ fn: 'lesson-turn', id: c.id, why: `되돌리지 못함 (verdict ${v.verdict}; ${j.reason})` });
     }
-    return { c, r: v, leak, repeat, redirectOk };
+    return { c, r: v, leak, repeat, redirectOk, feedbackBad };
   });
 
   const of = (t: string) => rows.filter((x) => x.c.type === t);
-  const shortBad = of('short').filter((x) => x.r && x.r.verdict !== 'natural');
-  const wrongBad = of('wrong').filter((x) => !x.r || x.r.verdict !== 'needs_correction' || !x.r.coach_modal);
-  const modalBad = rows.filter((x) => x.r?.coach_modal && (x.r.coach_modal.words.length > 2 || x.leak));
+  const shortBad = of('short').filter((x) => x.r?.verdict !== 'natural');
+  const wrongBad = of('wrong').filter((x) => !x.r || x.r.verdict !== 'needs_correction' || (!x.r.coach_modal && !x.r.coach_note));
+  const modalBad = rows.filter((x) => (x.r?.coach_modal && x.r.coach_modal.words.length > 2) || x.leak);
+  const correctBad = of('correct').filter((x) => x.r?.verdict !== 'natural');
+  const stageBad = rows.filter((x) => x.c.expectedStage && x.r?.feedback?.stage !== x.c.expectedStage);
+  const feedbackBad = rows.filter((x) => x.feedbackBad);
   const hangulBad = rows.filter((x) => x.r && hasHangul(x.r.partner));
   const repeatBad = rows.filter((x) => x.repeat);
-  for (const x of shortBad) failures.push({ fn: 'lesson-turn', id: x.c.id, why: `짧지만 맞는 답을 ${x.r!.verdict}로 판정` });
+  for (const x of shortBad) failures.push({ fn: 'lesson-turn', id: x.c.id, why: `짧지만 맞는 답을 ${x.r?.verdict ?? '호출 실패'}로 판정` });
   for (const x of wrongBad) failures.push({ fn: 'lesson-turn', id: x.c.id, why: `틀린 답을 교정하지 않음 (${x.r?.verdict ?? '호출 실패'})` });
   for (const x of modalBad) failures.push({ fn: 'lesson-turn', id: x.c.id, why: '모달 규칙 위반(단어 3개 이상 또는 완성 답안 노출)' });
   for (const x of hangulBad) failures.push({ fn: 'lesson-turn', id: x.c.id, why: '상대 대사에 한국어' });
   for (const x of repeatBad) failures.push({ fn: 'lesson-turn', id: x.c.id, why: '교정 뒤 같은 질문 반복' });
+  for (const x of correctBad) failures.push({ fn: 'lesson-turn', id: x.c.id, why: `맞는 답을 거부 (${x.r?.verdict ?? '호출 실패'})` });
+  for (const x of stageBad) failures.push({ fn: 'lesson-turn', id: x.c.id, why: `도움 단계 기대 ${x.c.expectedStage}, 실제 ${x.r?.feedback?.stage ?? '없음'}` });
+  for (const x of feedbackBad) failures.push({ fn: 'lesson-turn', id: x.c.id, why: '오류 단서 또는 다음 질문의 목표 적용 기회 부적합' });
 
   const correctOk = of('correct').filter((x) => x.r?.verdict === 'natural').length;
   const koreanOk = of('korean').filter((x) => x.r?.verdict === 'not_english' && !!x.r.coach_note).length;
@@ -210,9 +229,12 @@ async function evalLesson() {
   const wrongN = of('wrong').length;
   return {
     gates: [
+      gate('lesson-turn', '맞는 대안 표현을 거부하거나 응답 실패', '0건', `${correctBad.length}건 / ${of('correct').length}`, correctBad.length === 0),
+      gate('lesson-turn', '기대한 도움 단계와 불일치', '0건', `${stageBad.length}건 / ${rows.filter((x) => x.c.expectedStage).length}`, stageBad.length === 0),
+      gate('lesson-turn', '오류 단서와 목표 적용 기회 부적합', '0건', `${feedbackBad.length}건`, feedbackBad.length === 0),
       gate('lesson-turn', '짧지만 맞는 답을 오답 처리', '0건', `${shortBad.length}건 / ${of('short').length}`, shortBad.length === 0),
       gate('lesson-turn', '틀린 답을 교정하지 않음', '5% 이하', `${pct(wrongBad.length, wrongN)} (${wrongBad.length}/${wrongN})`, wrongBad.length / wrongN <= 0.05),
-      gate('lesson-turn', '모달 규칙 위반(표현 2개 이상, 단어 3개 이상, 완성 답안 노출)', '0건', `${modalBad.length}건 / 모달 ${rows.filter((x) => x.r?.coach_modal).length}`, modalBad.length === 0),
+      gate('lesson-turn', '피드백 규칙 위반(단어 3개 이상, 단서 또는 상대 대사의 완성 답안 노출)', '0건', `${modalBad.length}건 / 교정 ${rows.filter((x) => x.r?.verdict === 'needs_correction').length}`, modalBad.length === 0),
       gate('lesson-turn', '상대 대사에 한국어', '0건', `${hangulBad.length}건 / ${rows.filter((x) => x.r).length}`, hangulBad.length === 0),
       gate('lesson-turn', '교정 뒤 같은 질문 반복', '0건', `${repeatBad.length}건 / 교정 ${rows.filter((x) => x.r?.verdict === 'needs_correction').length}`, repeatBad.length === 0),
     ],
@@ -457,7 +479,7 @@ ${parts.flatMap((p) => p.info).map((s) => `- ${s}`).join('\n')}
 ## 측정 방법
 
 - 코드로 잰 것: 판정(verdict) 값, 모달 단어 수, 상대 대사의 한글, 완성 답안 노출(모델이 따로 낸 교정 문장이 화면 글에 들어갔는지), 같은 질문 반복(낱말 겹침 0.7 이상), 목표 설정 필드, 채점 일치, 회고 질문 순서, 9.1 금지 표현 정규식, 스키마 통과, 응답 시간.
-- 판정 모델로 잰 것(evals/judge/): 완성 답안 노출(코드가 못 잡은 것), 교정 뒤 같은 질문, 역할 이탈 되돌림, 9.1 금지 표현(코드가 못 잡은 것).
+- 판정 모델로 잰 것(evals/judge/): 완성 답안 노출(코드가 못 잡은 것), 오류 단서와 목표 적용 기회, 교정 뒤 같은 질문, 역할 이탈 되돌림, 9.1 금지 표현(코드가 못 잡은 것).
 - 서버 규칙(상한 자르기, 단어 2개 자르기, 한국어 답 고정)을 입힌 최종 출력을 잰다. 사용자가 보는 것과 같다.
 - 구조화 출력 통과율은 모델 호출 1회마다 JSON 파싱과 스키마 검사를 본다. 내용 규칙 위반으로 재요청한 것은 스키마 통과로 센다.
 - 응답 시간은 함수 호출 하나(재요청 포함) 기준이고, 모델을 부르지 않은 채점(코드 채점)은 뺀다. 동시 ${CONCURRENCY}건으로 돌렸다.

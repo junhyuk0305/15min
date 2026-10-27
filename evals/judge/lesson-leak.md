@@ -5,7 +5,7 @@ Rule: the coach may teach a reusable pattern (with "…" as the slot) and up to 
 
 Partner question: {{partner}}
 Learner answer: {{learner}}
-Text shown by the coach (modal and note):
+Text shown by the coach (modal and note) AND the new partner line:
 {{shown}}
 
 Set violation to true if the shown text contains a complete corrected version of the learner's answer, or any complete sentence that fully answers the partner's question and could be copied as is. A pattern with "…" is not a violation. Explain in one short English sentence.

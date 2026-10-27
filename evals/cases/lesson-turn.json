@@ -15,6 +15,12 @@
     }
   },
   "cases": [
+    { "id": "feedback-budget-exhausted", "situation": "cafe", "type": "wrong", "cursor": 1, "partner": "What would you like to order?", "user": "I want order tea.", "budget": { "expressions": 0, "words": 0 }, "previousFeedback": { "target": "I'd like …, please.", "stage": "cue" }, "expectedStage": "cue" },
+    { "id": "feedback-known-cue", "situation": "cafe", "type": "wrong", "cursor": 1, "partner": "What would you like to order?", "user": "I want order coffee.", "knownItems": [{ "kind": "expression", "base": "I'd like …, please.", "state": "taught" }], "expectedStage": "cue" },
+    { "id": "feedback-after-cue", "situation": "cafe", "type": "wrong", "cursor": 1, "partner": "Which snack would you like?", "user": "I want order cake.", "knownItems": [{ "kind": "expression", "base": "I'd like …, please.", "state": "taught" }], "previousFeedback": { "target": "I'd like …, please.", "stage": "cue" }, "expectedStage": "pattern" },
+    { "id": "feedback-seen-pattern", "situation": "cafe", "type": "wrong", "cursor": 1, "partner": "What would you like to order?", "user": "I want order tea.", "knownItems": [{ "kind": "expression", "base": "I'd like …, please.", "state": "seen" }], "expectedStage": "pattern" },
+    { "id": "feedback-valid-alternative", "situation": "cafe", "type": "correct", "cursor": 1, "partner": "Which snack would you like?", "user": "Can I get a muffin, please?", "knownItems": [{ "kind": "expression", "base": "I'd like …, please.", "state": "taught" }], "previousFeedback": { "target": "I'd like …, please.", "stage": "cue" } },
+    { "id": "feedback-minor-case", "situation": "cafe", "type": "correct", "cursor": 1, "partner": "Which drink would you like?", "user": "i'll have tea thanks" },
     { "id": "cafe-correct-1", "situation": "cafe", "type": "correct", "cursor": 1, "partner": "Hi! What can I get for you today?", "user": "I'd like an iced latte, please." },
     { "id": "cafe-correct-2", "situation": "cafe", "type": "correct", "cursor": 2, "partner": "Sure. What size would you like?", "user": "I'll have a large one, please." },
     { "id": "cafe-correct-3", "situation": "cafe", "type": "correct", "cursor": 2, "partner": "Would you like regular milk or oat milk?", "user": "I'd prefer oat milk, please." },

@@ -4,7 +4,7 @@
 import { aiFor, assertOwnMessage, dayField, loadSession, messageField, type Session, stamps, uuidField } from '../_shared/context.ts';
 import { HttpError } from '../_shared/errors.ts';
 import type { Ai } from '../_shared/gemini.ts';
-import type { CoachModal, DialogueLine } from '../_shared/prompts/lesson-turn.ts';
+import type { CoachModal, DialogueLine, Feedback, Verdict } from '../_shared/prompts/lesson-turn.ts';
 import { addStudyDays, newItemCap } from '../_shared/rules.ts';
 import type { Ctx } from '../_shared/server.ts';
 import { hasHangul, itemAppearsIn, normalizeBase } from '../_shared/text.ts';
@@ -96,8 +96,8 @@ async function start(ctx: Ctx, s: Session, getAi: () => Promise<Ai>): Promise<Le
   return { messages: all.map(toMessage), modal: null, episode: episodeState(ep) };
 }
 
-/** 직전 2턴 안에 모달로 배운 항목(도움 후 적용 판정용). */
-function recentModalKeys(before: MessageRow[]): Set<string> {
+/** 직전 2턴의 모달, 단서, 상대 대사에 노출된 항목(도움 후 적용 판정용). */
+function recentSupportKeys(before: MessageRow[], items: ItemRow[]): Set<string> {
   const keys = new Set<string>();
   let users = 0;
   for (let i = before.length - 1; i >= 0; i--) {
@@ -106,6 +106,11 @@ function recentModalKeys(before: MessageRow[]): Set<string> {
     const modal = m.role === 'coach' ? (m.meta?.modal as CoachModal | undefined) : undefined;
     if (modal?.expression) keys.add(`expression:${normalizeBase('expression', modal.expression.en).toLowerCase()}`);
     for (const w of modal?.words ?? []) keys.add(`word:${normalizeBase('word', w.en)}`);
+    const feedback = (m.role === 'coach' ? m.meta?.feedback : m.role === 'partner' ? m.meta?.pending_feedback : undefined) as Feedback | undefined;
+    if (feedback) keys.add(`expression:${normalizeBase('expression', feedback.target).toLowerCase()}`);
+    if (m.role === 'partner') {
+      for (const item of items) if (itemAppearsIn(item.kind, item.base, m.text)) keys.add(keyOf(item));
+    }
   }
   return keys;
 }
@@ -158,6 +163,11 @@ async function turn(ctx: Ctx, s: Session, msg: { id: string; text: string }, get
   const before = todayRows.filter((m) => m.id !== msg.id && m.created_at <= userRow.created_at);
   const previousPartner = [...before].reverse().find((m) => m.role === 'partner')?.text ?? null;
   const { ep } = await openEpisode(ctx, s, getAi);
+  const lastPartner = [...before].reverse().find((m) => m.role === 'partner');
+  // 같은 날, 같은 하위 상황에서만 도움을 이어 간다. 성공/새 에피소드는 초기화한다.
+  const previousFeedback = lastPartner?.meta?.episode_index === ep.index && lastPartner?.meta?.cursor === ep.cursor
+    ? (lastPartner.meta.pending_feedback as Feedback | undefined) ?? null
+    : null;
   const items = await ctx.repo.listItems(s.goal.id);
   const cap = newItemCap(s.day.target_minutes ?? s.goal.target_minutes);
   const newToday = (kind: 'word' | 'expression') => items.filter((i) => i.kind === kind && i.first_day === s.today && i.state !== 'seen').length;
@@ -167,7 +177,8 @@ async function turn(ctx: Ctx, s: Session, msg: { id: string; text: string }, get
     situation: situationOf(s),
     subsituations: ep.subsituations,
     cursor: ep.cursor,
-    knownItems: items.map((i) => ({ kind: i.kind, base: i.base })),
+    knownItems: items.map((i) => ({ kind: i.kind, base: i.base, state: i.state })),
+    previousFeedback,
     budget: { expressions: Math.max(0, cap - newToday('expression')), words: Math.max(0, cap - newToday('word')) },
     dialogue: before.slice(-DIALOGUE_LINES).map(toLine).filter((l) => l !== null),
     previousPartner,
@@ -201,7 +212,7 @@ async function turn(ctx: Ctx, s: Session, msg: { id: string; text: string }, get
       id: ids.coach,
       role: 'coach',
       text: result.coach_note ?? '',
-      meta: { modal: result.coach_modal, verdict: result.verdict, ...(result.trimmed.length ? { trimmed: result.trimmed } : {}) },
+      meta: { modal: result.coach_modal, verdict: result.verdict, feedback: result.feedback, ...(result.trimmed.length ? { trimmed: result.trimmed } : {}) },
       created_at: tCoach,
     });
   }
@@ -210,7 +221,10 @@ async function turn(ctx: Ctx, s: Session, msg: { id: string; text: string }, get
     id: ids.partner,
     role: 'partner',
     text: result.partner,
-    meta: { verdict: result.verdict, episode_index: ep.index, cursor, finished, subsituation: ep.subsituations[cursor] ?? null },
+    meta: {
+      verdict: result.verdict, episode_index: ep.index, cursor, finished, subsituation: ep.subsituations[cursor] ?? null,
+      pending_feedback: result.verdict === 'natural' ? null : result.feedback ?? previousFeedback,
+    },
     created_at: tPartner,
   });
   if (variant) {
@@ -234,7 +248,7 @@ async function turn(ctx: Ctx, s: Session, msg: { id: string; text: string }, get
     await ctx.repo.updateEpisode(s.goal.id, ep.index, { cursor });
   }
 
-  await recordItems(ctx, s, items, msg, result.coach_modal, result.partner, recentModalKeys(before));
+  await recordItems(ctx, s, items, msg, result.coach_modal, result.partner, recentSupportKeys(before, items), result.verdict);
 
   const out = await storedResult(ctx, ids, s.goal.id);
   if (!out) throw new HttpError('server', 'reply not stored');
@@ -250,6 +264,7 @@ async function recordItems(
   modal: CoachModal | null,
   partnerText: string,
   recentModal: Set<string>,
+  verdict: Verdict,
 ) {
   const day = s.today;
   const nextDue = addStudyDays(day, 1, s.goal.weekdays);
@@ -297,7 +312,7 @@ async function recordItems(
   for (const it of taught) await event(it, 'taught', false, `${msg.id}:taught:${it.id}`);
 
   for (const it of items) {
-    if (itemAppearsIn(it.kind, it.base, msg.text)) {
+    if (verdict === 'natural' && itemAppearsIn(it.kind, it.base, msg.text)) {
       await event(it, 'used', recentModal.has(keyOf(it)), `${msg.id}:used:${it.id}`);
       if (it.state === 'seen' || it.state === 'taught') await ctx.repo.updateItem(it.id, { state: 'used' });
     } else if (itemAppearsIn(it.kind, it.base, partnerText)) {
