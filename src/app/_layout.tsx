@@ -31,6 +31,13 @@ if (Platform.OS !== 'web') {
 /** 첫 읽기를 기다리는 최대 시간. 넘으면 캐시나 오류 화면을 보인다(MP 7.4-2) */
 const BOOT_TIMEOUT_MS = 10_000;
 
+// 웹은 스크롤바를 어디서도 보이지 않는다(2026-10-27 오너 결정). 휠과 터치 스크롤은 그대로 된다
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = '* { scrollbar-width: none; } *::-webkit-scrollbar { display: none; }';
+  document.head.appendChild(style);
+}
+
 /**
  * 개발 빌드 전용: ?crash=1이면 렌더 오류를 낸다. ErrorBoundary("다시 열기") 확인용(MP 7.3).
  * 다시 열기를 누르면 그 뒤로는 내지 않아 정상 화면으로 돌아오는지 볼 수 있다.
@@ -256,9 +263,10 @@ export default function RootLayout() {
   const loadFailed = useApp((s) => s.loadFailed);
 
   const ready = hydrated && fontsReady && (booted || timedOut);
-  // 로그인은 됐는데 서버 데이터가 한 번도 없으면 보일 캐시가 없다
-  const bootFailed = ready && authed && !hasProfile && (timedOut || loadFailed);
   const signingIn = useApp((s) => s.signingIn);
+  // 로그인은 됐는데 서버 데이터가 한 번도 없으면 보일 캐시가 없다.
+  // 로그인 처리 중에는 프로필을 받기 전이라 판정하지 않는다. 로그인 화면에 10초 넘게 있으면 timedOut이 이미 참이라 오류 화면이 잠깐 비쳤다
+  const bootFailed = ready && authed && !hasProfile && !signingIn && (timedOut || loadFailed);
   const target = useGuard(ready && !configMissing && !bootFailed && !signingIn);
   useNotificationTaps(ready && !target);
 

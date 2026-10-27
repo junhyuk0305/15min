@@ -190,7 +190,7 @@ function ChatStage() {
           {chips.length ? (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: S.sm }}>
               {chips.map((c) => (
-                <Chip key={c} label={c} onPress={() => void send(c)} />
+                <Chip key={c} reply label={c} onPress={() => void send(c)} />
               ))}
             </View>
           ) : null}

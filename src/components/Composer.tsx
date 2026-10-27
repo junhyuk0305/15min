@@ -87,7 +87,8 @@ export function Composer({
           }}
           onFocus={onInputStart}
           placeholder={placeholder}
-          placeholderTextColor={p.sub}
+          // 안내 문구는 쓴 글과 헷갈리지 않게 비활성 색으로 연하게 둔다(2026-10-27 오너 피드백)
+          placeholderTextColor={p.disabled}
           accessibilityLabel={placeholder}
           multiline
           maxLength={maxLength}
