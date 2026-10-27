@@ -7,6 +7,7 @@ import {
   dismissIdle,
   fmtLeft,
   hiddenUntilClosed,
+  hintVisible,
   linesOf,
   OVERLAY,
   overlayFor,
@@ -197,6 +198,23 @@ test('코치 모달: 닫기 전에는 모달 뒤의 코치와 상대 줄을 숨�
   const hidden = new Set(hiddenUntilClosed(reply, 'u1'));
   assert.deepEqual([...hidden], ['c1', 'p2']);
   assert.deepEqual(linesOf(reply, 'B', hidden).map((l) => l.id), ['u1']);
+});
+
+test('표현 보기: 마지막 줄이 상대 질문일 때만 보이고, 표현을 받거나 답을 보내면 숨는다', () => {
+  const p1 = msg('p1', 'partner', 'What can I get for you?');
+  const on = { loaded: true, modalOpen: false };
+  assert.equal(hintVisible(linesOf([p1], 'B'), on), true);
+  assert.equal(hintVisible(linesOf([p1], 'B'), { ...on, loaded: false }), false, '대화를 받기 전');
+  assert.equal(hintVisible(linesOf([p1], 'B'), { ...on, modalOpen: true }), false, '코치 모달이 떠 있을 때');
+  assert.equal(hintVisible([], on), false, '상대 질문이 없을 때');
+  const sent = [p1, msg('u1', 'user', 'Um', { pending: true })];
+  assert.equal(hintVisible(linesOf(sent, 'B'), on), false, '보낸 답을 기다릴 때');
+  const hint = msg('h1', 'coach', '빈칸을 채워 답하십시오.', { meta: { hint: true, modal: { expression: { en: "I'd like …", ko: '…를 주십시오', note: '주문할 때' }, words: [] } } });
+  assert.equal(hintVisible(linesOf([p1, hint], 'B'), on), false, '같은 질문에는 한 번만');
+  assert.equal(hintVisible(linesOf([p1, hint], 'B', new Set(['h1'])), { ...on, modalOpen: true }), false, '모달을 닫기 전에는 코치 줄이 숨어 있어도 모달 때문에 숨는다');
+  const next = [p1, hint, msg('u2', 'user', "I'd like a latte."), msg('p2', 'partner', 'Hot or iced?')];
+  assert.equal(hintVisible(linesOf(next, 'B'), on), true, '답한 뒤 새 상대 질문이 오면 다시');
+  assert.equal(hintVisible(linesOf([msg('q', 'coach', 'quiz', { phase: 'A' })], 'B'), on), false, 'B 줄만 본다');
 });
 
 test('코치 모달 모양: 표현 1개, 단어 최대 2개, 비면 null', () => {

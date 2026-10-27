@@ -98,6 +98,8 @@ type Actions = {
    * messages는 이번 응답으로 받은 행(내 문장, 코치, 상대)이다.
    */
   lessonTurn: (text?: string, id?: string) => Promise<{ messages: Message[]; modal: LessonModal; episode: Episode | null }>;
+  /** B 표현 보기. messages는 코치 줄 하나다. 상대 줄은 오지 않는다 */
+  lessonHint: () => Promise<{ messages: Message[]; modal: LessonModal; episode: Episode | null }>;
   /** 회고 대화. text가 없으면 고정 질문 1. id는 lessonTurn과 같다 */
   retroTurn: (text?: string, id?: string, closing?: boolean) => Promise<void>;
   /** A, C 복습 문항. 채점 안 된 문항이 있으면 그 문항을 다시 준다 */
@@ -369,6 +371,15 @@ export const useApp = create<AppState>()(
               if (mine) putMessages(g.id, day, [], mine.id); // 화면이 입력창에 문장을 되돌린다
               throw e;
             }
+          }),
+
+        lessonHint: () =>
+          act(async () => {
+            const g = requireGoal();
+            const day = today();
+            const r = await api.lessonHint(g.id, day);
+            putMessages(g.id, day, r.messages);
+            return r;
           }),
 
         quizNext: (phase) => act(() => api.quizNext(requireGoal().id, today(), phase)),

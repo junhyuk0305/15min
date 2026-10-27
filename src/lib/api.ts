@@ -477,6 +477,12 @@ export function createApi(opts: ApiOptions) {
       return { messages: mapMessages(r.messages), modal: (r.modal ?? null) as LessonModal, episode: (r.episode ?? null) as Episode | null };
     },
 
+    /** 표현 보기. 마지막 상대 질문에 답할 표현 하나(코치 줄 하나). 같은 질문에 다시 부르면 저장된 줄 */
+    async lessonHint(goalId: string, day: string): Promise<LessonTurnResult> {
+      const r = await invoke<Raw>('lesson-turn', { goal_id: goalId, day, hint: true });
+      return { messages: mapMessages(r.messages), modal: (r.modal ?? null) as LessonModal, episode: (r.episode ?? null) as Episode | null };
+    },
+
     async quizNext(goalId: string, day: string, phase: 'A' | 'C'): Promise<QuizQuestion> {
       const r = await invoke<{ question: Raw }>('review-quiz', { goal_id: goalId, day, phase, action: 'next' });
       const q = r.question;

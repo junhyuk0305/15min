@@ -7,9 +7,10 @@ import { lineText, Transcript } from '@/components/learn/Transcript';
 import type { PanelProps } from '@/components/learn/types';
 import { ErrorLine } from '@/components/ErrorLine';
 import { LONG_PRESS_TIP } from '@/components/LineMenu';
+import { TextButton } from '@/components/TextButton';
 import { Button } from '@/components/ui';
 import { copy } from '@/lib/copy';
-import { coachModalOf, hiddenUntilClosed, linesOf, sendId, type CoachModalView, type Line } from '@/lib/learn';
+import { coachModalOf, hiddenUntilClosed, hintVisible, linesOf, sendId, type CoachModalView, type Line } from '@/lib/learn';
 import { dayKeyId, uuidv4, type Message } from '@/lib/model';
 import { todayKey, useApp } from '@/lib/store';
 import { markSeen, useTipSeen } from '@/lib/tips';
@@ -24,6 +25,7 @@ const COACH_TIP = 'coach-modal';
  * 교정이 필요하면 코치 모달이 상대의 새 질문보다 먼저 뜨고, 닫으면 새 질문이 보인다(결정안 10).
  * 새로 온 마지막 상대, 코치 줄은 글자 단위로 보이고 그동안 시계를 멈춘다(UXP 3절). 줄을 길게 누르면 신고, 복사 시트.
  * 첫 코치 모달 아래에는 닫으면 무엇이 오는지 한 줄 안내한다(갭분석 3.1-7). 모달을 읽는 시간은 활동으로 본다(UXP 3절).
+ * 막히면 입력창 위 "표현 보기"로 마지막 상대 질문에 답할 표현 하나를 같은 코치 모달로 받는다. 상대 줄은 오지 않고 학습자가 직접 답한다.
  */
 export function LessonPanel({ header, banner, overlay, request, setFailed, touch, offline, setRevealing, menu }: PanelProps) {
   const goal = useApp((s) => s.goal);
@@ -33,8 +35,9 @@ export function LessonPanel({ header, banner, overlay, request, setFailed, touch
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loadFailed, setLoadFailed] = useState<'network' | 'other' | null>(null);
-  const [failed, setSendFailed] = useState(false);
-  const [modal, setModal] = useState<{ view: CoachModalView; note: string } | null>(null);
+  // 입력창 위 실패 안내. 보내기 실패와 표현 보기 실패의 문장이 다르다
+  const [failed, setSendFailed] = useState<string | null>(null);
+  const [modal, setModal] = useState<{ view: CoachModalView; note: string; hint: boolean } | null>(null);
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const coachTipSeen = useTipSeen(COACH_TIP);
   const pending = useRef<{ id: string; text: string } | null>(null);
@@ -90,12 +93,12 @@ export function LessonPanel({ header, banner, overlay, request, setFailed, touch
     setBusy(false);
     if (!r.ok) {
       setText(body); // 입력한 문장은 남긴다(MP 7.3)
-      setSendFailed(true);
+      setSendFailed(t.failed);
       setFailed(true);
       return;
     }
     pending.current = null;
-    setSendFailed(false);
+    setSendFailed(null);
     setFailed(false);
     const view = coachModalOf(r.value.modal);
     if (view) {
@@ -103,13 +106,36 @@ export function LessonPanel({ header, banner, overlay, request, setFailed, touch
       setHidden(new Set(hiddenUntilClosed(r.value.messages, id)));
       // 길게 누르기 안내 말풍선이 떠 있으면 모달과 겹치지 않게 닫는다(한 번에 안내 하나, 갭분석 3.1)
       markSeen(LONG_PRESS_TIP);
-      setModal({ view, note });
+      setModal({ view, note, hint: false });
+    }
+  };
+
+  // 표현 보기. 누르는 것도 활동이다. 쓰던 문장은 그대로 둔다
+  const askHint = async () => {
+    if (busy) return;
+    touch();
+    setBusy(true);
+    const r = await request(() => useApp.getState().lessonHint());
+    setBusy(false);
+    if (!r.ok) {
+      setSendFailed(t.hintFailed);
+      setFailed(true);
+      return;
+    }
+    setSendFailed(null);
+    setFailed(false);
+    const view = coachModalOf(r.value.modal);
+    if (view) {
+      setHidden(new Set(hiddenUntilClosed(r.value.messages, '')));
+      markSeen(LONG_PRESS_TIP);
+      setModal({ view, note: r.value.messages[0]?.text ?? '', hint: true });
     }
   };
 
   const closeModal = () => {
     touch();
-    if (!coachTipSeen) markSeen(COACH_TIP);
+    // 첫 코치 모달 안내("닫으면 새 질문이 옵니다")는 교정 모달에만 맞다
+    if (!coachTipSeen && !modal?.hint) markSeen(COACH_TIP);
     setModal(null);
     setHidden(new Set());
   };
@@ -126,19 +152,22 @@ export function LessonPanel({ header, banner, overlay, request, setFailed, touch
       <Button title={t.reload} busy={busy} onPress={() => void load()} />
     </>
   ) : loaded ? (
-    <Composer
-      value={text}
-      onChange={(v) => {
-        setText(v);
-        touch();
-      }}
-      onSend={() => void send()}
-      busy={busy}
-      error={failed ? t.failed : null}
-      placeholder={t.inputPlaceholder}
-      onInputStart={reveal.finish}
-      focusKey={focusKey}
-    />
+    <>
+      {hintVisible(lines, { loaded, modalOpen: !!modal }) ? <TextButton title={t.hint} busy={busy} onPress={() => void askHint()} /> : null}
+      <Composer
+        value={text}
+        onChange={(v) => {
+          setText(v);
+          touch();
+        }}
+        onSend={() => void send()}
+        busy={busy}
+        error={failed}
+        placeholder={t.inputPlaceholder}
+        onInputStart={reveal.finish}
+        focusKey={focusKey}
+      />
+    </>
   ) : null;
 
   return (
@@ -165,7 +194,7 @@ export function LessonPanel({ header, banner, overlay, request, setFailed, touch
         isNew={reveal.isNew}
         onLine={onLine}
       />
-      <CoachModal modal={modal?.view ?? null} note={modal?.note} tip={coachTipSeen ? null : copy.tips.coachModal} onClose={closeModal} />
+      <CoachModal modal={modal?.view ?? null} note={modal?.note} tip={coachTipSeen || modal?.hint ? null : copy.tips.coachModal} onClose={closeModal} />
     </LearnShell>
   );
 }

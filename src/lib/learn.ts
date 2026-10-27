@@ -294,3 +294,13 @@ export function linesOf(messages: readonly Message[], phase: Message['phase'], h
 export function hiddenUntilClosed(reply: readonly Message[], mineId: string): string[] {
   return reply.filter((m) => m.id !== mineId && (m.role === 'partner' || m.role === 'coach')).map((m) => m.id);
 }
+
+/**
+ * B "표현 보기" 버튼을 보이나. 마지막 줄이 상대 질문일 때만 보인다.
+ * 표현을 받으면 마지막 줄이 코치 줄이 되어 숨고, 학습자가 답해 새 상대 질문이 와야 다시 보인다.
+ * 대화를 받기 전과 코치 모달이 떠 있을 때는 숨긴다. 표현을 받는 중에는 보인 채로 버튼이 기다림을 보인다.
+ */
+export function hintVisible(lines: readonly Line[], s: { loaded: boolean; modalOpen: boolean }): boolean {
+  if (!s.loaded || s.modalOpen) return false;
+  return lines.at(-1)?.kind === 'partner';
+}
