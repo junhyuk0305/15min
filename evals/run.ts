@@ -11,7 +11,7 @@ import { RETRO_Q1, RETRO_Q2 } from '../supabase/functions/_shared/copy.ts';
 import { type AttemptEvent, createAi, fakeTransport, geminiTransport, type Transport } from '../supabase/functions/_shared/gemini.ts';
 import { MemoryRepo } from '../supabase/functions/_shared/memory.ts';
 import { PROMPT_VERSION as GOAL_V } from '../supabase/functions/_shared/prompts/goal-setup.ts';
-import { PROMPT_VERSION as LESSON_V, type TurnContext } from '../supabase/functions/_shared/prompts/lesson-turn.ts';
+import { HINT_PROMPT_VERSION as HINT_V, type HintContext, PROMPT_VERSION as LESSON_V, type TurnContext } from '../supabase/functions/_shared/prompts/lesson-turn.ts';
 import { PROMPT_VERSION as REFLECTION_V, type ReflectionRecords } from '../supabase/functions/_shared/prompts/reflection.ts';
 import { PROMPT_VERSION as RETRO_V } from '../supabase/functions/_shared/prompts/retro.ts';
 import { PROMPT_VERSION as QUIZ_V, type QuizItem } from '../supabase/functions/_shared/prompts/review-quiz.ts';
@@ -21,7 +21,7 @@ import { forbiddenJudgment, hasHangul, leaksFullAnswer, sameQuestion } from '../
 import type { Message } from '../supabase/functions/_shared/types.ts';
 import { S } from '../supabase/functions/_shared/validate.ts';
 import { missingFields, runGoalSetup } from '../supabase/functions/goal-setup/handler.ts';
-import { type FinalTurn, modalTexts, runTurn } from '../supabase/functions/lesson-turn/core.ts';
+import { type FinalHint, type FinalTurn, modalTexts, runHint, runTurn } from '../supabase/functions/lesson-turn/core.ts';
 import { runReflection } from '../supabase/functions/reflection/handler.ts';
 import { handle as retroHandle } from '../supabase/functions/retro/handler.ts';
 import { gradeAnswer } from '../supabase/functions/review-quiz/handler.ts';
@@ -247,6 +247,63 @@ async function evalLesson() {
   };
 }
 
+// ---------- lesson-hint (B 표현 보기) ----------
+
+type HintCases = {
+  cases: {
+    id: string; situation: string; type: 'fresh' | 'budget' | 'korean'; cursor: number;
+    dialogue: HintContext['dialogue']; knownItems?: HintContext['knownItems']; budget?: HintContext['budget'];
+  }[];
+};
+
+async function evalHint() {
+  const sits = (await readJson<LessonCases>('./cases/lesson-turn.json')).situations;
+  const data = await readJson<HintCases>('./cases/lesson-hint.json');
+  const rows = await pool(data.cases, CONCURRENCY, async (c) => {
+    const sit = sits[c.situation];
+    const question = c.dialogue.findLast((l) => l.role === 'partner')?.text ?? '';
+    const ctx: HintContext = {
+      situation: sit.scene, subsituations: sit.subsituations, cursor: c.cursor,
+      knownItems: c.knownItems ?? [], budget: c.budget ?? { expressions: 3, words: 3 },
+      dialogue: c.dialogue, partnerQuestion: question,
+    };
+    const r = await timed('lesson-hint', () => runHint(ai, ctx));
+    samples.push({ fn: 'lesson-hint', id: c.id, input: { dialogue: c.dialogue, knownItems: ctx.knownItems, budget: ctx.budget }, output: r.ok ? r.value : { error: r.error } });
+    if (!r.ok) {
+      failures.push({ fn: 'lesson-hint', id: c.id, why: `호출 실패: ${r.error}` });
+      return { c, r: null as FinalHint | null, unfit: false };
+    }
+    const v = r.value;
+    const e = v.coach_modal?.expression;
+    const j = await judge('lesson-hint', {
+      scene: JSON.stringify(sit.scene), question,
+      expression: e ? `${e.en} | ${e.ko}` : '(none)',
+      words: (v.coach_modal?.words ?? []).map((w) => `${w.en} | ${w.ko}`).join(', ') || '(none)',
+      note: v.coach_note,
+    });
+    if (j.violation) failures.push({ fn: 'lesson-hint', id: c.id, why: `힌트 부적합 (${j.reason})` });
+    return { c, r: v, unfit: j.violation };
+  });
+
+  const failed = rows.filter((x) => !x.r);
+  const unfit = rows.filter((x) => x.unfit);
+  // 상한이 0인데 새 표현을 내 서버가 잘랐다. 프롬프트가 배운 표현으로 돌리지 못한 경우다
+  const overBudget = rows.filter((x) => x.r?.trimmed.some((t) => t.startsWith('expression:')));
+  for (const x of overBudget) failures.push({ fn: 'lesson-hint', id: x.c.id, why: '새 표현 상한 0인데 새 표현을 냄(서버가 자름)' });
+  const noExpr = rows.filter((x) => x.c.type !== 'budget' && x.r && !x.r.coach_modal?.expression);
+  return {
+    gates: [
+      gate('lesson-hint', '힌트 응답 실패', '0건', `${failed.length}건 / ${rows.length}`, failed.length === 0),
+      gate('lesson-hint', '마지막 질문에 쓸 수 없거나 어렵거나 완성 답안', '0건', `${unfit.length}건 / ${rows.length}`, unfit.length === 0),
+      gate('lesson-hint', '새 표현 상한 0인데 새 표현 제안', '0건', `${overBudget.length}건 / ${rows.filter((x) => x.c.type === 'budget').length}`, overBudget.length === 0),
+    ],
+    info: [
+      `상한 안인데 표현 없이 풀어 쓰기만 줌: ${noExpr.length}/${rows.filter((x) => x.c.type !== 'budget').length}`,
+      `한국어로 막힌 뒤 힌트: ${rows.filter((x) => x.c.type === 'korean' && x.r && !x.unfit).length}/${rows.filter((x) => x.c.type === 'korean').length}`,
+    ],
+  };
+}
+
 // ---------- goal-setup ----------
 
 type GoalCases = { fallback: string; maxTurns: number; cases: { id: string; answers: string[] }[] };
@@ -436,7 +493,7 @@ function seededShuffle<T>(xs: T[], seed: number): T[] {
 const started = performance.now();
 const startedAt = nowIso();
 const parts = [];
-for (const [name, f] of [['lesson-turn', evalLesson], ['goal-setup', evalGoalSetup], ['review-quiz', evalQuiz], ['retro', evalRetro], ['reflection', evalReflection]] as const) {
+for (const [name, f] of [['lesson-turn', evalLesson], ['lesson-hint', evalHint], ['goal-setup', evalGoalSetup], ['review-quiz', evalQuiz], ['retro', evalRetro], ['reflection', evalReflection]] as const) {
   console.info(`eval ${name} ...`);
   parts.push(await f());
 }
@@ -462,7 +519,7 @@ const report = `${title}
 ${banner}
 - 시작: ${startedAt}, 걸린 시간 ${((performance.now() - started) / 1000).toFixed(1)}초
 - 모델: MAIN \`${FAKE ? 'fake' : config.models.main}\`, LIGHT \`${FAKE ? 'fake' : config.models.light}\`, 판정 \`${FAKE ? 'fake' : config.models.main}\`
-- 프롬프트: ${[LESSON_V, GOAL_V, QUIZ_V, RETRO_V, REFLECTION_V].map((v) => `\`${v}\``).join(', ')}
+- 프롬프트: ${[LESSON_V, HINT_V, GOAL_V, QUIZ_V, RETRO_V, REFLECTION_V].map((v) => `\`${v}\``).join(', ')}
 - 모델 호출 ${totalAttempts}회(재요청 ${reRequests}회, 전송 실패 ${transportFailures}회), 판정 모델 실패 ${judgeFailures}회(위반으로 셈)
 
 ## 합격선

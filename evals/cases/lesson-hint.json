@@ -1,0 +1,14 @@
+{
+  "about": "B 표현 보기(lesson-hint). 막힌 학습자에게 마지막 상대 질문에 답할 표현 하나를 준다. situation은 lesson-turn.json의 상황 이름. dialogue는 마지막 상대 질문까지의 대화, budget은 오늘 남은 새 항목 수. type: fresh(새 표현 가능), budget(새 표현 상한 0), korean(한국어로 막힌 뒤).",
+  "cases": [
+    { "id": "hint-cafe-order", "situation": "cafe", "type": "fresh", "cursor": 1, "dialogue": [{ "role": "partner", "text": "Hi! What would you like to order?" }] },
+    { "id": "hint-cafe-option", "situation": "cafe", "type": "fresh", "cursor": 2, "dialogue": [{ "role": "partner", "text": "Would you like it hot or iced, and what size?" }] },
+    { "id": "hint-interview-motive", "situation": "interview", "type": "fresh", "cursor": 2, "dialogue": [{ "role": "partner", "text": "Nice to meet you. Why do you want to work at our cafe?" }] },
+    { "id": "hint-interview-time", "situation": "interview", "type": "fresh", "cursor": 4, "dialogue": [{ "role": "partner", "text": "Which days can you work each week?" }] },
+    { "id": "hint-clothes-size", "situation": "clothes", "type": "fresh", "cursor": 2, "dialogue": [{ "role": "partner", "text": "What size are you looking for?" }] },
+    { "id": "hint-budget-known", "situation": "cafe", "type": "budget", "cursor": 2, "dialogue": [{ "role": "partner", "text": "Which size would you like?" }], "knownItems": [{ "kind": "expression", "base": "I'd like …, please.", "state": "taught" }, { "kind": "expression", "base": "Could I have … instead?", "state": "taught" }, { "kind": "expression", "base": "Do you have …?", "state": "used" }], "budget": { "expressions": 0, "words": 0 } },
+    { "id": "hint-budget-clothes", "situation": "clothes", "type": "budget", "cursor": 3, "dialogue": [{ "role": "partner", "text": "Would you like to try it on?" }], "knownItems": [{ "kind": "expression", "base": "I'm looking for …", "state": "taught" }, { "kind": "expression", "base": "Do you have this in …?", "state": "taught" }, { "kind": "expression", "base": "How much is …?", "state": "taught" }], "budget": { "expressions": 0, "words": 1 } },
+    { "id": "hint-korean-cafe", "situation": "cafe", "type": "korean", "cursor": 1, "dialogue": [{ "role": "partner", "text": "What would you like to order?" }, { "role": "learner", "text": "모르겠어요" }, { "role": "coach", "text": "영어로 다시 답해 주십시오." }, { "role": "partner", "text": "No problem, take your time. Would you like coffee or tea?" }] },
+    { "id": "hint-korean-interview", "situation": "interview", "type": "korean", "cursor": 1, "dialogue": [{ "role": "partner", "text": "Can you tell me a little about yourself?" }, { "role": "learner", "text": "저는 학생인데 영어로 뭐라고 해요?" }, { "role": "coach", "text": "영어로 다시 답해 주십시오." }, { "role": "partner", "text": "That's okay. Are you a student right now?" }] }
+  ]
+}
