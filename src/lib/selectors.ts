@@ -164,12 +164,12 @@ export function longWaitOf(ms: number): { days: number; hours: number } | null {
 }
 
 /**
- * 24시간보다 짧은 남은 시간. 1시간 이상이면 시간과 분("3시간 24분"), 그보다 짧으면 분과 초("24분 13초").
+ * 24시간보다 짧은 남은 시간. 1시간 이상이면 시, 분, 초("3시간 24분 13초"), 그보다 짧으면 분과 초("24분 13초").
  * "00:24"처럼 시각과 같은 모양이면 남은 시간인지 알 수 없었다(U9 D10)
  */
-export function shortWaitOf(ms: number): { hours: number; minutes: number } | { minutes: number; seconds: number } {
+export function shortWaitOf(ms: number): { hours: number; minutes: number; seconds: number } | { minutes: number; seconds: number } {
   const s = Math.max(0, Math.floor(ms / 1000));
-  if (s >= 3600) return { hours: Math.floor(s / 3600), minutes: Math.floor((s % 3600) / 60) };
+  if (s >= 3600) return { hours: Math.floor(s / 3600), minutes: Math.floor((s % 3600) / 60), seconds: s % 60 };
   return { minutes: Math.floor(s / 60), seconds: s % 60 };
 }
 

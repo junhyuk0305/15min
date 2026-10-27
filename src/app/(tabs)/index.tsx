@@ -59,7 +59,7 @@ function countdown(ms: number): string {
   const long = longWaitOf(ms);
   if (long) return h.longWait(long.days, long.hours);
   const w = shortWaitOf(ms);
-  return 'hours' in w ? h.hoursWait(w.hours, w.minutes) : h.minutesWait(w.minutes, w.seconds);
+  return 'hours' in w ? h.hoursWait(w.hours, w.minutes, w.seconds) : h.minutesWait(w.minutes, w.seconds);
 }
 
 /** 그날 시작 시각을 "내일 22:00" 또는 "10월 20일 22:00"으로 */

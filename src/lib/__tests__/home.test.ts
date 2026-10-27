@@ -242,11 +242,11 @@ test('홈 카운트다운: 24시간 이상이면 일과 시간, 그보다 짧으
   assert.deepEqual(longWaitOf(50 * H), { days: 2, hours: 2 });
 });
 
-test('홈 카운트다운: 24시간보다 짧으면 1시간 이상은 시간과 분, 그보다 짧으면 분과 초(시각 모양과 다르게)', () => {
+test('홈 카운트다운: 24시간보다 짧으면 1시간 이상은 시, 분, 초, 그보다 짧으면 분과 초(시각 모양과 다르게)', () => {
   const H = 3_600_000;
-  assert.deepEqual(shortWaitOf(3 * H + 24 * 60_000 + 59_000), { hours: 3, minutes: 24 });
-  assert.deepEqual(shortWaitOf(23 * H + 59 * 60_000 + 59_000), { hours: 23, minutes: 59 });
-  assert.deepEqual(shortWaitOf(H), { hours: 1, minutes: 0 });
+  assert.deepEqual(shortWaitOf(3 * H + 24 * 60_000 + 59_000), { hours: 3, minutes: 24, seconds: 59 });
+  assert.deepEqual(shortWaitOf(23 * H + 59 * 60_000 + 59_000), { hours: 23, minutes: 59, seconds: 59 });
+  assert.deepEqual(shortWaitOf(H), { hours: 1, minutes: 0, seconds: 0 });
   assert.deepEqual(shortWaitOf(H - 1000), { minutes: 59, seconds: 59 });
   assert.deepEqual(shortWaitOf(24 * 60_000 + 13_400), { minutes: 24, seconds: 13 });
   assert.deepEqual(shortWaitOf(-5000), { minutes: 0, seconds: 0 });

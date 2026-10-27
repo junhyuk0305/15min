@@ -130,7 +130,7 @@ export const copy = {
     // 24시간이 넘는 남은 시간
     longWait: (d: number, h: number) => (h ? `${d}일 ${h}시간` : `${d}일`),
     // 24시간보다 짧은 남은 시간. 시각(22:00)과 헷갈리지 않게 단위를 붙인다
-    hoursWait: (h: number, m: number) => (m ? `${h}시간 ${m}분` : `${h}시간`),
+    hoursWait: (h: number, m: number, s: number) => `${h}시간 ${m}분 ${s}초`,
     minutesWait: (m: number, s: number) => (m ? `${m}분 ${s}초` : `${s}초`),
     noGoalTitle: '목표가 없습니다',
     noGoalBody: '목표를 정하면 다음 날부터 학습이 시작됩니다.',
