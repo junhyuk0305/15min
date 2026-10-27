@@ -1,6 +1,7 @@
 // POST {goal_id, day, message?: {id, text}} → {messages, modal, episode} (명세 4절 lesson-turn)
 // message 없음: B 시작. 오늘 B 대화가 있으면 그대로 돌려주고(이어 보기), 없으면 되짚기 + 첫 질문을 만든다.
 // message 있음: 한 턴. 같은 message.id로 다시 오면 모델을 다시 부르지 않고 저장된 응답을 돌려준다.
+// hint: true: 막혔을 때 표현 보기. 마지막 상대 질문에 답할 표현 하나를 코치 줄로 저장한다. 상대 줄은 만들지 않는다.
 import { aiFor, assertOwnMessage, dayField, loadSession, messageField, type Session, stamps, uuidField } from '../_shared/context.ts';
 import { HttpError } from '../_shared/errors.ts';
 import type { Ai } from '../_shared/gemini.ts';
@@ -10,7 +11,7 @@ import type { Ctx } from '../_shared/server.ts';
 import { hasHangul, itemAppearsIn, normalizeBase } from '../_shared/text.ts';
 import { type EpisodeRow, type ItemEventRow, type ItemRow, type Message, type MessageRow, toMessage } from '../_shared/types.ts';
 import { replyId, uuidv5 } from '../_shared/uuid.ts';
-import { runOpening, runTurn, runVariant } from './core.ts';
+import { runHint, runOpening, runTurn, runVariant } from './core.ts';
 
 export type EpisodeState = { index: number; cursor: number; total: number; finished: boolean };
 export type LessonResponse = { messages: Message[]; modal: CoachModal | null; episode: EpisodeState };
@@ -61,10 +62,64 @@ export async function handle(ctx: Ctx, body: Record<string, unknown>): Promise<L
   const goalId = uuidField(body, 'goal_id');
   const dayKey = dayField(body);
   const msg = messageField(body);
+  const wantHint = body.hint !== undefined;
+  if (wantHint && (body.hint !== true || msg)) throw new HttpError('invalid', 'hint');
   const s = await loadSession(ctx, goalId, dayKey);
   let ai: Ai | null = null;
   const getAi = async () => (ai ??= await aiFor(ctx, s.profile));
+  if (wantHint) return await hint(ctx, s, getAi);
   return msg ? await turn(ctx, s, msg, getAi) : await start(ctx, s, getAi);
+}
+
+/** 하루 새 항목 상한(rules.ts newItemCap)에서 오늘 이미 가르친 만큼 뺀 남은 수. 교정과 힌트가 같이 쓴다. */
+function todayBudget(s: Session, items: ItemRow[]) {
+  const cap = newItemCap(s.day.target_minutes ?? s.goal.target_minutes);
+  const newToday = (kind: 'word' | 'expression') => items.filter((i) => i.kind === kind && i.first_day === s.today && i.state !== 'seen').length;
+  return { expressions: Math.max(0, cap - newToday('expression')), words: Math.max(0, cap - newToday('word')) };
+}
+
+/**
+ * 표현 보기. 오늘 B의 마지막 상대 질문에 답할 표현 하나를 코치 모달과 같은 모양으로 준다.
+ * 상대 질문마다 한 번만 모델을 부른다. id를 그 상대 줄에서 만들어 같은 질문에 다시 누르면 저장된 줄을 돌려준다.
+ * 새 항목은 교정과 같은 하루 상한을 따르고, 가르친 항목은 교정과 같이 taught로 기록한다.
+ */
+async function hint(ctx: Ctx, s: Session, getAi: () => Promise<Ai>): Promise<LessonResponse> {
+  const todayRows = await ctx.repo.listMessages({ userId: ctx.userId, goalId: s.goal.id, phases: ['B'], day: s.today });
+  const partner = todayRows.findLast((m) => m.role === 'partner');
+  if (!partner) throw new HttpError('invalid', 'no partner question');
+  const { ep } = await openEpisode(ctx, s, getAi);
+  const id = await uuidv5(`${partner.id}:hint`);
+  const [stored] = await ctx.repo.getMessages([id]);
+  if (stored) return { messages: [toMessage(stored)], modal: (stored.meta?.modal as CoachModal | null) ?? null, episode: episodeState(ep) };
+
+  const items = await ctx.repo.listItems(s.goal.id);
+  const result = await runHint(await getAi(), {
+    situation: situationOf(s),
+    subsituations: ep.subsituations,
+    cursor: ep.cursor,
+    knownItems: items.map((i) => ({ kind: i.kind, base: i.base, state: i.state })),
+    budget: todayBudget(s, items),
+    dialogue: todayRows.slice(-DIALOGUE_LINES).map(toLine).filter((l) => l !== null),
+    partnerQuestion: partner.text,
+  });
+  const row: MessageRow = {
+    id,
+    user_id: ctx.userId,
+    goal_id: s.goal.id,
+    day: s.today,
+    phase: 'B',
+    role: 'coach',
+    text: result.coach_note,
+    meta: { hint: true, modal: result.coach_modal, ...(result.trimmed.length ? { trimmed: result.trimmed } : {}) },
+    // 상대 줄 바로 뒤에 놓이도록 그 시각보다 앞서지 않게 한다
+    created_at: new Date(Math.max(ctx.now(), Date.parse(partner.created_at) + 1)).toISOString(),
+  };
+  await ctx.repo.insertMessages([row]);
+  // 학습자 글이 없으니 used, seen은 생기지 않고 모달 항목의 taught만 남는다
+  await recordItems(ctx, s, items, { id, text: '' }, result.coach_modal, '', new Set(), 'needs_correction');
+  // 동시에 두 번 눌렀으면 먼저 저장된 줄을 돌려준다
+  const saved = (await ctx.repo.getMessages([id]))[0] ?? row;
+  return { messages: [toMessage(saved)], modal: (saved.meta?.modal as CoachModal | null) ?? null, episode: episodeState(ep) };
 }
 
 async function start(ctx: Ctx, s: Session, getAi: () => Promise<Ai>): Promise<LessonResponse> {
@@ -169,8 +224,6 @@ async function turn(ctx: Ctx, s: Session, msg: { id: string; text: string }, get
     ? (lastPartner.meta.pending_feedback as Feedback | undefined) ?? null
     : null;
   const items = await ctx.repo.listItems(s.goal.id);
-  const cap = newItemCap(s.day.target_minutes ?? s.goal.target_minutes);
-  const newToday = (kind: 'word' | 'expression') => items.filter((i) => i.kind === kind && i.first_day === s.today && i.state !== 'seen').length;
 
   const ai = await getAi();
   const result = await runTurn(ai, {
@@ -179,7 +232,7 @@ async function turn(ctx: Ctx, s: Session, msg: { id: string; text: string }, get
     cursor: ep.cursor,
     knownItems: items.map((i) => ({ kind: i.kind, base: i.base, state: i.state })),
     previousFeedback,
-    budget: { expressions: Math.max(0, cap - newToday('expression')), words: Math.max(0, cap - newToday('word')) },
+    budget: todayBudget(s, items),
     dialogue: before.slice(-DIALOGUE_LINES).map(toLine).filter((l) => l !== null),
     previousPartner,
     koreanDetected: hasHangul(msg.text),

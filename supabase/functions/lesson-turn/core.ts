@@ -2,11 +2,17 @@
 import { COACH_COPY } from '../_shared/copy.ts';
 import type { Ai } from '../_shared/gemini.ts';
 import {
+  buildHintInput,
   buildOpeningInput,
   buildTurnInput,
   buildVariantInput,
   type CoachModal,
   type Feedback,
+  HINT_PROMPT_VERSION,
+  HINT_SCHEMA,
+  HINT_SYSTEM,
+  type HintContext,
+  type HintOutput,
   OPENING_SCHEMA,
   OPENING_SYSTEM,
   type OpeningContext,
@@ -30,7 +36,7 @@ export const MAX_PARTNER_CHARS = 400;
 
 export type FinalTurn = TurnOutput & { trimmed: string[]; feedback: Feedback | null };
 
-function isKnown(c: TurnContext, kind: 'word' | 'expression', en: string): boolean {
+function isKnown(c: Pick<TurnContext, 'knownItems'>, kind: 'word' | 'expression', en: string): boolean {
   const b = normalizeBase(kind, en).toLowerCase();
   return c.knownItems.some((i) => i.kind === kind && i.state !== 'seen' && i.base.toLowerCase() === b);
 }
@@ -66,29 +72,81 @@ export function finalizeTurn(raw: TurnOutput, c: TurnContext): FinalTurn {
   }
 
   if (out.coach_modal) {
-    let exprLeft = c.budget.expressions;
-    let wordsLeft = c.budget.words;
-    let expression = out.coach_modal.expression;
-    if (expression && !isKnown(c, 'expression', expression.en)) {
-      if (exprLeft <= 0) {
-        out.trimmed.push(`expression:${expression.en}`);
-        expression = null;
-      } else exprLeft--;
-    }
-    const words = [];
-    for (const w of out.coach_modal.words.slice(0, 2)) {
-      if (isKnown(c, 'word', w.en)) words.push(w);
-      else if (wordsLeft > 0) {
-        words.push(w);
-        wordsLeft--;
-      } else out.trimmed.push(`word:${w.en}`);
-    }
-    for (const w of out.coach_modal.words.slice(2)) out.trimmed.push(`word:${w.en}`);
-    out.coach_modal = expression || words.length ? { expression, words } : null;
+    const b = applyBudget(out.coach_modal, c);
+    out.coach_modal = b.modal;
+    out.trimmed.push(...b.trimmed);
   }
   // 새 표현 상한으로 패턴을 못 보여 주면 구체적인 단서로 이어 간다.
   if (out.feedback && !out.coach_modal?.expression) out.feedback.stage = 'cue';
   return out;
+}
+
+/** 모달에 하루 새 항목 상한을 입힌다. 단어는 2개까지. 상한을 넘는 새 항목은 잘라 trimmed에 남긴다. 교정과 힌트가 같이 쓴다. */
+function applyBudget(m: CoachModal, c: Pick<TurnContext, 'knownItems' | 'budget'>): { modal: CoachModal | null; trimmed: string[] } {
+  const trimmed: string[] = [];
+  let exprLeft = c.budget.expressions;
+  let wordsLeft = c.budget.words;
+  let expression = m.expression;
+  if (expression && !isKnown(c, 'expression', expression.en)) {
+    if (exprLeft <= 0) {
+      trimmed.push(`expression:${expression.en}`);
+      expression = null;
+    } else exprLeft--;
+  }
+  const words = [];
+  for (const w of m.words.slice(0, 2)) {
+    if (isKnown(c, 'word', w.en)) words.push(w);
+    else if (wordsLeft > 0) {
+      words.push(w);
+      wordsLeft--;
+    } else trimmed.push(`word:${w.en}`);
+  }
+  for (const w of m.words.slice(2)) trimmed.push(`word:${w.en}`);
+  return { modal: expression || words.length ? { expression, words } : null, trimmed };
+}
+
+export type FinalHint = HintOutput & { trimmed: string[] };
+
+/** 힌트 출력에 교정과 같은 상한 규칙을 입힌다. 새 표현이 잘리면 coach_note(쉬운 풀어 쓰기)만 남는다. */
+export function finalizeHint(raw: HintOutput, c: HintContext): FinalHint {
+  if (!raw.coach_modal) return { ...raw, trimmed: [] };
+  const b = applyBudget(raw.coach_modal, c);
+  return { coach_modal: b.modal, coach_note: raw.coach_note, trimmed: b.trimmed };
+}
+
+/** 다시 요청해야 하는 힌트 위반. */
+export function checkHint(raw: HintOutput, c: HintContext): string[] {
+  const e: string[] = [];
+  if (!raw.coach_note.trim() || !hasHangul(raw.coach_note)) e.push('coach_note는 한국어 한 문장입니다');
+  for (const p of toneProblems(raw.coach_note)) e.push(`coach_note 말투: ${p}`);
+  const m = raw.coach_modal;
+  if (!m?.expression && c.budget.expressions > 0) e.push('새 표현을 가르칠 수 있으면 coach_modal.expression이 하나 있어야 합니다');
+  if (m?.expression) {
+    if (hasHangul(m.expression.en) || !m.expression.en.trim()) e.push('expression.en은 영어 패턴입니다');
+    if (!hasHangul(m.expression.ko)) e.push('expression.ko는 한국어 뜻입니다');
+    for (const p of toneProblems(m.expression.note)) e.push(`expression.note 말투: ${p}`);
+  }
+  for (const w of m?.words ?? []) {
+    if (hasHangul(w.en) || !w.en.trim()) e.push('words.en은 영어 낱말입니다');
+    if (!hasHangul(w.ko)) e.push('words.ko는 한국어 뜻입니다');
+    for (const p of toneProblems(w.note)) e.push(`word.note 말투: ${p}`);
+  }
+  return e;
+}
+
+export async function runHint(ai: Ai, c: HintContext): Promise<FinalHint> {
+  const raw = await ai.generate<HintOutput>({
+    fn: FN,
+    promptId: 'lesson-hint',
+    promptVersion: HINT_PROMPT_VERSION,
+    tier: 'main',
+    system: HINT_SYSTEM,
+    input: buildHintInput(c),
+    schema: HINT_SCHEMA,
+    context: c,
+    check: (r) => checkHint(r, c),
+  });
+  return finalizeHint(raw, c);
 }
 
 /** 모달에서 화면에 보이는 글. */

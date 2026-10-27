@@ -1,7 +1,7 @@
 // AI_FAKE=1 고정 응답. 로컬 테스트와 평가 하네스 자체 점검 전용. 프로덕션 시크릿에 넣지 않는다(config.ts가 막는다).
 // 같은 입력이면 같은 출력이고, 함수별 서버 검증을 통과하도록 만든다. 품질 평가가 아니다.
 import type { GoalSetupContext } from './prompts/goal-setup.ts';
-import type { OpeningContext, TurnContext, TurnOutput, VariantContext } from './prompts/lesson-turn.ts';
+import type { HintContext, HintOutput, OpeningContext, TurnContext, TurnOutput, VariantContext } from './prompts/lesson-turn.ts';
 import type { ReflectionContext } from './prompts/reflection.ts';
 import type { RetroContext } from './prompts/retro.ts';
 import type { GradeContext, QuestionContext } from './prompts/review-quiz.ts';
@@ -71,6 +71,27 @@ function lessonTurn(c: TurnContext): TurnOutput {
     hidden_correction: null,
     subsituation_done: true,
   };
+}
+
+// 새 표현을 가르칠 수 있으면 새 패턴, 없으면 배운 표현, 그것도 없으면 쉬운 풀어 쓰기만 준다.
+function lessonHint(c: HintContext): HintOutput {
+  if (c.budget.expressions > 0) {
+    return {
+      coach_modal: {
+        expression: { en: 'Can I get …, please?', ko: '…를 주시겠습니까?', note: '원하는 것을 부탁할 때 씁니다.' },
+        words: [{ en: 'size', ko: '크기', note: '컵이나 옷의 크기를 말할 때 씁니다.' }],
+      },
+      coach_note: '빈칸에 원하는 것을 넣어 답하십시오.',
+    };
+  }
+  const known = c.knownItems.find((i) => i.kind === 'expression' && i.state !== undefined && i.state !== 'seen');
+  if (known) {
+    return {
+      coach_modal: { expression: { en: known.base, ko: '배운 표현입니다.', note: '이미 배운 표현으로 답할 수 있습니다.' }, words: [] },
+      coach_note: '배운 표현의 빈칸을 채워 답하십시오.',
+    };
+  }
+  return { coach_modal: null, coach_note: '아는 쉬운 낱말로 짧게 답해도 됩니다. "This one, please."처럼 씁니다.' };
 }
 
 function goalSetup(c: GoalSetupContext) {
@@ -151,6 +172,8 @@ export function fakeResponse(promptId: string, context: unknown): unknown {
   switch (promptId) {
     case 'lesson-turn':
       return lessonTurn(context as TurnContext);
+    case 'lesson-hint':
+      return lessonHint(context as HintContext);
     case 'lesson-opening': {
       const c = context as OpeningContext;
       return { partner: c.resume.length ? "Welcome back! Let's pick up where we stopped. What would you like to do now?" : 'Hi there! How can I help you today?' };

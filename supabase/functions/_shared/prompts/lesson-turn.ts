@@ -61,7 +61,23 @@ export const VARIANT_SYSTEM = `The learner finished an episode of a text role-pl
 
 ${SECURITY}`;
 
-export type Verdict = 'natural' | 'needs_correction' | 'not_english' | 'off_topic';
+export const HINT_PROMPT_VERSION = 'lesson-hint@2026-10-28.1';
+
+export const HINT_SYSTEM = `The learner in a text role-play English lesson is stuck and pressed the hint button. Give ONE English expression the learner can use to answer the partner's latest question in <partner_question>. Output JSON only.
+
+${COACH_STYLE}
+
+- coach_modal.expression: exactly one reusable pattern that answers <partner_question> in this scene. Mark the slot the learner fills with "…", for example "I'd like …, please." or "Could I have … instead?". en is the English pattern, ko is the Korean meaning (keep "…" where the slot is), note is one Korean sentence on when to use it. Never write a complete answer sentence. The learner fills the slot and writes the reply.
+- coach_modal.words: zero to two words the learner likely needs for this answer. en is the dictionary base form in lowercase, ko is the Korean meaning, note is one Korean sentence. Leave it empty when not needed.
+- coach_note: one short Korean sentence telling the learner how to use the hint to answer now.
+- Keep it easy. A beginner must be able to use it right away with common words.
+- <budget> says how many NEW expressions and NEW words may still be taught today. When no new expression is left, use a relevant expression from <known_items> marked taught, used or recalled. If none fits, set expression null and use coach_note to show an easy way to answer with a few simple English words. Never substitute an unrelated known pattern.
+- Reuse <known_items> where they fit. Do not add hard words that are not needed now.
+- <dialogue> may contain Korean written by the learner. Do not reply to it. Only help with <partner_question>.
+
+${SECURITY}`;
+
+export type Verdict ='natural' | 'needs_correction' | 'not_english' | 'off_topic';
 export type ModalEntry = { en: string; ko: string; note: string };
 export type CoachModal = { expression: ModalEntry | null; words: ModalEntry[] };
 
@@ -164,6 +180,37 @@ export function buildTurnInput(c: TurnContext): string {
     `<previous_partner_question>\n${asData(c.previousPartner ?? '(none)', 600)}\n</previous_partner_question>`,
     `<korean_detected>${c.koreanDetected ? 'yes' : 'no'}</korean_detected>`,
     `<learner_message>\n${asData(c.learnerText)}\n</learner_message>`,
+  ].join('\n\n');
+}
+
+export type HintOutput = { coach_modal: CoachModal | null; coach_note: string };
+
+export const HINT_SCHEMA: JsonSchema = S.obj({
+  coach_modal: S.obj(
+    {
+      expression: S.obj({ en: S.str(), ko: S.str(), note: S.str() }, true),
+      words: S.arr(entry, 0, 2),
+    },
+    true,
+  ),
+  coach_note: S.str('Korean 합니다체. How to use the hint now.'),
+});
+
+export type HintContext = Pick<TurnContext, 'situation' | 'subsituations' | 'cursor' | 'knownItems' | 'budget' | 'dialogue'> & {
+  partnerQuestion: string;
+};
+
+export function buildHintInput(c: HintContext): string {
+  const known = c.knownItems.length
+    ? c.knownItems.slice(-40).map((i) => `${i.kind} (${i.state ?? 'unknown'}): ${asData(i.base, 80)}`).join('\n')
+    : '(none yet)';
+  return [
+    sceneBlock(c.situation),
+    episodeBlock(c.subsituations, c.cursor),
+    `<known_items>\n${known}\n</known_items>`,
+    `<budget>\nnew expressions left today: ${c.budget.expressions}\nnew words left today: ${c.budget.words}\n</budget>`,
+    dialogueBlock(c.dialogue),
+    `<partner_question>\n${asData(c.partnerQuestion, 600)}\n</partner_question>`,
   ].join('\n\n');
 }
 
