@@ -37,7 +37,7 @@ import { useReveal } from '@/lib/useReveal';
 import { B, C, S, T } from '@/lib/theme';
 
 // 목표 설정 (MP 3절, 결정안 1, 8). 첫 목표와 달성 뒤 새 목표가 모두 이 화면이다. 닫기 없음, 화면 밖으로 뒤로 가기 막음.
-// 2/3, 3/3은 헤더 chevron과 Android 뒤로가 앞 단계로 간다. 1/3은 강제 화면이라 chevron 대신 이유 한 줄이다(갭분석 N6).
+// 2/3, 3/3은 헤더 chevron과 Android 뒤로가 앞 단계로 간다. 1/3은 홈으로 나간다. 초안은 기기에 남아 다시 들어오면 이어진다.
 // 1/3 채팅(goal-setup): 이유 → 장소 → 내 역할 → 상대 → 해결할 일 → 목표 이름.
 // 2/3 위젯: 기간, 학습 요일, 시작 시각, 하루 학습 분. 3/3 확인 카드 → create_goal → 홈.
 // 만들면 route.ts가 /goal/new를 홈으로 보낸다.
@@ -45,6 +45,7 @@ import { B, C, S, T } from '@/lib/theme';
 const g = copy.goalSetup;
 const INTRO_TIP = 'goal-intro';
 const startIntro = () => markSeen(INTRO_TIP);
+const leaveSetup = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
 function useDraftHydrated() {
   const [done, setDone] = useState(useGoalDraft.persist.hasHydrated());
@@ -63,13 +64,14 @@ export default function NewGoal() {
     if (hydrated) useGoalDraft.getState().begin(userId, useApp.getState().lastGoal);
   }, [hydrated, userId]);
 
-  // Android 뒤로 가기: 확인 → 약속 → 채팅. 채팅에서는 막는다(강제 화면, MP 7.7-2)
+  // Android 뒤로 가기: 확인 → 약속 → 채팅 → 홈
   useFocusEffect(
     useCallback(() => {
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
         const s = useGoalDraft.getState();
         if (s.stage === 'confirm') s.setStage('plan');
         else if (s.stage === 'plan') s.setStage('chat');
+        else leaveSetup();
         return true;
       });
       return () => sub.remove();
@@ -184,7 +186,7 @@ function ChatStage() {
     <Frame
       stick
       chat={{ count: view.length, mineLast: last?.role === 'user', revealing: reveal.revealing, onTouch: reveal.finish }}
-      header={<SetupHeader stage="chat" fields={fields} right={latestId ? <HeaderMore onPress={menu.more} /> : undefined} />}
+      header={<SetupHeader stage="chat" fields={fields} onBack={leaveSetup} right={latestId ? <HeaderMore onPress={menu.more} /> : undefined} />}
       footer={
         <>
           {chips.length ? (
@@ -242,7 +244,7 @@ function ManualStage() {
   const left = missingFields(fields).length;
   return (
     <Frame
-      header={<SetupHeader stage="chat" fields={fields} />}
+      header={<SetupHeader stage="chat" fields={fields} onBack={leaveSetup} />}
       footer={
         <Button
           title={g.toPlan}

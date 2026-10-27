@@ -66,8 +66,6 @@ export const copy = {
     needChars: (n: number) => `${n}자 더 쓰십시오.`,
     acceptName: '이 이름으로 정합니다.',
     toPlan: '이어서 정하기',
-    // 1/3 채팅은 강제 화면이다. 헤더에 뒤로 대신 이 한 줄을 둔다
-    locked: '목표를 정해야 시작할 수 있습니다.',
     manualNote: '대화 횟수를 다 썼습니다. 남은 항목은 직접 쓰십시오.',
     needFields: (n: number) => `${n}개 항목을 더 채우십시오.`,
     planTitle: '언제, 얼마나 할지 정하십시오.',
