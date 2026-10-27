@@ -1,4 +1,4 @@
--- 보안 보강: 비밀번호는 심사용 계정만, 이메일 별칭 정규화와 HMAC 해시, 입력 길이와 개수, 04:00 경계 일정,
+-- 보안 보강: 비밀번호 저장, 이메일 별칭 정규화와 HMAC 해시, 입력 길이와 개수, 04:00 경계 일정,
 -- AI 호출 자리 잡기, 신고 보존과 AI 글 신고, 인증 기록 보관 기간, 기본 권한
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -40,14 +40,16 @@ create function pg_temp.mk(
     p_situation, p_subs, p_now)
 $$;
 
--- ───────── H1. 비밀번호는 심사용 계정만 ─────────
+-- ───────── H1. 모든 계정이 비밀번호를 쓴다(2026-10-27, 이전에는 심사용만) ─────────
 
 update app_private.config set value = 'Rev9@Test.local' where key = 'review_email';
-select pg_temp.new_user('00000000-0000-4000-8000-000000000901', 'victim9@test.local', 'Asia/Seoul', 'AttackerPass1!');
-select is(pg_temp.pw('00000000-0000-4000-8000-000000000901'), '', '심사용이 아닌 이메일은 가입 때 비밀번호가 저장되지 않는다');
+select pg_temp.new_user('00000000-0000-4000-8000-000000000901', 'user9@test.local', 'Asia/Seoul', 'UserPass1!');
+select ok(extensions.crypt('UserPass1!', pg_temp.pw('00000000-0000-4000-8000-000000000901')) = pg_temp.pw('00000000-0000-4000-8000-000000000901'),
+  '일반 이메일도 가입 때 비밀번호가 저장되고 맞는다');
 update auth.users set encrypted_password = extensions.crypt('NewPassw0rd!!', extensions.gen_salt('bf'))
 where id = '00000000-0000-4000-8000-000000000901';
-select is(pg_temp.pw('00000000-0000-4000-8000-000000000901'), '', '심사용이 아닌 계정은 비밀번호를 바꿔도 저장되지 않는다');
+select ok(extensions.crypt('NewPassw0rd!!', pg_temp.pw('00000000-0000-4000-8000-000000000901')) = pg_temp.pw('00000000-0000-4000-8000-000000000901'),
+  '일반 계정도 비밀번호를 바꿀 수 있다');
 select pg_temp.new_user('00000000-0000-4000-8000-000000000902', 'rev9@test.local', 'Asia/Seoul', 'ReviewPass123!');
 select ok(extensions.crypt('ReviewPass123!', pg_temp.pw('00000000-0000-4000-8000-000000000902')) = pg_temp.pw('00000000-0000-4000-8000-000000000902'),
   '심사용 이메일(대소문자 무시)은 비밀번호가 저장되고 맞는다');
@@ -57,7 +59,7 @@ select ok(extensions.crypt('ReviewPass456!', pg_temp.pw('00000000-0000-4000-8000
   '심사용 계정은 비밀번호를 바꿀 수 있다');
 select pg_temp.new_user('00000000-0000-4000-8000-000000000903', 'otp9@test.local');
 select is(pg_temp.pw('00000000-0000-4000-8000-000000000903'), '', '비밀번호 없는 가입(OTP)은 그대로');
-select ok(exists (select 1 from public.profiles where user_id = '00000000-0000-4000-8000-000000000901'), '비밀번호를 비워도 가입 트리거는 프로필을 만든다');
+select ok(exists (select 1 from public.profiles where user_id = '00000000-0000-4000-8000-000000000901'), '비밀번호 가입도 가입 트리거가 프로필을 만든다');
 
 -- ───────── M2, L3. 이메일 정규화와 해시 ─────────
 

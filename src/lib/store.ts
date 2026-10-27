@@ -9,7 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Session } from '@supabase/supabase-js';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { ApiError, TERMS_VERSION, toApiError, type ApiErrorKind, type LoginMethod } from './api';
+import { ApiError, TERMS_VERSION, toApiError, type ApiErrorKind } from './api';
 import {
   dayKeyId,
   mergeById,
@@ -76,12 +76,8 @@ type Actions = {
   onSession: (session: Session | null) => void;
   finishOnboarding: () => void;
 
-  /** 심사용 데모 이메일이면 'password' */
-  loginMethod: (email: string) => Promise<LoginMethod>;
-  /** 6자리 코드 메일. 가입 동의 3개는 화면이 확인한 뒤 부른다 */
-  sendCode: (email: string) => Promise<void>;
-  verifyCode: (email: string, code: string) => Promise<void>;
-  signInWithPassword: (email: string, password: string) => Promise<void>;
+  /** 처음이면 가입, 있으면 로그인. 가입 동의 3개는 화면이 확인한 뒤 부른다 */
+  signUpOrIn: (email: string, password: string) => Promise<void>;
 
   createGoal: (input: GoalInput) => Promise<AppGoal>;
   startDay: (reason: string) => Promise<void>;
@@ -282,14 +278,8 @@ export const useApp = create<AppState>()(
 
         finishOnboarding: () => set({ onboarded: true }),
 
-        loginMethod: (email) => act(() => api.loginMethod(email)),
-
-        sendCode: (email) =>
-          act(() => api.sendCode(email, { age_confirmed: true, ai_consent: true, terms_version: TERMS_VERSION })),
-
-        verifyCode: (email, code) => signIn(() => api.verifyCode(email, code)),
-
-        signInWithPassword: (email, password) => signIn(() => api.signInWithPassword(email, password)),
+        signUpOrIn: (email, password) =>
+          signIn(() => api.signUpOrIn(email, password, { age_confirmed: true, ai_consent: true, terms_version: TERMS_VERSION })),
 
         createGoal: (input) =>
           act(async () => {

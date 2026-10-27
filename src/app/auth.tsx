@@ -2,26 +2,25 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { BackHandler, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { Checkbox } from '@/components/Checkbox';
-import { CodeInput } from '@/components/CodeInput';
 import { Header } from '@/components/Header';
 import { useInk } from '@/components/surface';
 import { TextButton } from '@/components/TextButton';
-import { Body, Button, H1, Label, Screen, styles, useNow } from '@/components/ui';
+import { Body, Button, H1, Label, Screen, styles } from '@/components/ui';
 import { toApiError } from '@/lib/api';
 import { copy, errorText } from '@/lib/copy';
 import { MIN_AGE } from '@/lib/rules';
 import { useApp } from '@/lib/store';
 import { B, C, S, T } from '@/lib/theme';
 
-// 이메일 6자리 코드 로그인(가입 겸용). 심사용 데모 이메일은 비밀번호 입력으로 바뀐다(MP P2-4).
+// 이메일+비밀번호 로그인(가입 겸용). 이메일 인증은 없다(2026-10-27 오너 결정).
 // 로그인이 끝나면 route.ts가 원래 화면(?next=)이나 홈으로 보낸다.
 
 const t = copy.auth;
-const CODE_LENGTH = 6;
-const RESEND_MS = 60_000;
+// supabase/config.toml minimum_password_length와 같게 둔다. 운영은 대시보드 값을 맞춘다
+const PASSWORD_MIN = 8;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-type Step = 'email' | 'code' | 'password';
+type Step = 'email' | 'password';
 
 function Input({ label, ...props }: TextInputProps & { label: string }) {
   const { p } = useInk();
@@ -42,25 +41,20 @@ function Input({ label, ...props }: TextInputProps & { label: string }) {
 
 export default function Auth() {
   const store = useApp();
-  const now = useNow(1000, Date.now);
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
   // 이메일 칸을 벗어났거나 키보드 완료를 눌렀다. 그 전에는 형식이 틀려도 빨강을 띄우지 않는다(쓰는 중, U9 D7)
   const [emailDone, setEmailDone] = useState(false);
-  const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [consent, setConsent] = useState({ age: false, terms: false, ai: false });
   const [showTransfer, setShowTransfer] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
-  const [resendAt, setResendAt] = useState(0);
 
   const run = async (job: () => Promise<void>) => {
     if (busy) return;
     setBusy(true);
     setError(null);
-    setInfo(null);
     try {
       await job();
     } catch (e) {
@@ -71,55 +65,23 @@ export default function Auth() {
     }
   };
 
-  const sendCode = async () => {
-    await store.sendCode(email);
-    setResendAt(Date.now() + RESEND_MS);
-    setCode('');
+  const submitEmail = () => {
+    setError(null);
+    setStep('password');
   };
-
-  const submitEmail = () =>
-    run(async () => {
-      const method = await store.loginMethod(email);
-      if (method === 'password') {
-        setStep('password');
-        return;
-      }
-      await sendCode();
-      setStep('code');
-    });
-
-  const resend = () =>
-    run(async () => {
-      await sendCode();
-      setInfo(t.resent);
-    });
-
-  // 6자리가 차면 바로 보낸다(갭분석 V10). 버튼도 같은 일을 한다.
-  // 코드가 틀리면 칸을 비운다. 틀린 6자리가 남으면 같은 값을 다시 넣어도 바뀐 것이 없어 자동 제출이 안 된다
-  const verify = (c = code) =>
-    run(async () => {
-      try {
-        await store.verifyCode(email, c);
-      } catch (e) {
-        if (toApiError(e).code === 'otp_expired') setCode('');
-        throw e;
-      }
-    });
-  const passwordLogin = () => run(() => store.signInWithPassword(email, password));
+  const submitPassword = () => run(() => store.signUpOrIn(email, password));
 
   const backToEmail = () => {
     setStep('email');
     setError(null);
-    setInfo(null);
   };
 
-  // 코드, 비밀번호 단계에서 Android 뒤로는 헤더 chevron과 같이 이메일 단계로 간다(갭분석 N5, MP 7.7-2 "앞 화면으로")
+  // 비밀번호 단계에서 Android 뒤로는 헤더 chevron과 같이 이메일 단계로 간다(갭분석 N5, MP 7.7-2 "앞 화면으로")
   useEffect(() => {
     if (step === 'email') return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       setStep('email');
       setError(null);
-      setInfo(null);
       return true;
     });
     return () => sub.remove();
@@ -187,36 +149,14 @@ export default function Auth() {
         </View>
       </>
     );
-    footer = <Button title={t.sendCode} onPress={submitEmail} busy={busy} disabled={!typed || badEmail || !!reason} disabledReason={reason} />;
-  } else if (step === 'code') {
-    const left = CODE_LENGTH - code.length;
-    const wait = Math.max(0, Math.ceil((resendAt - now) / 1000));
-    body = (
-      <>
-        <H1>{t.codeTitle}</H1>
-        <Body muted>{t.codeSent(email.trim())}</Body>
-        <View style={{ gap: S.xs }}>
-          <Label>{t.codeLabel}</Label>
-          <CodeInput value={code} onChange={setCode} onFull={(c) => void verify(c)} length={CODE_LENGTH} label={t.codeLabel} />
-        </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
-          {wait > 0 ? (
-            <Text style={[T.small, { color: C.sub }]}>{t.resendIn(wait)}</Text>
-          ) : (
-            <TextButton title={t.resend} onPress={resend} disabled={busy} />
-          )}
-        </View>
-      </>
-    );
-    // 빈 코드는 이유 없이 비활성. 쓰기 시작했는데 모자라면 빨강
-    footer = (
-      <Button title={t.verify} onPress={() => void verify()} busy={busy} disabled={left > 0} disabledReason={code.length > 0 && left > 0 ? t.codeLeft(left) : null} />
-    );
+    footer = <Button title={t.next} onPress={submitEmail} disabled={!typed || badEmail || !!reason} disabledReason={reason} />;
   } else {
+    const short = password.length < PASSWORD_MIN;
     body = (
       <>
         <H1>{t.passwordTitle}</H1>
         <Body muted>{email.trim()}</Body>
+        <Body muted>{t.passwordSub}</Body>
         <Input
           label={t.passwordLabel}
           value={password}
@@ -225,17 +165,26 @@ export default function Auth() {
           textContentType="password"
           autoComplete="password"
           autoFocus
+          onSubmitEditing={() => !short && void submitPassword()}
         />
       </>
     );
-    footer = <Button title={t.verify} onPress={passwordLogin} busy={busy} disabled={!password} />;
+    // 빈 칸은 이유 없이 비활성. 쓰기 시작했는데 모자라면 빨강
+    footer = (
+      <Button
+        title={t.verify}
+        onPress={() => void submitPassword()}
+        busy={busy}
+        disabled={short}
+        disabledReason={password.length > 0 && short ? t.passwordShort(PASSWORD_MIN) : null}
+      />
+    );
   }
 
   return (
     <Screen footer={footer} header={step === 'email' ? undefined : <Header title={t.header} onLeft={backToEmail} />}>
       {body}
       {error ? <Text accessibilityRole="alert" style={[T.small, { color: C.redText }]}>{error}</Text> : null}
-      {info ? <Text style={[T.small, { color: C.sub }]}>{info}</Text> : null}
     </Screen>
   );
 }

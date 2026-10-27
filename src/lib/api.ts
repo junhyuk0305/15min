@@ -139,7 +139,7 @@ export async function fromFunctions(error: unknown): Promise<ApiError> {
 /** 가입 트리거가 막는 코드. GoTrue가 500 {code: 'P0001', message: 코드}로 돌려주고 supabase-js는 재시도 오류로 바꾼다 */
 const SIGNUP_CODES = new Set(['age_not_confirmed', 'ai_consent_required']);
 
-/** Supabase Auth 오류 → ApiError. 화면은 code로 문구를 고른다(otp_expired, invalid_credentials 등). */
+/** Supabase Auth 오류 → ApiError. 화면은 code로 문구를 고른다(invalid_credentials, weak_password 등). */
 export function fromAuth(error: unknown): ApiError {
   if (isAuthError(error) && SIGNUP_CODES.has(error.message.trim())) return new ApiError('invalid', error.message.trim());
   if (isAuthRetryableFetchError(error)) return new ApiError('network');
@@ -187,7 +187,6 @@ export async function withTimeout<T>(run: (signal: AbortSignal) => PromiseLike<T
 export type CompleteDayResult = { day: DayRow; couponEarned: boolean; coupons: number };
 export type LessonTurnResult = { messages: Message[]; modal: LessonModal; episode: Episode | null };
 export type SignupMeta = { age_confirmed: true; ai_consent: true; terms_version: string };
-export type LoginMethod = 'password' | 'otp';
 
 /** 가입 때 동의한 약관 판. 약관을 바꾸면 올린다. */
 export const TERMS_VERSION = '2026-10-18';
@@ -295,27 +294,22 @@ export function createApi(opts: ApiOptions) {
       return data.session;
     },
 
-    /** 심사용 데모 이메일이면 'password'. anon으로 부른다 */
-    async loginMethod(email: string): Promise<LoginMethod> {
-      const m = await rpc<string>('login_method', { p_email: email.trim() });
-      return m === 'password' ? 'password' : 'otp';
-    },
-
-    /** 6자리 코드 메일. 처음이면 가입. meta는 가입 트리거가 raw_user_meta_data에서 읽는다 */
-    async sendCode(email: string, meta: SignupMeta): Promise<void> {
-      await authCall(() => sb().auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true, data: meta } }));
-    },
-
-    async verifyCode(email: string, token: string): Promise<Session> {
-      const { data } = await authCall(() => sb().auth.verifyOtp({ email: email.trim(), token: token.trim(), type: 'email' }));
-      if (!data.session) throw new ApiError('auth', 'no_session');
-      return data.session;
-    },
-
     async signInWithPassword(email: string, password: string): Promise<Session> {
       const { data } = await authCall(() => sb().auth.signInWithPassword({ email: email.trim(), password }));
       if (!data.session) throw new ApiError('auth', 'no_session');
       return data.session;
+    },
+
+    /** 처음이면 가입, 이미 있는 이메일이면 같은 비밀번호로 로그인. 이메일 인증은 없다. meta는 가입 트리거가 raw_user_meta_data에서 읽는다 */
+    async signUpOrIn(email: string, password: string, meta: SignupMeta): Promise<Session> {
+      try {
+        const { data } = await authCall(() => sb().auth.signUp({ email: email.trim(), password, options: { data: meta } }));
+        if (!data.session) throw new ApiError('auth', 'no_session');
+        return data.session;
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.code !== 'user_already_exists') throw e;
+      }
+      return this.signInWithPassword(email, password);
     },
 
     /** 이 기기의 세션만 지운다. 서버 요청이 실패해도 로컬 세션은 지워지고, 그 실패를 ApiError로 던진다 */

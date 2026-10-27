@@ -181,26 +181,31 @@ test('lesson-turn 응답 메시지를 앱 모양으로 바꾼다', async () => {
   assert.deepEqual(JSON.parse(calls[0].body ?? '{}'), { goal_id: 'g', day: '2026-10-18', message: { id: 'u1', text: 'hello' } });
 });
 
-test('코드 받기: 가입 동의 메타데이터를 data로 보낸다', async () => {
-  const { api, calls } = setup([{ status: 200, body: {} }]);
-  await api.sendCode(' a@b.co ', { age_confirmed: true, ai_consent: true, terms_version: 'v1' });
-  assert.match(calls[0].url, /\/auth\/v1\/otp/);
+const META = { age_confirmed: true, ai_consent: true, terms_version: 'v1' } as const;
+const SESSION = { access_token: 'a', refresh_token: 'r', expires_in: 3600, token_type: 'bearer', user: { id: 'u1', aud: 'authenticated' } };
+
+test('가입: 이메일, 비밀번호, 동의 메타데이터를 signup으로 보낸다', async () => {
+  const { api, calls } = setup([{ status: 200, body: SESSION }]);
+  const s = await api.signUpOrIn(' a@b.co ', 'password1', META);
+  assert.equal(s.user.id, 'u1');
+  assert.match(calls[0].url, /\/auth\/v1\/signup/);
   const body = JSON.parse(calls[0].body ?? '{}');
   assert.equal(body.email, 'a@b.co');
-  assert.deepEqual(body.data, { age_confirmed: true, ai_consent: true, terms_version: 'v1' });
-  assert.equal(body.create_user, true);
+  assert.equal(body.password, 'password1');
+  assert.deepEqual(body.data, META);
 });
 
-test('코드 받기 횟수 초과는 limit, 틀린 코드는 invalid otp_expired', async () => {
-  const { api } = setup([
-    { status: 429, body: { code: 429, error_code: 'over_email_send_rate_limit', msg: 'rate' } },
-    { status: 403, body: { code: 403, error_code: 'otp_expired', msg: 'Token has expired or is invalid' } },
+test('이미 있는 이메일이면 같은 비밀번호로 로그인한다. 틀리면 invalid_credentials', async () => {
+  const exists = { status: 422, body: { code: 422, error_code: 'user_already_exists', msg: 'User already registered' } };
+  const { api, calls } = setup([
+    exists,
+    { status: 200, body: SESSION },
+    exists,
+    { status: 400, body: { code: 400, error_code: 'invalid_credentials', msg: 'Invalid login credentials' } },
   ]);
-  assert.deepEqual(await kindOf(api.sendCode('a@b.co', { age_confirmed: true, ai_consent: true, terms_version: 'v' })), {
-    kind: 'limit',
-    code: 'over_email_send_rate_limit',
-  });
-  assert.deepEqual(await kindOf(api.verifyCode('a@b.co', '123456')), { kind: 'invalid', code: 'otp_expired' });
+  assert.equal((await api.signUpOrIn('a@b.co', 'password1', META)).user.id, 'u1');
+  assert.match(calls[1].url, /\/auth\/v1\/token\?grant_type=password/);
+  assert.deepEqual(await kindOf(api.signUpOrIn('a@b.co', 'wrong-pass', META)), { kind: 'invalid', code: 'invalid_credentials' });
 });
 
 test('가입 트리거 거부(GoTrue 500 + P0001)는 network가 아니라 invalid와 그 코드', async () => {
@@ -209,11 +214,10 @@ test('가입 트리거 거부(GoTrue 500 + P0001)는 network가 아니라 invali
     { status: 500, body: { code: 'P0001', message: 'ai_consent_required' } },
     { status: 500, body: { code: 'unexpected_failure', msg: 'Database error saving new user' } },
   ]);
-  const meta = { age_confirmed: true, ai_consent: true, terms_version: 'v' } as const;
-  assert.deepEqual(await kindOf(api.sendCode('a@b.co', meta)), { kind: 'invalid', code: 'age_not_confirmed' });
-  assert.deepEqual(await kindOf(api.sendCode('a@b.co', meta)), { kind: 'invalid', code: 'ai_consent_required' });
+  assert.deepEqual(await kindOf(api.signUpOrIn('a@b.co', 'password1', META)), { kind: 'invalid', code: 'age_not_confirmed' });
+  assert.deepEqual(await kindOf(api.signUpOrIn('a@b.co', 'password1', META)), { kind: 'invalid', code: 'ai_consent_required' });
   // 그 밖의 500은 그대로 재시도할 수 있는 실패로 본다
-  assert.equal((await kindOf(api.sendCode('a@b.co', meta))).kind, 'network');
+  assert.equal((await kindOf(api.signUpOrIn('a@b.co', 'password1', META))).kind, 'network');
 });
 
 test('report_ai_text: 함수 이름, 글, 사유를 그대로 보낸다', async () => {
@@ -221,12 +225,6 @@ test('report_ai_text: 함수 이름, 글, 사유를 그대로 보낸다', async 
   await api.reportAiText('goal-setup', '코치 답', '틀린 설명');
   assert.match(calls[0].url, /\/rest\/v1\/rpc\/report_ai_text$/);
   assert.deepEqual(JSON.parse(calls[0].body ?? '{}'), { p_fn: 'goal-setup', p_text: '코치 답', p_reason: '틀린 설명' });
-});
-
-test('login_method: password만 password, 나머지는 otp', async () => {
-  const { api } = setup([{ status: 200, body: 'password' }, { status: 200, body: 'otp' }]);
-  assert.equal(await api.loginMethod('review@x.app'), 'password');
-  assert.equal(await api.loginMethod('a@b.co'), 'otp');
 });
 
 test('설정이 없으면 server not_configured', async () => {

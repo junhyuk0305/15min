@@ -29,7 +29,6 @@ async function main() {
   const api = createApi({ client: () => client });
   const step = (name: string, v: unknown) => process.stdout.write(`ok  ${name}  ${typeof v === 'string' ? v : JSON.stringify(v)}\n`);
 
-  step('login_method', await api.loginMethod(email));
   const session = await api.signInWithPassword(email, password);
   step('signInWithPassword', `user ${session.user.id.slice(0, 8)}…`);
 
@@ -70,14 +69,16 @@ async function main() {
   await api.signOut();
   step('signOut', 'local');
 
-  // 2부: 이메일 코드 가입. 동의 메타데이터가 가입 트리거까지 가서 프로필이 생기는지 본다(Mailpit에서 코드를 읽는다)
-  const mailpit = process.env.SMOKE_MAILPIT ?? 'http://127.0.0.1:54624';
+  // 2부: 이메일+비밀번호 가입(인증 없음). 동의 메타데이터가 가입 트리거까지 가서 프로필이 생기는지 본다
   const fresh = `smoke-${Date.now()}@test.local`;
-  await api.sendCode(fresh, { age_confirmed: true, ai_consent: true, terms_version: 'smoke' });
-  step('sendCode', fresh);
-  const code = await readCode(mailpit, fresh);
-  const s2 = await api.verifyCode(fresh, code);
-  step('verifyCode', `user ${s2.user.id.slice(0, 8)}…`);
+  const freshPassword = `smoke-${Date.now()}`;
+  const meta = { age_confirmed: true, ai_consent: true, terms_version: 'smoke' } as const;
+  const s2 = await api.signUpOrIn(fresh, freshPassword, meta);
+  step('signUpOrIn(가입)', `user ${s2.user.id.slice(0, 8)}…`);
+  await api.signOut();
+  const s3 = await api.signUpOrIn(fresh, freshPassword, meta);
+  if (s3.user.id !== s2.user.id) throw new Error('같은 이메일 재로그인이 다른 계정이 됐습니다');
+  step('signUpOrIn(재로그인)', 'same user');
   const p2 = await api.fetchProfile();
   step('fetchProfile(가입 트리거)', { giveups: p2?.giveupConfirmedCount });
   if (!p2) throw new Error('가입 트리거가 프로필을 만들지 않았습니다');
@@ -88,23 +89,9 @@ async function main() {
   await api.signOut();
 
   // 동의 없이 가입하면 트리거가 막는다
-  const raw = await client.auth.signInWithOtp({ email: `smoke-noconsent-${Date.now()}@test.local` });
+  const raw = await client.auth.signUp({ email: `smoke-noconsent-${Date.now()}@test.local`, password: freshPassword });
   step('동의 없는 가입', raw.error ? `거부됨 (${raw.error.status})` : '허용됨 (문제)');
   if (!raw.error) throw new Error('동의 없는 가입이 허용됐습니다');
-}
-
-async function readCode(base: string, to: string): Promise<string> {
-  for (let i = 0; i < 20; i++) {
-    const list = (await (await fetch(`${base}/api/v1/search?query=${encodeURIComponent(`to:${to}`)}`)).json()) as { messages?: { ID: string }[] };
-    const id = list.messages?.[0]?.ID;
-    if (id) {
-      const msg = (await (await fetch(`${base}/api/v1/message/${id}`)).json()) as { Text?: string; HTML?: string };
-      const m = /\b(\d{6})\b/.exec(`${msg.Text ?? ''} ${msg.HTML ?? ''}`);
-      if (m) return m[1];
-    }
-    await new Promise((r) => setTimeout(r, 500));
-  }
-  throw new Error('메일에서 코드를 찾지 못했습니다');
 }
 
 main().catch((err: unknown) => {
