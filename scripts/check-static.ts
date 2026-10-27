@@ -42,6 +42,9 @@ export const FORBIDDEN: { word: string; re: RegExp }[] = [
   { word: '차단', re: /차단/ },
   { word: '정지 처분', re: /정지 처분/ },
   { word: '졸업', re: /졸업/ },
+  { word: '시작 시각', re: /시작 시각/ },
+  { word: '학습 시각', re: /학습 시각/ },
+  { word: '약속한 시각', re: /약속한 시각/ },
 ];
 
 type Hit = { file: string; line: number; rule: string; text: string };
