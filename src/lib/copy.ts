@@ -118,7 +118,7 @@ export const copy = {
   },
 
   home: {
-    total: '누적 학습',
+    totalLine: (m: string) => `누적 ${m}`,
     milestone: (left: number, next: number) => `누적 ${next.toLocaleString()}분까지 ${left.toLocaleString()}분 남았습니다.`,
     streak: (n: number) => `연속 ${n}일`,
     streakLabel: '연속',
@@ -143,6 +143,8 @@ export const copy = {
     restBody: (when: string) => `다음 학습은 ${when}입니다.`,
     waitLabel: '시작까지',
     waitBody: (clock: string, m: number) => `${clock}에 ${m}분 학습합니다.`,
+    // 시작 버튼은 사전 알림(30분 전)부터 생긴다(rules.ts PRE_REMIND_MIN)
+    waitOpen: '30분 전부터 시작하기를 누를 수 있습니다.',
     soonBody: (m: number) => `곧 시작입니다. 오늘은 ${m}분입니다.`,
     graceLabel: '시작 시각이 지났습니다',
     graceBig: (m: number) => `${m}분 경과`,
@@ -150,6 +152,8 @@ export const copy = {
     nagLabel: '약속 시각이 지났습니다',
     nagBig: (m: number) => `${m}분 늦음`,
     nagScratch: (m: number) => `하루 ${m}분도 못 하시는 겁니까?`,
+    // 독촉 60회가 끝나도 판정 시각까지 하면 성공이다(기획서 6절)
+    nagDeadline: '04:00이 지나면 오늘은 실패입니다.',
     reason: '처음 이유',
     resumeLabel: '하다 말고 나가셨습니다',
     resumeBig: (m: number) => `${m}분 남음`,
@@ -176,9 +180,13 @@ export const copy = {
     backNote: '돌아오셨습니다. 연속은 0일부터 다시 시작입니다.',
     // 아래 이번 주 띠(3절)
     week: '이번 주',
+    weekHint: '학습한 날과 못 한 날이 여기 표시됩니다.',
+    // 첫 학습 전 홈의 하루 순서 미리보기
+    firstPlan: '첫 학습 순서',
+    firstPlanReason: '오늘의 이유 쓰기',
     // 첫 홈 코치마크 3개(갭분석 3.1-3). 알림은 시작 시각부터 학습 분만큼 지난 뒤 1분마다 간다(plan.ts)
     tourStart: (m: number) => `이 시각에 학습을 시작합니다. ${m}분 안에 시작하지 않으면 1분마다 알림이 갑니다.`,
-    tourCoupon: '쿠폰을 쓰면 그날은 실패로 세지 않습니다. 연속은 0일이 됩니다.',
+    tourCoupon: '쿠폰은 학습하는 날 홈에서 씁니다. 쓴 날은 알림이 멈추고 실패로 세지 않습니다. 연속은 0일이 됩니다.',
     tourArchive: '학습한 날이 여기 쌓입니다.',
   },
 
@@ -231,7 +239,7 @@ export const copy = {
     idleContinue: '계속하기',
     // 학습 나가기 시트(UXP 3절). 학습 중이라 긁지 않는다. 회고 3분을 채운 뒤에는 leaveFilledBody
     leaveTitle: '학습에서 나가시겠습니까?',
-    leaveBody: (n: number) => `지금 나가면 남은 ${n}분을 채울 때까지 다시 알림이 갑니다.`,
+    leaveBody: (n: number) => `지금 나가면 남은 ${n}분을 채울 때까지 다시 알림이 갑니다. 04:00까지 못 채우면 실패입니다.`,
     leaveFilledBody: '완료하기를 눌러야 오늘 학습이 끝납니다.',
     stay: '계속하기',
     leave: '나가기',
@@ -286,7 +294,7 @@ export const copy = {
     left: (n: number) => `${n}장 남음`,
     next: (d: number) => `다음 쿠폰까지 연속 ${d}일이 남았습니다.`,
     streakNow: (n: number) => `지금 연속 ${n}일입니다.`,
-    warn: '쓰면 연속이 0일로 돌아갑니다.',
+    warn: '쓰면 오늘 알림이 멈추고 실패로 세지 않습니다. 연속은 0일로 돌아갑니다.',
     use: '쿠폰 쓰기',
     close: '닫기',
     none: '남은 쿠폰이 없습니다.',
@@ -296,7 +304,7 @@ export const copy = {
     closedBefore: '첫 학습일부터 쓸 수 있습니다.',
     closedGiveup: '포기 대기 중에는 쓸 수 없습니다.',
     used: '오늘은 쉬십시오.',
-    usedShake: (n: number) => `남은 쿠폰은 ${n}장입니다. 내일은 0일부터입니다.`,
+    usedShake: (n: number) => `오늘 알림은 멈췄습니다. 남은 쿠폰은 ${n}장입니다.`,
     // 완료 화면 쿠폰 획득 카드(갭분석 3.1-11). 숫자는 selectors.couponEarnedOf
     earnedCard: (got: number, next: number) => `연속 ${got}일을 지켜 쿠폰 1장을 받았습니다. 다음은 연속 ${next}일입니다.`,
     home: '홈으로 가기',
@@ -621,9 +629,10 @@ export const copy = {
     rulesTitle: '학습 규칙',
     rulesPlan: '오늘 학습 순서',
     rulesStart: '확인하기',
-    rules: ['화면을 켜 두고 학습하는 동안만 시간이 줄어듭니다.', '2분 동안 입력이 없으면 멈춥니다.', '나가면 남은 시간을 채울 때까지 다시 알림이 갑니다.'],
+    rules: ['화면을 켜 두고 학습하는 동안만 시간이 줄어듭니다.', '2분 동안 입력이 없으면 멈춥니다.', '나가면 남은 시간을 채울 때까지 다시 알림이 갑니다.', '04:00까지 다 채우지 못하면 그날은 실패입니다.'],
     // 6번, 9번 단계 전환 화면의 한 줄
-    phaseB: '상대와 영어로 대화합니다. 막히면 코치가 표현을 알려 줍니다.',
+    // 코치는 영어 답을 고칠 때만 나온다. 한국어로 쓰면 영어로 다시 답하라는 말만 온다(lesson-turn core.ts)
+    phaseB: '상대와 영어로 대화합니다. 틀린 표현은 코치가 고쳐 줍니다.\n모르는 낱말은 쉬운 영어로 풀어 쓰십시오.',
     phaseC: '오늘 배운 표현을 다시 확인합니다.',
     // 7번 첫 코치 모달 아래 한 줄
     coachModal: '닫으면 같은 상황의 새 질문이 옵니다.\n배운 표현을 넣어 답하십시오.',

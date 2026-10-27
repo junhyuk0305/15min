@@ -14,6 +14,7 @@ import { TextButton } from '@/components/TextButton';
 import { Big, Body, Button, Gauge, Label, Screen, useNow } from '@/components/ui';
 import { WeekStrip } from '@/components/WeekStrip';
 import { copy } from '@/lib/copy';
+import { phaseName, phasePlan } from '@/lib/learn';
 import type { AppGoal } from '@/lib/model';
 import { getExactAlarm, openExactAlarmSettings } from '@/lib/notify';
 import { reportError } from '@/lib/report';
@@ -286,6 +287,7 @@ export default function Home() {
   let middle: React.ReactNode = null;
   let primary: React.ReactNode = null;
   let tourMinutes = 0;
+  let firstPlan: React.ReactNode = null;
   switch (st) {
     case 'before_first': {
       const first = nextStudyDay(goal, goal.firstDay) ?? goal.firstDay;
@@ -303,6 +305,19 @@ export default function Home() {
         </>
       );
       tourMinutes = fs.targetMinutes;
+      // 첫 학습 순서 미리보기. 첫날 A는 수준 확인이다
+      firstPlan = (
+        <View style={{ gap: S.xs }}>
+          <Label>{h.firstPlan}</Label>
+          <Body>{h.firstPlanReason}</Body>
+          {phasePlan(fs.targetMinutes).map((p) => (
+            <View key={p.phase} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: S.sm }}>
+              <Body>{phaseName(p.phase, true)}</Body>
+              <Body>{copy.session.planTime(p.seconds)}</Body>
+            </View>
+          ))}
+        </View>
+      );
       break;
     }
     case 'rest': {
@@ -321,6 +336,7 @@ export default function Home() {
           <Label>{h.waitLabel}</Label>
           <Big>{countdown(c.start - now)}</Big>
           <Body serif>{h.waitBody(fmtClock(s.startMinutes), s.targetMinutes)}</Body>
+          <Body muted>{h.waitOpen}</Body>
           {kst}
         </>
       );
@@ -351,6 +367,7 @@ export default function Home() {
           <Label inverse>{h.nagLabel}</Label>
           <Big inverse>{h.nagBig(Math.floor((now - c.start) / 60_000))}</Big>
           <Text style={[T.h2, { color: C.redInk }]}>{h.nagScratch(s.targetMinutes)}</Text>
+          <Body inverse>{h.nagDeadline}</Body>
           <View style={{ gap: S.xs, marginTop: S.sm }}>
             <Label inverse>{h.reason}</Label>
             <Body inverse serif>
@@ -394,15 +411,18 @@ export default function Home() {
       );
       break;
     }
-    case 'coupon':
+    case 'coupon': {
+      const next = nextStudyDay(goal, addDays(today, 1));
       middle = (
         <>
           <Label>{h.couponLabel}</Label>
           <Big>{h.couponBig(goal.coupons)}</Big>
           <Body serif>{h.couponBody(daysToNextCoupon(goal))}</Body>
+          {next ? <Body muted>{copy.learn.nextStudy(whenOf(goal, next, today))}</Body> : null}
         </>
       );
       break;
+    }
     case 'giveup':
       middle = (
         <>
@@ -450,24 +470,29 @@ export default function Home() {
           {goal.name}
         </Text>
 
-        <View style={{ gap: S.xs }}>
-          <Text style={[T.label, { color: sub }]}>{h.total}</Text>
-          <Text style={[T.hero, { color: ink }]}>{copy.unit.minutes(total)}</Text>
-          <Gauge ratio={ms.ratio} inverse={red} />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: S.sm }}>
-            <Text style={[T.small, { color: sub, flexShrink: 1 }]}>{h.milestone(ms.next - total, ms.next)}</Text>
-            <Text style={[T.small, { color: ink }]}>{h.streak(streak)}</Text>
-          </View>
-        </View>
-
         {note ? <Text style={[T.small, { color: ink }]}>{note === 'failed' ? h.failedNote : h.backNote}</Text> : null}
 
+        {/* 상태 블록이 홈에서 가장 크다. 누적은 그 아래 한 줄로 둔다(디자인 고도화 D1) */}
         <View style={{ paddingVertical: S.md, borderTopWidth: 1.5, borderBottomWidth: 1.5, borderColor: ink }}>
           {/* 상태가 바뀌면 가운데 블록이 200ms에 바뀐다(갭분석 M15) */}
           <StateBlock k={st} bg={red ? C.red : C.bg}>
             {middle}
           </StateBlock>
         </View>
+
+        {firstPlan}
+
+        {/* 첫 학습 전에는 누적과 연속이 0이라 보이지 않는다 */}
+        {st === 'before_first' ? null : (
+          <View style={{ gap: S.xs }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: S.sm }}>
+              <Text style={[T.h2, { color: ink }]}>{h.totalLine(copy.unit.minutes(total))}</Text>
+              <Text style={[T.h2, { color: ink }]}>{h.streak(streak)}</Text>
+            </View>
+            <Gauge ratio={ms.ratio} inverse={red} />
+            <Text style={[T.small, { color: sub }]}>{h.milestone(ms.next - total, ms.next)}</Text>
+          </View>
+        )}
 
         {st === 'giveup' ? null : (
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: S.sm }}>
@@ -490,6 +515,7 @@ export default function Home() {
 
         {/* 빨강 화면은 할 일 하나만 보인다. 빨강 위에서는 실패 칸 빨강이 안 보인다 */}
         {red ? null : <WeekStrip days={state.days} goal={goal} today={today} />}
+        {st === 'before_first' ? <Text style={[T.small, { color: sub }]}>{h.weekHint}</Text> : null}
       </Screen>
       {blend > 0 ? <Veil key={blend} /> : null}
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: PALETTES.ivory.onRed }, flashStyle]} />
