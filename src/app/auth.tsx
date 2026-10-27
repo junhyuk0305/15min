@@ -46,6 +46,8 @@ export default function Auth() {
   // 이메일 칸을 벗어났거나 키보드 완료를 눌렀다. 그 전에는 형식이 틀려도 빨강을 띄우지 않는다(쓰는 중, U9 D7)
   const [emailDone, setEmailDone] = useState(false);
   const [password, setPassword] = useState('');
+  // 가입인지 로그인인지는 제출해야 안다. 그래서 확인 칸을 늘 받는다. 가입 때 오타 난 비밀번호는 찾을 수 없다
+  const [password2, setPassword2] = useState('');
   const [consent, setConsent] = useState({ age: false, terms: false, ai: false });
   const [showTransfer, setShowTransfer] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -152,6 +154,7 @@ export default function Auth() {
     footer = <Button title={t.next} onPress={submitEmail} disabled={!typed || badEmail || !!reason} disabledReason={reason} />;
   } else {
     const short = password.length < PASSWORD_MIN;
+    const mismatch = password !== password2;
     body = (
       <>
         <H1>{t.passwordTitle}</H1>
@@ -165,18 +168,26 @@ export default function Auth() {
           textContentType="password"
           autoComplete="password"
           autoFocus
-          onSubmitEditing={() => !short && void submitPassword()}
+        />
+        <Input
+          label={t.password2Label}
+          value={password2}
+          onChangeText={setPassword2}
+          secureTextEntry
+          textContentType="password"
+          autoComplete="password"
+          onSubmitEditing={() => !short && !mismatch && void submitPassword()}
         />
       </>
     );
-    // 빈 칸은 이유 없이 비활성. 쓰기 시작했는데 모자라면 빨강
+    // 빈 칸은 이유 없이 비활성. 쓰기 시작했는데 모자라거나 두 칸이 다르면 빨강
     footer = (
       <Button
         title={t.verify}
         onPress={() => void submitPassword()}
         busy={busy}
-        disabled={short}
-        disabledReason={password.length > 0 && short ? t.passwordShort(PASSWORD_MIN) : null}
+        disabled={short || mismatch}
+        disabledReason={password.length > 0 && short ? t.passwordShort(PASSWORD_MIN) : password2.length > 0 && mismatch ? t.passwordMismatch : null}
       />
     );
   }

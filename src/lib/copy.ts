@@ -535,10 +535,12 @@ export const copy = {
     needConsent: '필수 항목 3개에 모두 동의하십시오.',
     agreeAll: '모두 동의합니다',
     next: '다음',
-    verify: '로그인하기',
+    verify: '가입 또는 로그인하기',
     passwordTitle: '비밀번호를 입력하십시오.',
     passwordSub: '처음이면 이 비밀번호로 가입됩니다. 비밀번호를 잊으면 찾을 수 없으니 꼭 기억하십시오.',
     passwordLabel: '비밀번호',
+    password2Label: '비밀번호 다시 입력',
+    passwordMismatch: '두 비밀번호가 다릅니다.',
     passwordShort: (n: number) => `${n}자 이상 입력하십시오.`,
   },
 
