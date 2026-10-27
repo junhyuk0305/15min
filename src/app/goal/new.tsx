@@ -15,6 +15,7 @@ import {
   FIELD_ORDER,
   firstStart,
   missingFields,
+  studyCount,
   toGoalInput,
   WEEKDAY_ORDER,
   weekdaysShort,
@@ -25,11 +26,11 @@ import { HeaderMore } from '@/components/Header';
 import { Transcript } from '@/components/learn/Transcript';
 import { useLineMenu } from '@/components/LineMenu';
 import { TextButton } from '@/components/TextButton';
-import { Body, Button, Field, Row, useNow } from '@/components/ui';
+import { Body, Button, Field, Label, Row, useNow } from '@/components/ui';
 import { toApiError } from '@/lib/api';
 import { copy, errorText } from '@/lib/copy';
 import type { Line } from '@/lib/learn';
-import { APP_TIME_ZONE, crossesBoundary, fmtClock, MIN_NOTE_CHARS } from '@/lib/rules';
+import { APP_TIME_ZONE, crossesBoundary, firstDayFor, fmtClock, MIN_NOTE_CHARS } from '@/lib/rules';
 import { useApp } from '@/lib/store';
 import { markSeen, useTipSeen } from '@/lib/tips';
 import { useAction } from '@/lib/useAction';
@@ -279,6 +280,10 @@ function PlanStage() {
   const fields = useGoalDraft((s) => s.fields);
   const plan = useGoalDraft((s) => s.plan);
   const setPlan = useGoalDraft((s) => s.setPlan);
+  const now = useNow(60_000);
+  const first = firstDayFor(now, APP_TIME_ZONE);
+  const picked = WEEKDAY_ORDER.filter((w) => plan.weekdays.includes(w));
+  const days = picked.length === 7 ? g.planEveryDay : picked.join() === '1,2,3,4,5' ? g.planWeekdaysOnly : picked.map((w) => g.weekdayNames[w]).join(' ');
   const short = weekdaysShort(plan.weekdays);
   // 학습과 회고가 04:00을 넘는 일정은 서버가 받지 않는다(crosses_boundary)
   const reason = short > 0 ? g.weekdaysLeft(short) : crossesBoundary(plan.startMinutes, plan.targetMinutes) ? g.boundary : null;
@@ -294,9 +299,15 @@ function PlanStage() {
         />
       }
     >
-      <Text accessibilityRole="header" style={[T.h2, { color: C.ink }]}>
-        {g.planTitle}
-      </Text>
+      {/* 이 약속이 뜻하는 것을 가장 크게. 첫 도전일(내일)부터 기간 안의 학습일 수(디자인 고도화 C안) */}
+      <View style={{ gap: S.xs, paddingBottom: S.md, borderBottomWidth: B.base, borderColor: C.ink }}>
+        <Label>{g.planLabel}</Label>
+        <Text accessibilityRole="header" style={[T.big, { color: C.ink }]}>
+          {`${g.planWhen(days, fmtClock(plan.startMinutes))}
+${g.planCount(plan.targetMinutes, studyCount(first, plan.periodDays, plan.weekdays))}`}
+        </Text>
+        <Text style={[T.small, { color: C.sub }]}>{g.planSpan(Number(first.slice(5, 7)), Number(first.slice(8, 10)), plan.periodDays)}</Text>
+      </View>
       <PlanFields plan={plan} onChange={setPlan} />
     </Frame>
   );

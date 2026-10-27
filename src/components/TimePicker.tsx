@@ -2,16 +2,15 @@
 // 값은 한국 시간 분 숫자(0~1439)다. 선택기에 timeZoneName을 넘겨 기기 시간대와 상관없이 한국 시각으로 보이고 받는다.
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Platform, Pressable, Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import { BottomSheet } from '@/components/BottomSheet';
-import { Glyph } from '@/components/Glyph';
-import { Button, Label } from '@/components/ui';
+import { Button } from '@/components/ui';
+import { ValueRow } from '@/components/ValueRow';
 import { copy } from '@/lib/copy';
-import { tap } from '@/lib/haptics';
 import { APP_TIME_ZONE, fmtClock } from '@/lib/rules';
 import { showsKstLabel } from '@/lib/selectors';
 import { minutesToPickerDate, pickerDateToMinutes } from '@/lib/timePick';
-import { B, C, HIT, R, S, T } from '@/lib/theme';
+import { C, S, T } from '@/lib/theme';
 
 const g = copy.goalSetup;
 
@@ -20,7 +19,6 @@ export function TimePicker({ value, onChange }: { value: number; onChange: (minu
   const clock = fmtClock(value);
 
   const show = () => {
-    tap();
     if (Platform.OS === 'android') {
       // Android는 명령형 대화상자를 권장한다(패키지 README "Android imperative api")
       DateTimePickerAndroid.open({
@@ -37,26 +35,7 @@ export function TimePicker({ value, onChange }: { value: number; onChange: (minu
 
   return (
     <View style={{ gap: S.xs }}>
-      <Label>{g.hour}</Label>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${g.hour} ${clock}`}
-        onPress={show}
-        style={({ pressed }) => ({
-          minHeight: HIT + 12,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingHorizontal: S.md,
-          borderWidth: B.base,
-          borderColor: C.ink,
-          borderRadius: R.md,
-          backgroundColor: pressed ? C.line : C.card,
-        })}
-      >
-        <Text style={[T.big, { fontSize: 28, lineHeight: 36, color: C.ink }]}>{clock}</Text>
-        <Glyph name="forward" size={16} color={C.sub} />
-      </Pressable>
+      <ValueRow label={g.hour} value={clock} onPress={show} />
       {showsKstLabel(new Date().getTimezoneOffset()) ? <Text style={[T.small, { color: C.sub }]}>{copy.unit.kst}</Text> : null}
 
       {Platform.OS === 'ios' ? (

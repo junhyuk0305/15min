@@ -1,15 +1,16 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { clampTarget, toggleWeekday, weekdaysShort } from '@/components/goal/logic';
+import { toggleWeekday, weekdaysShort } from '@/components/goal/logic';
 import { WeekdayCells } from '@/components/goal/PlanFields';
 import { ConfirmSheet } from '@/components/BottomSheet';
 import { ErrorLine } from '@/components/ErrorLine';
 import { Header } from '@/components/Header';
+import { MinutesPicker } from '@/components/MinutesPicker';
 import { TextButton } from '@/components/TextButton';
 import { TimePicker } from '@/components/TimePicker';
 import { showToast } from '@/components/Toast';
-import { Body, Button, Card, Label, Screen, Stepper } from '@/components/ui';
+import { Body, Button, Card, Label, Screen } from '@/components/ui';
 import { copy } from '@/lib/copy';
 import { success } from '@/lib/haptics';
 import { crossesBoundary, fmtClock } from '@/lib/rules';
@@ -96,14 +97,11 @@ export default function GoalSettings() {
         <Text style={[T.small, { color: C.sub, marginTop: S.xs }]}>{t.locked}</Text>
       </Card>
 
-      <TimePicker value={v.startMinutes} onChange={(startMinutes) => edit({ startMinutes })} />
-
-      <Stepper
-        label={t.minutesLabel}
-        display={copy.unit.minutes(v.targetMinutes)}
-        onMinus={() => edit({ targetMinutes: clampTarget(v.targetMinutes - 1) })}
-        onPlus={() => edit({ targetMinutes: clampTarget(v.targetMinutes + 1) })}
-      />
+      {/* 목표 정하기 2/3과 같은 값 한 줄(디자인 고도화 C안) */}
+      <View>
+        <TimePicker value={v.startMinutes} onChange={(startMinutes) => edit({ startMinutes })} />
+        <MinutesPicker value={v.targetMinutes} onChange={(targetMinutes) => edit({ targetMinutes })} />
+      </View>
 
       <View style={{ gap: S.sm }}>
         <Label>{t.weekdaysLabel}</Label>

@@ -9,8 +9,6 @@ import {
   MIN_NOTE_CHARS,
   MIN_WEEKDAYS,
   PERIOD_DEFAULT,
-  PERIOD_MAX,
-  PERIOD_MIN,
   TARGET_MAX,
   TARGET_MIN,
   weekdayOf,
@@ -97,7 +95,6 @@ export function choicesOf(reply: string): string[] {
   return [];
 }
 
-export const clampPeriod = (n: number) => Math.min(PERIOD_MAX, Math.max(PERIOD_MIN, n));
 export const clampTarget = (n: number) => Math.min(TARGET_MAX, Math.max(TARGET_MIN, n));
 export const wrapDay = (m: number) => ((m % 1440) + 1440) % 1440;
 
@@ -133,6 +130,13 @@ export function firstStart(now: number, timeZone: string, plan: Pick<Plan, 'week
     weekday: weekdayOf(day),
     clock: `${pad(a.hour)}:${pad(a.minute)}`,
   };
+}
+
+/** 첫 도전일부터 기간 안의 학습일 수. 달성 선언일(achieveDay = 첫 도전일 + 기간) 전날까지 센다 */
+export function studyCount(firstDay: string, periodDays: number, weekdays: readonly number[]): number {
+  let n = 0;
+  for (let i = 0; i < periodDays; i++) if (isStudyDay(addDays(firstDay, i), weekdays)) n++;
+  return n;
 }
 
 /** create_goal 입력. 하위 상황이 없으면(직접 쓰기) fallbackScenes */

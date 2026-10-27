@@ -10,6 +10,7 @@ import {
   missingFields,
   progressOf,
   setMinute,
+  studyCount,
   toGoalInput,
   toggleWeekday,
   weekdaysShort,
@@ -140,4 +141,11 @@ test('profileFromRow: 정지 중 반성문 시간대를 프로필에서 읽는�
   const q = profileFromRow({ user_id: 'u' });
   assert.equal(q.suspendedStartMinutes, null);
   assert.equal(q.suspendedTargetMinutes, null);
+});
+
+test('studyCount: 첫 도전일부터 기간 안의 학습일 수(목표 정하기 2/3 요약)', () => {
+  // 2026-10-29는 목요일. 평일 14일이면 목, 금 + 월~금 + 월~수 = 10번
+  assert.equal(studyCount('2026-10-29', 14, [1, 2, 3, 4, 5]), 10);
+  assert.equal(studyCount('2026-10-29', 14, [0, 1, 2, 3, 4, 5, 6]), 14);
+  assert.equal(studyCount('2026-10-29', 7, [1, 2, 3, 4, 5]), 5);
 });

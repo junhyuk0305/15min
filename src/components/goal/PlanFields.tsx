@@ -1,11 +1,12 @@
 import { Pressable, Text, View } from 'react-native';
+import { MinutesPicker } from '@/components/MinutesPicker';
 import { TimePicker } from '@/components/TimePicker';
-import { Label, Stepper } from '@/components/ui';
+import { Label } from '@/components/ui';
 import { copy } from '@/lib/copy';
-import { MIN_WEEKDAYS, TARGET_MAX, TARGET_MIN } from '@/lib/rules';
+import { MIN_WEEKDAYS } from '@/lib/rules';
 import { B, C, HIT, R, S, T } from '@/lib/theme';
 import { Chip } from './Chip';
-import { clampPeriod, clampTarget, PERIOD_PRESETS, toggleWeekday, WEEKDAY_ORDER, type Plan } from './logic';
+import { PERIOD_PRESETS, toggleWeekday, WEEKDAY_ORDER, type Plan } from './logic';
 
 const g = copy.goalSetup;
 
@@ -36,18 +37,13 @@ export function WeekdayCells({ weekdays, onToggle }: { weekdays: readonly number
   );
 }
 
-/** 숫자 항목은 채팅 대신 위젯으로 받는다(MP 3절). 기간, 학습 요일, 시작 시각(1분 단위, TimePicker), 하루 학습 분 */
+/** 숫자 항목은 채팅 대신 위젯으로 받는다(MP 3절). 기간 칩, 학습 요일, 약속 시각(1분 단위, TimePicker), 하루 학습 분(MinutesPicker) */
 export function PlanFields({ plan, onChange }: { plan: Plan; onChange: (p: Plan) => void }) {
   const set = (patch: Partial<Plan>) => onChange({ ...plan, ...patch });
   return (
     <View style={{ gap: S.lg }}>
       <View style={{ gap: S.sm }}>
-        <Stepper
-          label={g.period}
-          display={copy.unit.days(plan.periodDays)}
-          onMinus={() => set({ periodDays: clampPeriod(plan.periodDays - 1) })}
-          onPlus={() => set({ periodDays: clampPeriod(plan.periodDays + 1) })}
-        />
+        <Label>{g.period}</Label>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: S.sm }}>
           {PERIOD_PRESETS.map((n) => (
             <Chip key={n} role="radio" label={copy.unit.days(n)} on={plan.periodDays === n} onPress={() => set({ periodDays: n })} />
@@ -62,16 +58,10 @@ export function PlanFields({ plan, onChange }: { plan: Plan; onChange: (p: Plan)
         <Note>{g.weekdaysNote(MIN_WEEKDAYS)}</Note>
       </View>
 
-      <TimePicker value={plan.startMinutes} onChange={(startMinutes) => set({ startMinutes })} />
-
-      <View style={{ gap: S.sm }}>
-        <Stepper
-          label={g.minutes}
-          display={copy.unit.minutes(plan.targetMinutes)}
-          onMinus={() => set({ targetMinutes: clampTarget(plan.targetMinutes - 1) })}
-          onPlus={() => set({ targetMinutes: clampTarget(plan.targetMinutes + 1) })}
-        />
-        <Note>{g.minutesNote(TARGET_MIN, TARGET_MAX)}</Note>
+      {/* 약속 시각과 하루 학습은 눌러서 바꾸는 값 한 줄이다. 칩, 요일 칸과 모양을 나눈다(디자인 고도화 C안) */}
+      <View>
+        <TimePicker value={plan.startMinutes} onChange={(startMinutes) => set({ startMinutes })} />
+        <MinutesPicker value={plan.targetMinutes} onChange={(targetMinutes) => set({ targetMinutes })} />
       </View>
     </View>
   );

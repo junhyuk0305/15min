@@ -13,6 +13,7 @@ import { TextButton } from '@/components/TextButton';
 import { showToast } from '@/components/Toast';
 import { TypingDots } from '@/components/TypingDots';
 import { Body, Button, Card, Field, Gauge, Label, Row, Screen } from '@/components/ui';
+import { ValueRow } from '@/components/ValueRow';
 import { copy } from '@/lib/copy';
 import { PALETTES, S, T } from '@/lib/theme';
 
@@ -52,7 +53,7 @@ function GalleryBody() {
 
       {part('controls') ? (
         <View style={{ gap: S.sm }}>
-          <Label>Button / Row / Field / Gauge</Label>
+          <Label>Button / Row / ValueRow / Field / Gauge</Label>
           <Button title={copy.ux.next} onPress={() => setRatio(ratio >= 1 ? 0 : ratio + 0.35)} />
           <Button title={copy.ux.send} onPress={() => undefined} disabled disabledReason={copy.session.needChars(12)} />
           <Gauge ratio={ratio} />
@@ -63,6 +64,7 @@ function GalleryBody() {
             <Row left={copy.settings.logout} value={copy.legal.titles.privacy} chevron pressBg onPress={() => setOpen('confirm')} />
           </View>
           <Row left={copy.legal.titles.terms} right="1.0.0" />
+          <ValueRow label={copy.goalSetup.hour} value="22:00" onPress={() => setOpen('sheet')} />
           <Field label="min 20" value={text} onChange={setText} min={20} />
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: S.md }}>
             <TextButton title={copy.ux.more} arrow onPress={() => setOpen('coach')} />
