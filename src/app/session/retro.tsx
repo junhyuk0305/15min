@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Text } from 'react-native';
 import { Banner } from '@/components/Banner';
 import { Composer } from '@/components/Composer';
 import { ErrorLine } from '@/components/ErrorLine';
@@ -11,12 +12,13 @@ import { useLearnClock, useOnline, useSessionPresence } from '@/components/learn
 import { Body, Button, useNow } from '@/components/ui';
 import { toApiError } from '@/lib/api';
 import { copy, errorText } from '@/lib/copy';
-import { dayEnded, leftMinutes, linesOf, phaseBar, retroAwaitsAnswer, retroClosing, saveFailure, sendId, type Line } from '@/lib/learn';
+import { dayEnded, leftMinutes, linesOf, phaseBar, retroAwaitsAnswer, retroClosing, retroQuestionNo, saveFailure, sendId, type Line } from '@/lib/learn';
 import { dayKeyId, uuidv4, type Message } from '@/lib/model';
 import { reportError } from '@/lib/report';
 import { RETRO_SECONDS, type DayRow } from '@/lib/rules';
 import { todayKey, todayKeyOf, todayRow, useApp } from '@/lib/store';
 import { useReveal } from '@/lib/useReveal';
+import { C, T } from '@/lib/theme';
 
 const t = copy.learn;
 const NONE: Message[] = [];
@@ -211,20 +213,24 @@ function RetroBody({ rec, onGone }: { rec: DayRow; onGone: () => void }) {
   // 새로 온 코치 질문이 다 보이면 입력창에 포커스한다(갭분석 C4). 다시 들어왔을 때 있던 줄에는 하지 않는다
   const last = lines.at(-1);
   const focusKey = !waiting && !reveal.revealing && last && last.kind !== 'me' && reveal.isNew(last.id) ? last.id : null;
+  const qNo = retroQuestionNo(messages);
   const composer = (
-    <Composer
-      value={text}
-      onChange={(v) => {
-        setText(v);
-        touch();
-      }}
-      onSend={() => void send()}
-      busy={waiting}
-      error={failed === 'send' ? (error ?? t.failed) : null}
-      placeholder={t.inputPlaceholder}
-      onInputStart={reveal.finish}
-      focusKey={focusKey}
-    />
+    <>
+      {qNo ? <Text style={[T.small, { color: C.sub }]}>{qNo === 1 ? t.retroQKo1 : t.retroQKo2}</Text> : null}
+      <Composer
+        value={text}
+        onChange={(v) => {
+          setText(v);
+          touch();
+        }}
+        onSend={() => void send()}
+        busy={waiting}
+        error={failed === 'send' ? (error ?? t.failed) : null}
+        placeholder={t.inputPlaceholder}
+        onInputStart={reveal.finish}
+        focusKey={focusKey}
+      />
+    </>
   );
   // 시간이 찼어도 답을 기다리는 질문이 남았거나 쓰던 문장이 있으면 입력창을 남긴다. 완료하기가 주 버튼이다
   const keepInput = filled && !done && (retroAwaitsAnswer(messages) || !!text.trim() || failed === 'send');

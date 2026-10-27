@@ -20,6 +20,7 @@ import {
   quizModalOf,
   quizStep,
   retroAwaitsAnswer,
+  retroQuestionNo,
   retroClosing,
   revealedChoice,
   saveFailure,
@@ -347,6 +348,15 @@ test('회고: 마지막 줄이 마무리가 아닌 코치 줄이면 답을 기�
   assert.equal(retroAwaitsAnswer([r('u2', 'user'), r('f', 'coach', { retro_stage: 'follow_up' })]), true);
   assert.equal(retroAwaitsAnswer([r('u2', 'user'), r('c', 'coach', { retro_stage: 'closing' })]), false);
   assert.equal(retroAwaitsAnswer([r('c', 'coach', { retro_stage: 'closing' }), msg('b', 'partner', 'B 줄')]), false, '회고 줄만 본다');
+});
+
+test('회고: 마지막 줄이 고정 질문이면 그 번호(한국어 뜻을 붙인다)', () => {
+  const r = (id: string, role: Message['role'], meta: Record<string, unknown> = {}) => msg(id, role, id, { phase: 'retro', meta });
+  assert.equal(retroQuestionNo([]), null);
+  assert.equal(retroQuestionNo([r('q1', 'coach', { retro_q: 1 })]), 1);
+  assert.equal(retroQuestionNo([r('q1', 'coach', { retro_q: 1 }), r('u1', 'user'), r('q2', 'coach', { retro_q: 2 })]), 2);
+  assert.equal(retroQuestionNo([r('q1', 'coach', { retro_q: 1 }), r('u1', 'user')]), null, '답한 뒤에는 없다');
+  assert.equal(retroQuestionNo([r('u2', 'user'), r('f', 'coach', { retro_stage: 'follow_up' })]), null, '후속 질문은 모델이 써서 뜻이 없다');
 });
 
 // 04:00 경계 (QA Q-E)

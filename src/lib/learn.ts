@@ -222,6 +222,13 @@ export function retroAwaitsAnswer(messages: readonly Message[]): boolean {
   return !!last && last.role === 'coach' && last.meta.retro_stage !== 'closing';
 }
 
+/** 회고의 마지막 줄이 고정 질문(1, 2번)이면 그 번호. 화면이 한국어 뜻을 붙인다 */
+export function retroQuestionNo(messages: readonly Message[]): 1 | 2 | null {
+  const last = messages.filter((m) => m.phase === 'retro').at(-1);
+  if (!last || last.role !== 'coach') return null;
+  return last.meta.retro_q === 1 || last.meta.retro_q === 2 ? last.meta.retro_q : null;
+}
+
 // ---------- 보내기 ----------
 
 /** 실패한 문장을 다시 보낼 때 같은 id를 쓴다(서버가 한 번만 저장). 문장을 고쳤으면 새 id */

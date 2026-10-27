@@ -269,6 +269,9 @@ export const copy = {
     // 회고 (결정안 17)
     retroSub: '3분 동안 영어로 오늘을 돌아봅니다. 짧게 써도 됩니다.',
     retroFilled: '회고 3분을 채웠습니다.',
+    // 회고 고정 질문의 한국어 뜻(서버 _shared/copy.ts RETRO_Q1, RETRO_Q2). 질문은 영어 그대로 두고 입력창 위에 붙인다
+    retroQKo1: '뜻: 오늘 배운 표현 하나를 넣어 문장을 쓰십시오.',
+    retroQKo2: '뜻: 오늘 하루는 어땠습니까?',
     toRetro: '회고하기',
     finish: '완료하기',
     // 완료 (기획서 9.2, 11.8)
