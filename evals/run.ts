@@ -68,10 +68,16 @@ if (!FAKE && !API_KEY) {
 
 const attempts: AttemptEvent[] = [];
 let transportFailures = 0;
+/** 프롬프트별 토큰 합계(판정 모델 호출은 빼고). 비용 측정용. */
+const usage = new Map<string, { calls: number; input: number; output: number }>();
 const base: Transport = FAKE ? fakeTransport : geminiTransport(API_KEY!);
 const counted: Transport = async (r) => {
   try {
-    return await base(r);
+    const res = await base(r);
+    const key = `${r.promptId} / ${r.model}`;
+    const u = usage.get(key) ?? { calls: 0, input: 0, output: 0 };
+    usage.set(key, { calls: u.calls + 1, input: u.input + res.inputTokens, output: u.output + res.outputTokens });
+    return res;
   } catch (e) {
     transportFailures++;
     throw e;
@@ -79,7 +85,9 @@ const counted: Transport = async (r) => {
 };
 const noMeter = { reserve: () => Promise.resolve(0), finish: () => Promise.resolve() };
 const ai = createAi({ config, transport: counted, meter: noMeter, observe: (e) => attempts.push(e) });
-const judgeAi = createAi({ config, transport: base, meter: noMeter });
+// 판정 모델은 AI_MODEL_MAIN을 바꿔도 고정한다. 모델 비교(A/B)에서 채점자가 같이 바뀌지 않게 한다.
+const JUDGE_MODEL = Deno.env.get('AI_MODEL_JUDGE') || DEFAULT_MODEL_MAIN;
+const judgeAi = createAi({ config: { ...config, models: { ...config.models, main: JUDGE_MODEL } }, transport: base, meter: noMeter });
 
 type Latency = { fn: string; ms: number };
 const latencies: Latency[] = [];
@@ -493,7 +501,9 @@ function seededShuffle<T>(xs: T[], seed: number): T[] {
 const started = performance.now();
 const startedAt = nowIso();
 const parts = [];
-for (const [name, f] of [['lesson-turn', evalLesson], ['lesson-hint', evalHint], ['goal-setup', evalGoalSetup], ['review-quiz', evalQuiz], ['retro', evalRetro], ['reflection', evalReflection]] as const) {
+// EVAL_ONLY=lesson-turn,lesson-hint 처럼 일부 함수만 돌린다(비교 실험용). 없으면 전부.
+const only = Deno.env.get('EVAL_ONLY')?.split(',').map((s) => s.trim());
+for (const [name, f] of ([['lesson-turn', evalLesson], ['lesson-hint', evalHint], ['goal-setup', evalGoalSetup], ['review-quiz', evalQuiz], ['retro', evalRetro], ['reflection', evalReflection]] as const).filter(([n]) => !only || only.includes(n))) {
   console.info(`eval ${name} ...`);
   parts.push(await f());
 }
@@ -518,7 +528,7 @@ const report = `${title}
 
 ${banner}
 - 시작: ${startedAt}, 걸린 시간 ${((performance.now() - started) / 1000).toFixed(1)}초
-- 모델: MAIN \`${FAKE ? 'fake' : config.models.main}\`, LIGHT \`${FAKE ? 'fake' : config.models.light}\`, 판정 \`${FAKE ? 'fake' : config.models.main}\`
+- 모델: MAIN \`${FAKE ? 'fake' : config.models.main}\`, LIGHT \`${FAKE ? 'fake' : config.models.light}\`, 판정 \`${FAKE ? 'fake' : JUDGE_MODEL}\`${only ? `\n- 일부만 실행: ${only.join(', ')}` : ''}
 - 프롬프트: ${[LESSON_V, HINT_V, GOAL_V, QUIZ_V, RETRO_V, REFLECTION_V].map((v) => `\`${v}\``).join(', ')}
 - 모델 호출 ${totalAttempts}회(재요청 ${reRequests}회, 전송 실패 ${transportFailures}회), 판정 모델 실패 ${judgeFailures}회(위반으로 셈)
 
@@ -532,6 +542,12 @@ ${gates.map((g) => `| ${g.fn} | ${g.criterion} | ${g.threshold} | ${g.result} | 
 
 ${parts.flatMap((p) => p.info).map((s) => `- ${s}`).join('\n')}
 - 함수별 응답 시간 p95: ${[...new Set(latencies.map((l) => l.fn))].map((fn) => `${fn} ${(p95(latencies.filter((l) => l.fn === fn).map((l) => l.ms)) / 1000).toFixed(2)}초`).join(', ')}
+
+## 토큰 (프롬프트별, 판정 모델 제외)
+
+| 프롬프트 / 모델 | 호출 | 재요청 | 평균 입력 | 평균 출력(생각 포함) |
+|---|---|---|---|---|
+${[...usage].map(([id, u]) => `| ${id} | ${u.calls} | ${attempts.filter((a) => `${a.promptId} / ${a.model}` === id && a.attempt === 2).length} | ${Math.round(u.input / u.calls)} | ${Math.round(u.output / u.calls)} |`).join('\n')}
 
 ## 측정 방법
 
