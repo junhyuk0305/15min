@@ -1,5 +1,6 @@
 // lesson-turn의 모델 호출과 서버 규칙. 핸들러와 평가(evals)가 같은 함수를 쓴다.
 import { COACH_COPY } from '../_shared/copy.ts';
+import type { Tier } from '../_shared/config.ts';
 import type { Ai } from '../_shared/gemini.ts';
 import {
   buildHintInput,
@@ -195,19 +196,29 @@ export function checkTurn(raw: TurnOutput, f: FinalTurn, c: TurnContext): string
   return e;
 }
 
+/**
+ * 턴은 LIGHT가 먼저 판정한다. 교정이 필요 없으면 그 답을 쓰고, 교정이 필요하면 MAIN이 처음부터 다시 쓴다.
+ * 평가(2026-10-28)에서 LIGHT의 판정은 MAIN과 같았지만 교정 내용(단서, 패턴 단계, 다음 질문)은 약했다.
+ * 그래서 LIGHT의 교정 출력은 검사하지 않고 버린다(재요청 비용을 쓰지 않는다).
+ */
 export async function runTurn(ai: Ai, c: TurnContext): Promise<FinalTurn> {
-  const raw = await ai.generate<TurnOutput>({
-    fn: FN,
-    promptId: 'lesson-turn',
-    promptVersion: PROMPT_VERSION,
-    tier: 'main',
-    system: SYSTEM,
-    input: buildTurnInput(c),
-    schema: TURN_SCHEMA,
-    context: c,
-    check: (r) => checkTurn(r, finalizeTurn(r, c), c),
-  });
-  return finalizeTurn(raw, c);
+  const corrects = (r: TurnOutput) => finalizeTurn(r, c).verdict === 'needs_correction';
+  const request = (tier: Tier, check: (r: TurnOutput) => string[]) =>
+    ai.generate<TurnOutput>({
+      fn: FN,
+      promptId: 'lesson-turn',
+      promptVersion: PROMPT_VERSION,
+      tier,
+      system: SYSTEM,
+      input: buildTurnInput(c),
+      schema: TURN_SCHEMA,
+      context: c,
+      check,
+    });
+  const full = (r: TurnOutput) => checkTurn(r, finalizeTurn(r, c), c);
+  const first = await request('light', (r) => (corrects(r) ? [] : full(r)));
+  if (!corrects(first)) return finalizeTurn(first, c);
+  return finalizeTurn(await request('main', full), c);
 }
 
 export function checkEnglishLine(s: string, what: string): string[] {

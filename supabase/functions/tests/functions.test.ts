@@ -141,7 +141,8 @@ Deno.test('lesson-turn: 같은 message.id로 다시 오면 모델을 다시 부�
   const again = await call(lessonTurn, deps(repo, c.transport), turnBody('I want order menu.'));
   assert.equal(first.status, 200);
   assert.deepEqual(again.body, first.body);
-  assert.deepEqual(c.calls, ['lesson-turn']);
+  // 교정 턴은 light 판정 뒤 main이 다시 쓴다(2회). 다시 온 요청은 모델을 부르지 않는다.
+  assert.deepEqual(c.calls, ['lesson-turn', 'lesson-turn']);
   const ids = first.body.messages.map((m: { id: string }) => m.id);
   assert.deepEqual(ids, [MSG, await replyId(MSG, 'coach'), await replyId(MSG, 'partner')]);
   assert.equal(repo.t.messages.length, 3);
